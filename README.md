@@ -7,7 +7,6 @@ A powerful, user-friendly command-line tool for penetration testing and red team
 - **🎯 Infrastructure Enumeration** - Network scanning, SMB enumeration, Active Directory reconnaissance
 - **📁 File Transfer Helper** - Quick file server setup with command generation for victim machines
 - **🌐 Web Reconnaissance** - Subdomain discovery, directory bruteforce, vulnerability scanning
-- **🎨 Interactive Mode** - Guided setup for beginners
 - **📚 Built-in Cheat Sheet** - Comprehensive examples at your fingertips
 - **🚀 Smart Error Messages** - Contextual hints when something goes wrong
 
@@ -19,24 +18,49 @@ A powerful, user-friendly command-line tool for penetration testing and red team
 # View main help
 ./red.sh
 
-# Interactive mode (easiest for beginners)
-./red.sh --interactive
-
 # View examples and cheat sheet
-./red.sh --examples
+./red.sh --examples  # or use alias: ./red.sh -e
 ```
+
+### Using Aliases (Faster Typing) ⚡
+
+All main commands support short aliases for speed:
+
+```bash
+# Long form
+./red.sh --infra -nmap 10.10.10.10
+./red.sh --file tun0 linpeas.sh
+./red.sh --web example.com --all
+
+# Short form (aliases)
+./red.sh -i -nmap 10.10.10.10
+./red.sh -f tun0 linpeas.sh
+./red.sh -w example.com --all
+```
+
+**Available Aliases:**
+- `-i` = `--infra`
+- `-f` = `--file`
+- `-w` = `--web`
+- `-e` = `--examples`
 
 ### Common Commands
 
 ```bash
 # Scan a target with Nmap
 ./red.sh --infra -nmap 10.10.10.10
+# Or using alias:
+./red.sh -i -nmap 10.10.10.10
 
 # Transfer a file to victim machine
 ./red.sh --file tun0 linpeas.sh
+# Or using alias:
+./red.sh -f tun0 linpeas.sh
 
 # Discover subdomains
 ./red.sh --web example.com --all
+# Or using alias:
+./red.sh -w example.com --all
 ```
 
 ## 📖 Modules
@@ -138,20 +162,6 @@ Perform web application reconnaissance:
 - `-screenshots` - Screenshot capture
 - `-waf` - WAF detection
 
-## 🎮 Interactive Mode
-
-Perfect for beginners or when you can't remember the syntax:
-
-```bash
-./red.sh --interactive
-```
-
-The interactive mode will:
-1. Guide you through module selection
-2. Prompt for all required parameters
-3. Show you the generated command
-4. Ask for confirmation before execution
-
 ## 📚 Examples & Cheat Sheet
 
 Access the comprehensive cheat sheet:
@@ -243,12 +253,7 @@ source ~/.bashrc
    ./red.sh --infra -nmap -smb-c -enum4 10.10.10.10
    ```
 
-4. **Interactive Mode** - When in doubt, use interactive mode
-   ```bash
-   ./red.sh --interactive
-   ```
-
-5. **Quick Reference** - Keep the cheat sheet handy
+4. **Quick Reference** - Keep the cheat sheet handy
    ```bash
    ./red.sh --examples | less
    ```

