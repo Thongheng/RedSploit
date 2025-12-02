@@ -156,7 +156,7 @@ class InfraModule(BaseModule):
 
     # Legacy run method for CLI compatibility
     def run(self, args_list):
-        parser = ArgumentParserNoExit(prog="infra", description="Infrastructure Enumeration Tools")
+        parser = ArgumentParserNoExit(prog="infra", description="Infrastructure Enumeration Tools", usage="infra [options] [target]")
         parser.add_argument("target", nargs="?", help="Target IP/Hostname")
         parser.add_argument("-nmap", action="store_true", help="Run Nmap scan")
         parser.add_argument("-rust", action="store_true", help="Run Rustscan")

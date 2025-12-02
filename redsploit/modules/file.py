@@ -77,7 +77,7 @@ class FileModule(BaseModule):
             print("\nServer stopped.")
 
     def run(self, args_list):
-        parser = ArgumentParserNoExit(prog="file", description="File Transfer & Server Tools")
+        parser = ArgumentParserNoExit(prog="file", description="File Transfer & Server Tools", usage="file [options] [filename]")
         parser.add_argument("filename", nargs="?", help="File to serve/download")
         parser.add_argument("-w", "--write", action="store_true", help="Add output flag (-O/-o)")
         parser.add_argument("-t", "--tool", default="wget", choices=["wget", "curl", "iwr", "certutil", "scp", "base64"], help="Transfer tool")

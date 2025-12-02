@@ -146,7 +146,7 @@ class WebModule(BaseModule):
 
 
     def run(self, args_list):
-        parser = ArgumentParserNoExit(prog="web", description="Web Reconnaissance Tools")
+        parser = ArgumentParserNoExit(prog="web", description="Web Reconnaissance Tools", usage="web [options] [target]")
         parser.add_argument("target", nargs="?", help="Target domain/URL")
         parser.add_argument("--all", action="store_true", help="Full workflow")
         parser.add_argument("-subfinder", action="store_true", help="Passive Subdomain")

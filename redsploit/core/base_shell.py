@@ -69,7 +69,15 @@ class BaseShell(cmd.Cmd):
             self.session.set(key, value)
             self.update_prompt()
         else:
+
             log_error("Usage: set <VARIABLE> <VALUE>")
+            print(f"\n{Colors.HEADER}Valid Variables (and Aliases){Colors.ENDC}")
+            print("=" * 40)
+            for key in sorted(self.session.env.keys()):
+                aliases = [k for k, v in self.session.ALIASES.items() if v == key]
+                alias_str = f" ({', '.join(aliases)})" if aliases else ""
+                print(f"{key}{alias_str}")
+            print("")
 
     def do_show(self, arg):
         """Show options or modules: SHOW OPTIONS | SHOW MODULES"""
@@ -115,9 +123,7 @@ class BaseShell(cmd.Cmd):
             return
 
         print(f"\n{Colors.HEADER}Global Flags{Colors.ENDC}")
-        print("=" * 80)
-        print(f"{'Flag':<10} {'Description'}")
-        print("-" * 80)
+
         print(f"{'-c':<10} Copy command to clipboard without running")
         print(f"{'-p':<10} Preview command without running")
         print(f"{'-e':<10} Edit command before running")
@@ -145,9 +151,7 @@ class BaseShell(cmd.Cmd):
         # Only show Core Commands in the main shell
         if self.module_name is None and core_cmds_found:
             print(f"\n{Colors.HEADER}Core Commands{Colors.ENDC}")
-            print("=" * 80)
-            print(f"{'Command':<20} {'Description'}")
-            print("-" * 80)
+
             for cmd_name, doc in sorted(core_cmds_found):
                 print(f"{cmd_name:<20} {doc}")
         
@@ -169,9 +173,7 @@ class BaseShell(cmd.Cmd):
             
             # Print Main Header
             print(f"\n{Colors.HEADER}Module Commands{Colors.ENDC}")
-            print("=" * 80)
-            print(f"{'Command':<20} {'Description'}")
-            print("-" * 80)
+
 
             # Print Categorized
             for cat, cmds in sorted(categorized.items()):

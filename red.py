@@ -17,7 +17,8 @@ from redsploit.modules.web import WebModule
 from redsploit.modules.file import FileModule
 
 def main():
-    parser = argparse.ArgumentParser(description="Red Team Pentest Helper")
+    parser = argparse.ArgumentParser(description="Red Team Pentest Helper", add_help=False)
+    parser.add_argument("-h", "--help", action="store_true", help="Show this help message and exit")
     
     # Global flags
     parser.add_argument("--interactive", action="store_true", help="Enter interactive mode")
@@ -31,6 +32,39 @@ def main():
     
     # Parse only known args to find out mode
     args, unknown = parser.parse_known_args()
+
+    # Handle Help Manually
+    if args.help:
+        # Check for context
+        if args.infra or "-i" in unknown or "--infra" in unknown:
+            InfraModule(Session()).run(['-h'])
+            sys.exit(0)
+        elif args.web or "-w" in unknown or "--web" in unknown:
+            WebModule(Session()).run(['-h'])
+            sys.exit(0)
+        elif args.file or "-f" in unknown or "--file" in unknown:
+            FileModule(Session()).run(['-h'])
+            sys.exit(0)
+        elif "-set" in unknown:
+            print("usage: red.py -set <KEY> <VALUE>")
+            print("")
+            print("Set environment variables.")
+            print("")
+            print("positional arguments:")
+            print("  KEY         Variable name (e.g., TARGET)")
+            print("  VALUE       Value to set")
+            print("")
+            print("Valid Variables (and Aliases):")
+            print("========================================")
+            session = Session()
+            for key in sorted(session.env.keys()):
+                aliases = [k for k, v in session.ALIASES.items() if v == key]
+                alias_str = f" ({', '.join(aliases)})" if aliases else ""
+                print(f"  {key}{alias_str}")
+            sys.exit(0)
+        else:
+            parser.print_help()
+            sys.exit(0)
 
     session = Session()
 
@@ -52,29 +86,24 @@ def main():
     if args.hash:
         session.set("HASH", args.hash)
 
-    # Handle 'set' command in unknown args (e.g. python red.py set TARGET 1.1.1.1)
+    # Handle '-set' command in unknown args (e.g. python red.py -set TARGET 1.1.1.1)
     i = 0
     clean_unknown = []
     set_command_used = False
     while i < len(unknown):
         arg = unknown[i]
-        if arg == "set":
+        if arg == "-set":
             set_command_used = True
             if i + 2 < len(unknown):
                 key = unknown[i+1]
                 val = unknown[i+2]
-
-                if key.startswith("-"):
-                    log_error(f"Invalid variable name '{key}'. Variable names cannot start with '-'.")
-                else:
-                    session.set(key, val)
-
+                session.set(key, val)
                 i += 3
                 continue
             else:
-                print("Usage: set <KEY> <VALUE>")
-                print("Example: python red.py set TARGET 10.10.10.10")
-                print("         python red.py set USERNAME admin")
+                print("Usage: -set <KEY> <VALUE>")
+                print("Example: python red.py -set TARGET 10.10.10.10")
+                print("         python red.py -set USERNAME admin")
                 i += 1
         else:
             clean_unknown.append(arg)
