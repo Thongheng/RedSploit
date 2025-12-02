@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
-import argparse
 import sys
+from pathlib import Path
+
+# Ensure the project directory is on sys.path so imports like "from redsploit..." work
+# even when this script is run via symlink (e.g., /usr/bin/red -> /path/to/red.py)
+project_dir = Path(__file__).resolve().parent
+if str(project_dir) not in sys.path:
+    sys.path.insert(0, str(project_dir))
+
+import argparse
 from redsploit.core.session import Session
 from redsploit.core.shell import RedShell
 from redsploit.core.colors import Colors
