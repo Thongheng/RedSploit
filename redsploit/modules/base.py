@@ -51,10 +51,16 @@ class BaseModule:
         elif run:
             log_info(f"Running: {cmd}")
             try:
-                subprocess.run(cmd, shell=True, check=False)
-            except KeyboardInterrupt:
-                print("\n")
-                log_warn("Command interrupted by user.")
+                # Use Popen to handle signals correctly for interactive tools
+                process = subprocess.Popen(cmd, shell=True)
+                while True:
+                    try:
+                        process.wait()
+                        break
+                    except KeyboardInterrupt:
+                        # Ignore Ctrl+C in parent, let child handle it.
+                        # If child exits, wait() returns. If child stays alive, we wait again.
+                        continue
             except Exception as e:
                 log_error(f"Execution failed: {e}")
         else:
