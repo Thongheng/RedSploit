@@ -52,6 +52,9 @@ class BaseModule:
             log_info(f"Running: {cmd}")
             try:
                 subprocess.run(cmd, shell=True, check=False)
+            except KeyboardInterrupt:
+                print("\n")
+                log_warn("Command interrupted by user.")
             except Exception as e:
                 log_error(f"Execution failed: {e}")
         else:
