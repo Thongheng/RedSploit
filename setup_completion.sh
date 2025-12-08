@@ -35,8 +35,16 @@ if [ "$SHELL_NAME" = "zsh" ]; then
     
     echo "✓ Completion installed!"
     echo ""
-    echo "To activate, run: source ~/.zshrc"
-    echo "Or open a new terminal"
+    echo "Activating completion..."
+    
+    # Auto-source for current session
+    if [ -f "$HOME/.zshrc" ]; then
+        source "$HOME/.zshrc"
+        echo "✓ Completion activated!"
+    fi
+    
+    echo ""
+    echo "Test completion with: red -<TAB>"
 
 elif [ "$SHELL_NAME" = "bash" ]; then
     echo "✓ Detected: bash"
@@ -62,8 +70,16 @@ elif [ "$SHELL_NAME" = "bash" ]; then
     
     echo "✓ Completion installed!"
     echo ""
-    echo "To activate, run: source ~/.bashrc"
-    echo "Or open a new terminal"
+    echo "Activating completion..."
+    
+    # Auto-source for current session
+    if [ -f "$HOME/.bashrc" ]; then
+        source "$HOME/.bashrc"
+        echo "✓ Completion activated!"
+    fi
+    
+    echo ""
+    echo "Test completion with: red -<TAB>"
 
 else
     echo "✗ Unsupported shell: $SHELL_NAME"

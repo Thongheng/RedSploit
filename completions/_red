@@ -3,18 +3,17 @@
 _red() {
     local -a options
     
-    # Define completion options
+    # Define completion options (short flags only)
     options=(
-        '(- *)'{-h,--help}'[Show help message]'
-        '--interactive[Enter interactive mode]'
+        '-h[Show help message]'
         '-set[Preset variables and launch interactive console]'
-        '(-T --target)'{-T,--target}'[Set target IP/hostname/CIDR]:target:'
-        '(-U --user)'{-U,--user}'[Set credentials (username\:password)]:credentials:'
-        '(-D --domain)'{-D,--domain}'[Set domain name]:domain:'
-        '(-H --hash)'{-H,--hash}'[Set NTLM hash]:hash:'
-        '(-i --infra)'{-i,--infra}'[Infrastructure enumeration module]'
-        '(-w --web)'{-w,--web}'[Web reconnaissance module]'
-        '(-f --file)'{-f,--file}'[File transfer module]'
+        '-T[Set target IP/hostname/CIDR]:target:'
+        '-U[Set user credentials (user\:pass)]:user:'
+        '-D[Set domain name]:domain:'
+        '-H[Set NTLM hash]:hash:'
+        '-i[Infrastructure enumeration module]'
+        '-w[Web reconnaissance module]'
+        '-f[File transfer module]'
     )
     
     _arguments -s -S $options

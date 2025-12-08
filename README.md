@@ -1,78 +1,96 @@
-# 🔴 RedSploit
+# RedSploit
 
-A command-line tool for penetration testing and red team operations.
+Red Team penetration testing CLI tool with interactive shell and automation capabilities.
 
-## 🚀 Quick Start
+## Features
 
-```bash
-# Interactive mode
-python red.py
+- 🔧 **Interactive Shell** - Full-featured console with tab completion
+- 🚀 **Quick CLI Mode** - Run commands directly from terminal
+- 🎯 **Module System** - Infrastructure, Web, and File modules
+- ⚡ **Shell Completion** - Native bash/zsh completion support
+- 📝 **Variable Management** - Session-based environment variables
 
-# Run with flags
-python red.py -i -nmap 10.10.10.10          # Infra scan
-python red.py -w example.com -subfinder     # Web recon
-python red.py -f tun0 linpeas.sh            # File transfer
-```
+## Quick Start
 
-**Aliases:** `-i` (infra), `-w` (web), `-f` (file)  
-**Variables:** `-T` (target), `-U` (user), `-D` (domain), `-H` (hash)
-
-## 📖 Modules
-
-### Infrastructure (`-i`)
-Network scanning, SMB, Active Directory
-
-**Tools:** `-nmap`, `-rust`, `-smb-c`, `-smb-m`, `-enum4`, `-nxc`, `-bloodhound`, `-ftp`, `-rdp`, `-ssh`, `-msf`
+### Installation
 
 ```bash
-python red.py -i -nmap -smb-c 10.10.10.10
-python red.py -i -bloodhound -U user:pass -D domain.local 10.10.10.10
-```
-
-### Web (`-w`)
-Subdomain discovery, directory bruteforce, vulnerability scanning
-
-**Tools:** `-subfinder`, `-httpx`, `-dir`, `-nuclei`, `-wpscan`, `-katana`, `-tech`, `-waf`, `-screenshots`, `-subzy`, `-arjun`
-
-```bash
-python red.py -w example.com --all
-python red.py -w https://example.com -dir -nuclei
-```
-
-### File Transfer (`-f`)
-Generate download commands and start servers
-
-**Tools:** `wget`, `curl`, `iwr`, `certutil` | **Servers:** `http`, `smb`
-
-```bash
-python red.py -f tun0 linpeas.sh              # wget command
-python red.py -f -t iwr tun0 winPEAS.exe      # PowerShell
-python red.py -f -s smb tun0 payload.exe      # SMB server
-```
-
-## 🛠️ Installation
-
-```bash
-git clone <repo-url>
+git clone https://github.com/Thongheng/RedSploit.git
 cd RedSploit
-python red.py
+sudo ./install.sh
 ```
 
-**Prerequisites:**
+This will:
+- Install `red` command to `/usr/bin`
+- Setup shell completion automatically
+- Make the tool accessible from anywhere
+
+**Manual install (no sudo):**
 ```bash
-sudo apt install nmap smbclient subfinder httpx ffuf gobuster nuclei
+chmod +x red.py
+./red.py
 ```
 
-## 💡 Tips
+### Usage
 
-- **Dry run:** Add `-c` to preview commands
-- **Save output:** Use `-output` for web scans
-- **Get help:** `python red.py -i -h`, `python red.py -w -h`, `python red.py -f -h`
+**Interactive Mode:**
+```bash
+red
+# or with preset values
+red -set -T 10.10.10.10
+```
 
-## ⚠️ Disclaimer
+**CLI Mode:**
+```bash
+red -T 10.10.10.10 -U admin:pass123 -i nmap -p-
+red -w -T example.com -gobuster
+red -f -T 10.10.10.10 -download /etc/passwd
+```
 
-For authorized security testing and educational purposes only.
+**Set Variables:**
+```bash
+red -T 10.10.10.10      # Set target
+red -U admin:pass       # Set user credentials
+red -D WORKGROUP        # Set domain
+red -H <ntlm_hash>      # Set NTLM hash
+```
 
----
+## Available Modules
 
-**Version:** 3.0 | **Updated:** 2025-12-02
+| Flag | Module | Description |
+|------|--------|-------------|
+| `-i` | infra | Infrastructure enumeration (nmap, rustscan) |
+| `-w` | web | Web reconnaissance (gobuster, nuclei, etc.) |
+| `-f` | file | File operations (download, upload, servers) |
+
+## Variables
+
+| Name | Description |
+|------|-------------|
+| `target` | Target IP/hostname/CIDR |
+| `user` | User credentials (username or username:password) |
+| `domain` | Domain name (default: .) |
+| `hash` | NTLM hash (alternative to password) |
+| `interface` | Network interface |
+| `lport` | Local port for reverse shells (default: 4444) |
+| `workspace` | Workspace name (default: default) |
+
+## Examples
+
+```bash
+# Quick nmap scan
+red -T 10.10.10.10 -i nmap
+
+# Web directory enumeration
+red -T example.com -w -dir
+
+# Download file via SMB
+red -T 10.10.10.10 -U admin:pass -f -smb -download /path/to/file
+
+# Interactive mode with preset variables
+red -set -T 10.10.10.10 -U admin:pass
+```
+
+## License
+
+MIT

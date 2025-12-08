@@ -6,11 +6,11 @@ _red_completion() {
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
     
-    # Main options
-    opts="-h --help --interactive -T --target -U --user -D --domain -H --hash -i --infra -w --web -f --file -set"
+    # Main options (short flags only)
+    opts="-h -T -U -D -H -i -w -f -set"
     
     case "${prev}" in
-        -T|--target|-U|--user|-D|--domain|-H|--hash)
+        -T|-U|-D|-H)
             # No completion for these (user input)
             return 0
             ;;

@@ -7,8 +7,7 @@ class Session:
         self.env: Dict[str, str] = {
             "target": "",
             "domain": "",
-            "username": "",
-            "password": "",
+            "user": "",
             "hash": "",
             "interface": get_default_interface(),
             "lport": "4444",
@@ -19,10 +18,8 @@ class Session:
         # Metadata for variables
         self.VAR_METADATA = {
             "target": {"required": True, "desc": "Target IP/hostname/CIDR"},
-            "cred": {"required": True, "desc": "Credentials in username:password format"},
-            "username": {"required": True, "desc": "Username for authentication"},
-            "password": {"required": False, "desc": "Password (required if hash not set)"},
-            "hash": {"required": False, "desc": "NTLM hash (required if password not set)"},
+            "user": {"required": True, "desc": "User credentials (username or username:password)"},
+            "hash": {"required": False, "desc": "NTLM hash (alternative to password)"},
             "domain": {"required": False, "desc": "Domain name (default: .)"},
             "interface": {"required": True, "desc": "Network Interface"},
             "lport": {"required": True, "desc": "Local Port (Reverse Shell)"},
@@ -32,22 +29,7 @@ class Session:
     def set(self, key: str, value: str) -> None:
         key = key.lower()
         
-        # Handle special 'cred' variable
-        if key == "cred":
-            if ":" in value:
-                username, password = value.split(":", 1)
-                if not username or not password:
-                    log_error("cred format requires non-empty username:password")
-                    return
-                self.env["username"] = username
-                self.env["password"] = password
-                log_success(f"username => {username}")
-                log_success(f"password => {password}")
-            else:
-                log_error("cred format should be username:password")
-            return
-            
-        # Validate Key
+        # Validate Key first
         if key not in self.env:
             log_error(f"Invalid variable: {key}")
             print("Valid variables: " + ", ".join(sorted(self.env.keys())))

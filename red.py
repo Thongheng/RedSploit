@@ -18,31 +18,30 @@ from redsploit.modules.file import FileModule
 
 def main():
     parser = argparse.ArgumentParser(description="Red Team Pentest Helper", add_help=False)
-    parser.add_argument("-h", "--help", action="store_true", help="Show this help message and exit")
+    parser.add_argument("-h", action="store_true", help="Show help message and exit")
     
-    # Global flags
-    parser.add_argument("--interactive", action="store_true", help="Enter interactive mode")
-    parser.add_argument("-T", "--target", help="Set TARGET")
-    parser.add_argument("-U", "--user", help="Set USERNAME (and PASSWORD if user:pass)")
-    parser.add_argument("-D", "--domain", help="Set DOMAIN")
-    parser.add_argument("-H", "--hash", help="Set HASH")
-    parser.add_argument("-i", "--infra", action="store_true", help="Infra module")
-    parser.add_argument("-w", "--web", action="store_true", help="Web module")
-    parser.add_argument("-f", "--file", action="store_true", help="File module")
+    # Global flags (short only)
+    parser.add_argument("-T", help="Set target")
+    parser.add_argument("-U", help="Set user (user:pass format)")
+    parser.add_argument("-D", help="Set domain")
+    parser.add_argument("-H", help="Set hash")
+    parser.add_argument("-i", action="store_true", help="Infra module")
+    parser.add_argument("-w", action="store_true", help="Web module")
+    parser.add_argument("-f", action="store_true", help="File module")
     
     # Parse only known args to find out mode
     args, unknown = parser.parse_known_args()
 
     # Handle Help Manually
-    if args.help:
+    if args.h:
         # Check for context
-        if args.infra or "-i" in unknown or "--infra" in unknown:
+        if args.infra or "-i" in unknown:
             InfraModule(Session()).run(['-h'])
             sys.exit(0)
-        elif args.web or "-w" in unknown or "--web" in unknown:
+        elif args.web or "-w" in unknown:
             WebModule(Session()).run(['-h'])
             sys.exit(0)
-        elif args.file or "-f" in unknown or "--file" in unknown:
+        elif args.file or "-f" in unknown:
             FileModule(Session()).run(['-h'])
             sys.exit(0)
         elif "-set" in unknown:
@@ -51,16 +50,12 @@ def main():
             print("Set environment variables.")
             print("")
             print("positional arguments:")
-            print("  key         Variable name (lowercase, e.g., target, cred)")
+            print("  key         Variable name (lowercase, e.g., target, user)")
             print("  value       Value to set")
             print("")
             print("Valid Variables:")
             print("========================================")
             session = Session()
-            # Show cred first
-            cred_meta = session.VAR_METADATA.get("cred", {})
-            print(f"  cred        {cred_meta.get('desc', '')}")
-            # Then regular vars
             for key in sorted(session.env.keys()):
                 meta = session.VAR_METADATA.get(key, {})
                 print(f"  {key:<11} {meta.get('desc', '')}")
@@ -77,7 +72,7 @@ def main():
     
     if args.user:
         # Support username:password format
-        session.set("cred", args.user)
+        session.set("user", args.user)
 
     if args.domain:
         session.set("domain", args.domain)
