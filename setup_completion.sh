@@ -37,9 +37,10 @@ if [ "$SHELL_NAME" = "zsh" ]; then
     echo ""
     echo "Activating completion..."
     
-    # Auto-source for current session
+    # Reload completion in zsh (not bash)
     if [ -f "$HOME/.zshrc" ]; then
-        source "$HOME/.zshrc"
+        # Run in zsh subshell to avoid bash/zsh incompatibility
+        zsh -c "source $HOME/.zshrc && compinit" 2>/dev/null || true
         echo "✓ Completion activated!"
     fi
     
@@ -72,9 +73,9 @@ elif [ "$SHELL_NAME" = "bash" ]; then
     echo ""
     echo "Activating completion..."
     
-    # Auto-source for current session
+    # Reload bash completion
     if [ -f "$HOME/.bashrc" ]; then
-        source "$HOME/.bashrc"
+        bash -c "source $HOME/.bashrc" 2>/dev/null || true
         echo "✓ Completion activated!"
     fi
     
