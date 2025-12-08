@@ -35,13 +35,13 @@ def main():
     # Handle Help Manually
     if args.h:
         # Check for context
-        if args.infra or "-i" in unknown:
+        if args.i or "-i" in unknown:
             InfraModule(Session()).run(['-h'])
             sys.exit(0)
-        elif args.web or "-w" in unknown:
+        elif args.w or "-w" in unknown:
             WebModule(Session()).run(['-h'])
             sys.exit(0)
-        elif args.file or "-f" in unknown:
+        elif args.f or "-f" in unknown:
             FileModule(Session()).run(['-h'])
             sys.exit(0)
         elif "-set" in unknown:
@@ -67,18 +67,18 @@ def main():
     session = Session()
 
     # Handle Short Flags (convert to lowercase)
-    if args.target:
-        session.set("target", args.target)
+    if args.T:
+        session.set("target", args.T)
     
-    if args.user:
+    if args.U:
         # Support username:password format
-        session.set("user", args.user)
+        session.set("user", args.U)
 
-    if args.domain:
-        session.set("domain", args.domain)
+    if args.D:
+        session.set("domain", args.D)
 
-    if args.hash:
-        session.set("hash", args.hash)
+    if args.H:
+        session.set("hash", args.H)
 
     # Handle '-set' command in unknown args (e.g. python red.py -set TARGET 1.1.1.1)
     i = 0
@@ -106,16 +106,16 @@ def main():
                 pass # Ignore if split fails somehow
 
     # Detect and warn on conflicting module flags
-    module_flags_set = sum([args.infra, args.web, args.file])
+    module_flags_set = sum([args.i, args.w, args.f])
     if module_flags_set > 1:
         from redsploit.core.colors import log_warn
         log_warn("Multiple module flags detected (-i, -w, -f). Using first specified module.")
         # Determine priority: infra > web > file
-        if args.infra:
-            args.web = False
-            args.file = False
-        elif args.web:
-            args.file = False
+        if args.i:
+            args.w = False
+            args.f = False
+        elif args.w:
+            args.f = False
 
     # Command to Module Mapping for Auto-Detection
     COMMAND_MAPPING = {
@@ -125,25 +125,24 @@ def main():
     }
 
     # Auto-detect module if not specified
-    if not (args.infra or args.web or args.file):
+    if not (args.i or args.w or args.f):
         for arg in unknown:
             for module, cmds in COMMAND_MAPPING.items():
                 # Check exact match or if arg starts with command (e.g. -nmap)
                 # Arguments usually start with -
                 if arg in cmds:
-                    if module == "infra": args.infra = True
-                    elif module == "web": args.web = True
-                    elif module == "file": args.file = True
+                    if module == "infra": args.i = True
+                    elif module == "web": args.w = True
+                    elif module == "file": args.f = True
                     break
-            if args.infra or args.web or args.file:
+            if args.i or args.w or args.f:
                 break
 
     # Launch interactive console if:
     # - No arguments OR -set flag OR --interactive flag
     should_start_shell = (
         len(sys.argv) == 1 or
-        set_command_used or
-        args.interactive
+        set_command_used
     )
         
     if should_start_shell:
@@ -195,11 +194,11 @@ Type 'help' or '?' to list commands.
     else:
         # CLI Mode
         try:
-            if args.infra:
+            if args.i:
                 InfraModule(session).run(unknown)
-            elif args.web:
+            elif args.w:
                 WebModule(session).run(unknown)
-            elif args.file:
+            elif args.f:
                 FileModule(session).run(unknown)
         except Exception as e:
             log_error(f"Module execution failed: {e}")
