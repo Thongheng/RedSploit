@@ -198,25 +198,32 @@ class BaseShell(cmd.Cmd):
         if len(parts) >= 2:
             key = parts[0]
             value = " ".join(parts[1:])
+            
             self.session.set(key, value)
             self.update_prompt()
         else:
 
             log_error("Usage: set <VARIABLE> <VALUE>")
-            print(f"\n{Colors.HEADER}Valid Variables (and Aliases){Colors.ENDC}")
-            print("=" * 40)
+            print(f"\n{Colors.HEADER}Valid Variables{Colors.ENDC}")
+            print("=" * 60)
+            print(f"{'Name':<20} {'Description'}")
+            print("-" * 60)
+            # Add cred first
+            cred_meta = self.session.VAR_METADATA.get("cred", {})
+            print(f"{'cred':<20} {cred_meta.get('desc', '')}")
+            # Then show regular variables
             for key in sorted(self.session.env.keys()):
-                aliases = [k for k, v in self.session.ALIASES.items() if v == key]
-                alias_str = f" ({', '.join(aliases)})" if aliases else ""
-                print(f"{key}{alias_str}")
+                meta = self.session.VAR_METADATA.get(key, {})
+                desc = meta.get("desc", "")
+                print(f"{key:<20} {desc}")
             print("")
 
     def complete_set(self, text, line, begidx, endidx):
         """Autocomplete variable names for 'set' command"""
-        # Combine keys and aliases
-        options = sorted(list(self.session.env.keys()) + list(self.session.ALIASES.keys()))
+        # Full names only, case-insensitive suggestion
+        options = sorted(list(self.session.env.keys()) + ["cred"])
         if text:
-            return [o for o in options if o.startswith(text)]
+            return [o for o in options if o.startswith(text.lower())]
         return options
 
     def do_show(self, arg):

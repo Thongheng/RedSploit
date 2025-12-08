@@ -5,34 +5,45 @@ from .utils import get_default_interface
 class Session:
     def __init__(self) -> None:
         self.env: Dict[str, str] = {
-            "TARGET": "",
-            "DOMAIN": "",
-            "USERNAME": "",
-            "PASSWORD": "",
-            "HASH": "",
-            "INTERFACE": get_default_interface(),
-            "LPORT": "4444",
-            "WORKSPACE": "default"
+            "target": "",
+            "domain": "",
+            "username": "",
+            "password": "",
+            "hash": "",
+            "interface": get_default_interface(),
+            "lport": "4444",
+            "workspace": "default"
         }
         self.next_shell: Optional[str] = None
         
-        self.ALIASES = {
-            "T": "TARGET",
-            "D": "DOMAIN",
-            "U": "USERNAME",
-            "P": "PASSWORD",
-            "H": "HASH",
-            "I": "INTERFACE",
-            "L": "LPORT",
-            "W": "WORKSPACE"
+        # Metadata for variables
+        self.VAR_METADATA = {
+            "target": {"required": True, "desc": "Target IP/hostname/CIDR"},
+            "cred": {"required": True, "desc": "Credentials in username:password format"},
+            "username": {"required": True, "desc": "Username for authentication"},
+            "password": {"required": False, "desc": "Password (required if hash not set)"},
+            "hash": {"required": False, "desc": "NTLM hash (required if password not set)"},
+            "domain": {"required": False, "desc": "Domain name (default: .)"},
+            "interface": {"required": True, "desc": "Network Interface"},
+            "lport": {"required": True, "desc": "Local Port (Reverse Shell)"},
+            "workspace": {"required": True, "desc": "Workspace name"},
         }
 
     def set(self, key: str, value: str) -> None:
-        key = key.upper()
+        key = key.lower()
         
-        # Resolve Alias
-        if key in self.ALIASES:
-            key = self.ALIASES[key]
+        # Handle special 'cred' variable
+        if key == "cred":
+            if ":" in value:
+                username, password = value.split(":", 1)
+                self.env["username"] = username
+                self.env["password"] = password
+                log_success(f"username => {username}")
+                log_success(f"password => {password}")
+            else:
+                from .colors import log_error
+                log_error("cred format should be username:password")
+            return
             
         # Validate Key
         if key not in self.env:
@@ -42,7 +53,7 @@ class Session:
             return
 
         # Basic validation for known variables
-        if key == "LPORT":
+        if key == "lport":
             try:
                 port = int(value)
                 if not (1 <= port <= 65535):
@@ -50,26 +61,16 @@ class Session:
                     log_warn(f"Port {port} is out of valid range (1-65535). Setting anyway.")
             except ValueError:
                 from .colors import log_warn
-                log_warn(f"LPORT should be a number. Got: {value}. Setting anyway.")
+                log_warn(f"lport should be a number. Got: {value}. Setting anyway.")
         
         self.env[key] = value
         log_success(f"{key} => {value}")
 
     def get(self, key: str) -> str:
-        return self.env.get(key.upper(), "")
+        return self.env.get(key.lower(), "")
 
     def show_options(self):
-        # Metadata for variables
-        VAR_METADATA = {
-            "TARGET": {"required": True, "desc": "Target IP/hostname/CIDR"},
-            "USERNAME": {"required": True, "desc": "Username for authentication"},
-            "PASSWORD": {"required": False, "desc": "Password (required if HASH not set)"},
-            "HASH": {"required": False, "desc": "NTLM hash (required if PASSWORD not set)"},
-            "DOMAIN": {"required": False, "desc": "Domain name (default: .)"},
-            "INTERFACE": {"required": True, "desc": "Network Interface"},
-            "LPORT": {"required": True, "desc": "Local Port (Reverse Shell)"},
-            "WORKSPACE": {"required": True, "desc": "Workspace name"},
-        }
+        # Metadata moved to self.VAR_METADATA
 
         print(f"\n{Colors.HEADER}Module Options{Colors.ENDC}")
         
@@ -109,7 +110,7 @@ class Session:
 
         # Print Rows
         for key, value in self.env.items():
-            meta = VAR_METADATA.get(key, {"required": False, "desc": "Custom Variable"})
+            meta = self.VAR_METADATA.get(key, {"required": False, "desc": "Custom Variable"})
             
             # Truncate value if too long
             val_str = str(value)

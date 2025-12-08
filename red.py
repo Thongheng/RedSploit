@@ -9,6 +9,14 @@ if str(project_dir) not in sys.path:
     sys.path.insert(0, str(project_dir))
 
 import argparse
+
+# Optional shell completion support
+try:
+    import argcomplete
+    ARGCOMPLETE_AVAILABLE = True
+except ImportError:
+    ARGCOMPLETE_AVAILABLE = False
+
 from redsploit.core.session import Session
 from redsploit.core.shell import RedShell
 from redsploit.core.colors import Colors, log_error
@@ -31,6 +39,9 @@ def main():
     parser.add_argument("-f", "--file", action="store_true", help="File module")
     
     # Parse only known args to find out mode
+    if ARGCOMPLETE_AVAILABLE:
+        argcomplete.autocomplete(parser)
+    
     args, unknown = parser.parse_known_args()
 
     # Handle Help Manually
@@ -46,21 +57,24 @@ def main():
             FileModule(Session()).run(['-h'])
             sys.exit(0)
         elif "-set" in unknown:
-            print("usage: red.py -set <KEY> <VALUE>")
+            print("usage: red.py -set <key> <value>")
             print("")
             print("Set environment variables.")
             print("")
             print("positional arguments:")
-            print("  KEY         Variable name (e.g., TARGET)")
-            print("  VALUE       Value to set")
+            print("  key         Variable name (lowercase, e.g., target, cred)")
+            print("  value       Value to set")
             print("")
-            print("Valid Variables (and Aliases):")
+            print("Valid Variables:")
             print("========================================")
             session = Session()
+            # Show cred first
+            cred_meta = session.VAR_METADATA.get("cred", {})
+            print(f"  cred        {cred_meta.get('desc', '')}")
+            # Then regular vars
             for key in sorted(session.env.keys()):
-                aliases = [k for k, v in session.ALIASES.items() if v == key]
-                alias_str = f" ({', '.join(aliases)})" if aliases else ""
-                print(f"  {key}{alias_str}")
+                meta = session.VAR_METADATA.get(key, {})
+                print(f"  {key:<11} {meta.get('desc', '')}")
             sys.exit(0)
         else:
             parser.print_help()
@@ -68,23 +82,19 @@ def main():
 
     session = Session()
 
-    # Handle Short Flags
+    # Handle Short Flags (convert to lowercase)
     if args.target:
-        session.set("TARGET", args.target)
+        session.set("target", args.target)
     
     if args.user:
-        if ":" in args.user:
-            username, password = args.user.split(":", 1)
-            session.set("USERNAME", username)
-            session.set("PASSWORD", password)
-        else:
-            session.set("USERNAME", args.user)
+        # Support username:password format
+        session.set("cred", args.user)
 
     if args.domain:
-        session.set("DOMAIN", args.domain)
+        session.set("domain", args.domain)
 
     if args.hash:
-        session.set("HASH", args.hash)
+        session.set("hash", args.hash)
 
     # Handle '-set' command in unknown args (e.g. python red.py -set TARGET 1.1.1.1)
     i = 0
