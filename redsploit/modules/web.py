@@ -13,10 +13,16 @@ class WebModule(BaseModule):
     def __init__(self, session):
         super().__init__(session)
 
-    def _get_target(self):
-        target = self.session.get("TARGET")
+    def _get_domain_or_target(self):
+        """Get domain from DOMAIN variable, fallback to TARGET if not set."""
+        domain_var = self.session.get("DOMAIN")
+        target_var = self.session.get("TARGET")
+        
+        # Prefer DOMAIN, fallback to TARGET
+        target = domain_var if domain_var else target_var
+        
         if not target:
-            log_error("TARGET is not set.")
+            log_error("Neither DOMAIN nor TARGET is set.")
             return None, None, None
             
         # Parse target
@@ -44,28 +50,32 @@ class WebModule(BaseModule):
             
         return domain, url, port
 
+    def _get_target(self):
+        """Legacy method for backward compatibility."""
+        return self._get_domain_or_target()
+
 
 
     def run_subfinder(self, copy_only=False, edit=False, preview=False):
-        domain, _, _ = self._get_target()
+        domain, _, _ = self._get_domain_or_target()
         if domain:
             cmd = f"subfinder -d {domain}"
             self._exec(cmd, copy_only, edit, preview=preview)
 
     def run_gobuster_dns(self, copy_only=False, edit=False, preview=False):
-        domain, _, _ = self._get_target()
+        domain, _, _ = self._get_domain_or_target()
         if domain:
             cmd = f"gobuster dns -d {domain} -w {WORDLIST_SUBDOMAIN}"
             self._exec(cmd, copy_only, edit, preview=preview)
 
     def run_dnsrecon(self, copy_only=False, edit=False, preview=False):
-        domain, _, _ = self._get_target()
+        domain, _, _ = self._get_domain_or_target()
         if domain:
             cmd = f"dnsrecon -d {domain} -t brf -w {WORDLIST_SUBDOMAIN} -f -n 8.8.8.8"
             self._exec(cmd, copy_only, edit, preview=preview)
 
     def run_httpx(self, copy_only=False, edit=False, preview=False):
-        domain, _, _ = self._get_target()
+        domain, _, _ = self._get_domain_or_target()
         if domain:
             cmd = f"echo {domain} | httpx -silent -title -tech-detect -status-code"
             self._exec(cmd, copy_only, edit, preview=preview)
@@ -77,7 +87,7 @@ class WebModule(BaseModule):
             self._exec(cmd, copy_only, edit, preview=preview)
 
     def run_ffuf_vhost(self, copy_only=False, edit=False, preview=False):
-        domain, url, _ = self._get_target()
+        domain, url, _ = self._get_domain_or_target()
         if domain and url:
             cmd = f"ffuf -u {url} -H 'Host:FUZZ.{domain}' -w {WORDLIST_VHOST} -ic"
             self._exec(cmd, copy_only, edit, preview=preview)
@@ -92,6 +102,12 @@ class WebModule(BaseModule):
         _, url, _ = self._get_target()
         if url:
             cmd = f"feroxbuster -u {url}"
+            self._exec(cmd, copy_only, edit, preview=preview)
+
+    def run_dirsearch(self, copy_only=False, edit=False, preview=False):
+        _, url, _ = self._get_target()
+        if url:
+            cmd = f"dirsearch -u {url}"
             self._exec(cmd, copy_only, edit, preview=preview)
 
     def run_nuclei(self, copy_only=False, edit=False, preview=False):
@@ -113,7 +129,7 @@ class WebModule(BaseModule):
             self._exec(cmd, copy_only, edit, preview=preview)
 
     def run_subzy(self, copy_only=False, edit=False, preview=False):
-        domain, _, _ = self._get_target()
+        domain, _, _ = self._get_domain_or_target()
         if domain:
             cmd = f"subzy run --target {domain}"
             self._exec(cmd, copy_only, edit, preview=preview)
@@ -151,9 +167,10 @@ class WebModule(BaseModule):
         parser.add_argument("-subfinder", action="store_true", help="Passive Subdomain")
         parser.add_argument("-gobuster-dns", action="store_true", help="Active Subdomain")
         parser.add_argument("-httpx", action="store_true", help="Web Server Validation")
-        parser.add_argument("-dir", action="store_true", help="Dir Bruteforce")
+        parser.add_argument("-dir_ffuf", action="store_true", help="Dir Bruteforce (ffuf)")
         parser.add_argument("-vhost", action="store_true", help="VHost Discovery")
-        parser.add_argument("-ferox", action="store_true", help="Dir Scan (Ferox)")
+        parser.add_argument("-dir_ferox", action="store_true", help="Dir Scan (Ferox)")
+        parser.add_argument("-dir_dirsearch", action="store_true", help="Dir Scan (dirsearch)")
         parser.add_argument("-nuclei", action="store_true", help="Vuln Scan")
         parser.add_argument("-wpscan", action="store_true", help="WordPress Scan")
         parser.add_argument("-arjun", action="store_true", help="Param Discovery")
@@ -182,8 +199,9 @@ class WebModule(BaseModule):
         if args.subfinder or args.all: self.run_subfinder(); executed = True
         if args.gobuster_dns: self.run_gobuster_dns(); executed = True
         if args.httpx or args.all: self.run_httpx(); executed = True
-        if args.dir: self.run_gobuster_dir(); executed = True
-        if args.ferox: self.run_feroxbuster(); executed = True
+        if args.dir_ffuf: self.run_gobuster_dir(); executed = True
+        if args.dir_ferox: self.run_feroxbuster(); executed = True
+        if args.dir_dirsearch: self.run_dirsearch(); executed = True
         if args.nuclei: self.run_nuclei(); executed = True
         if args.wpscan: self.run_wpscan(); executed = True
         if args.arjun: self.run_arjun(); executed = True
@@ -203,10 +221,11 @@ class WebShell(BaseShell):
         "gobuster_dns": "Subdomain Discovery",
         "dns": "Subdomain Discovery",
         "subzy": "Subdomain Discovery",
+        "vhost": "Subdomain Discovery",
         "httpx": "Web Server Validation",
-        "dir": "Directory & VHost",
-        "vhost": "Directory & VHost",
-        "ferox": "Directory & VHost",
+        "dir_ffuf": "Directory Scanning",
+        "dir_ferox": "Directory Scanning",
+        "dir_dirsearch": "Directory Scanning",
         "katana": "Crawling",
         "arjun": "Parameter Discovery",
         "nuclei": "Vulnerability Scanning",
@@ -240,7 +259,7 @@ class WebShell(BaseShell):
         _, copy_only, edit, preview = self.parse_common_options(arg)
         self.web_module.run_httpx(copy_only, edit, preview)
 
-    def do_dir(self, arg):
+    def do_dir_ffuf(self, arg):
         """Run ffuf (Directory Bruteforce)"""
         _, copy_only, edit, preview = self.parse_common_options(arg)
         self.web_module.run_ffuf_dir(copy_only, edit, preview)
@@ -250,10 +269,15 @@ class WebShell(BaseShell):
         _, copy_only, edit, preview = self.parse_common_options(arg)
         self.web_module.run_ffuf_vhost(copy_only, edit, preview)
 
-    def do_ferox(self, arg):
+    def do_dir_ferox(self, arg):
         """Run feroxbuster (Dir Scan)"""
         _, copy_only, edit, preview = self.parse_common_options(arg)
         self.web_module.run_feroxbuster(copy_only, edit, preview)
+
+    def do_dir_dirsearch(self, arg):
+        """Run dirsearch (Dir Scan)"""
+        _, copy_only, edit, preview = self.parse_common_options(arg)
+        self.web_module.run_dirsearch(copy_only, edit, preview)
 
     def do_nuclei(self, arg):
         """Run nuclei (Vuln Scan)"""

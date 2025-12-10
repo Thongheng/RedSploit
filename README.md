@@ -82,7 +82,7 @@ red -H <ntlm_hash>      # Set NTLM hash
 red -T 10.10.10.10 -i nmap
 
 # Web directory enumeration
-red -T example.com -w -dir
+red -T example.com -w -dir_ffuf
 
 # Download file via SMB
 red -T 10.10.10.10 -U admin:pass -f -smb -download /path/to/file
