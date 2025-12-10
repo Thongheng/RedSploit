@@ -174,6 +174,9 @@ class InfraModule(BaseModule):
         parser.add_argument("-wmiexec", action="store_true", help="Run Impacket WMIexec")
         parser.add_argument("-secrets", action="store_true", help="Run Impacket SecretsDump")
         parser.add_argument("-kerbrute", action="store_true", help="Run Kerbrute User Enum")
+        parser.add_argument("-c", "--copy", action="store_true", help="Copy command only")
+        parser.add_argument("-p", "--preview", action="store_true", help="Preview command without executing")
+        parser.add_argument("-e", "--edit", action="store_true", help="Edit command before execution")
         
         try:
             args = parser.parse_args(args_list)
@@ -187,22 +190,25 @@ class InfraModule(BaseModule):
             self.session.set("TARGET", args.target)
 
         executed = False
-        if args.nmap: self.run_nmap(); executed = True
-        if args.rust: self.run_rustscan(); executed = True
-        if args.smb_c: self.run_smbclient(); executed = True
-        if args.smb_m: self.run_smbmap(); executed = True
-        if args.enum4: self.run_enum4linux(); executed = True
-        if args.nxc: self.run_netexec(); executed = True
-        if args.bloodhound: self.run_bloodhound(); executed = True
-        if args.ftp: self.run_ftp(); executed = True
-        if args.msf: self.run_msf(); executed = True
-        if args.rdp: self.run_rdp(); executed = True
-        if args.ssh: self.run_ssh(); executed = True
-        if args.ewinrm: self.run_evil_winrm(); executed = True
-        if args.psexec: self.run_impacket("psexec"); executed = True
-        if args.wmiexec: self.run_impacket("wmiexec"); executed = True
-        if args.secrets: self.run_impacket("secretsdump"); executed = True
-        if args.kerbrute: self.run_kerbrute(); executed = True
+        copy_only = getattr(args, 'copy', False)
+        preview = getattr(args, 'preview', False)
+        edit = getattr(args, 'edit', False)
+        if args.nmap: self.run_nmap(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.rust: self.run_rustscan(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.smb_c: self.run_smbclient(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.smb_m: self.run_smbmap(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.enum4: self.run_enum4linux(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.nxc: self.run_netexec(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.bloodhound: self.run_bloodhound(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.ftp: self.run_ftp(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.msf: self.run_msf(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.rdp: self.run_rdp(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.ssh: self.run_ssh(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.ewinrm: self.run_evil_winrm(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.psexec: self.run_impacket("psexec", copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.wmiexec: self.run_impacket("wmiexec", copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.secrets: self.run_impacket("secretsdump", copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.kerbrute: self.run_kerbrute(copy_only=copy_only, edit=edit, preview=preview); executed = True
 
         if not executed:
             parser.print_help()

@@ -119,7 +119,7 @@ class WebModule(BaseModule):
     def run_wpscan(self, copy_only=False, edit=False, preview=False):
         _, url, _ = self._get_target()
         if url:
-            cmd = f"wpscan --url {url} --enumerate p,t,u"
+            cmd = f"wpscan --url {url} --enumerate --api-token $WPSCAN_API"
             self._exec(cmd, copy_only, edit, preview=preview)
 
     def run_arjun(self, copy_only=False, edit=False, preview=False):
@@ -182,6 +182,8 @@ class WebModule(BaseModule):
         parser.add_argument("-tech", action="store_true", help="Tech Detection")
         parser.add_argument("-output", action="store_true", help="Enable file output")
         parser.add_argument("-c", "--copy", action="store_true", help="Copy command only")
+        parser.add_argument("-p", "--preview", action="store_true", help="Preview command without executing")
+        parser.add_argument("-e", "--edit", action="store_true", help="Edit command before execution")
 
         try:
             args = parser.parse_args(args_list)
@@ -195,21 +197,24 @@ class WebModule(BaseModule):
             self.session.set("TARGET", args.target)
 
         executed = False
+        copy_only = args.copy
+        preview = args.preview
+        edit = args.edit
         # Legacy logic for --all and specific flags
-        if args.subfinder or args.all: self.run_subfinder(); executed = True
-        if args.gobuster_dns: self.run_gobuster_dns(); executed = True
-        if args.httpx or args.all: self.run_httpx(); executed = True
-        if args.dir_ffuf: self.run_gobuster_dir(); executed = True
-        if args.dir_ferox: self.run_feroxbuster(); executed = True
-        if args.dir_dirsearch: self.run_dirsearch(); executed = True
-        if args.nuclei: self.run_nuclei(); executed = True
-        if args.wpscan: self.run_wpscan(); executed = True
-        if args.arjun: self.run_arjun(); executed = True
-        if args.subzy: self.run_subzy(); executed = True
-        if args.katana: self.run_katana(); executed = True
-        if args.waf: self.run_waf(); executed = True
-        if args.screenshots: self.run_screenshots(); executed = True
-        if args.tech: self.run_tech(); executed = True
+        if args.subfinder or args.all: self.run_subfinder(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.gobuster_dns: self.run_gobuster_dns(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.httpx or args.all: self.run_httpx(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.dir_ffuf: self.run_gobuster_dir(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.dir_ferox: self.run_feroxbuster(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.dir_dirsearch: self.run_dirsearch(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.nuclei: self.run_nuclei(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.wpscan: self.run_wpscan(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.arjun: self.run_arjun(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.subzy: self.run_subzy(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.katana: self.run_katana(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.waf: self.run_waf(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.screenshots: self.run_screenshots(copy_only=copy_only, edit=edit, preview=preview); executed = True
+        if args.tech: self.run_tech(copy_only=copy_only, edit=edit, preview=preview); executed = True
 
         if not executed:
             parser.print_help()

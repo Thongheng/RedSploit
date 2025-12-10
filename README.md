@@ -47,6 +47,16 @@ red -w -T example.com -gobuster
 red -f -T 10.10.10.10 -download /etc/passwd
 ```
 
+**Command Flags:**
+
+When running commands in CLI mode, you can use these flags to modify behavior:
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `-c` / `--copy` | Copy command to clipboard without executing | `red -T 10.10.10.10 -w -dir_ferox -c` |
+| `-p` / `--preview` | Preview the command without executing | `red -T 10.10.10.10 -i -nmap -p` |
+| `-e` / `--edit` | Edit the command before execution | `red -T 10.10.10.10 -w -nuclei -e` |
+
 **Set Variables:**
 ```bash
 red -T 10.10.10.10      # Set target

@@ -94,6 +94,9 @@ class FileModule(BaseModule):
         parser.add_argument("-t", "--tool", default="wget", choices=["wget", "curl", "iwr", "certutil", "scp", "base64"], help="Transfer tool")
         parser.add_argument("-s", "--server", choices=["http", "smb"], help="Server type (http/smb)")
         parser.add_argument("-b64", action="store_true", help="Base64 encode file (alias for -t base64)")
+        parser.add_argument("-c", "--copy", action="store_true", help="Copy command only")
+        parser.add_argument("-p", "--preview", action="store_true", help="Preview command without executing")
+        parser.add_argument("-e", "--edit", action="store_true", help="Edit command before execution")
         
         try:
             args = parser.parse_args(args_list)
@@ -106,18 +109,21 @@ class FileModule(BaseModule):
         if args.b64: args.tool = "base64"
 
         executed = False
+        copy_only = getattr(args, 'copy', False)
+        preview = getattr(args, 'preview', False)
+        edit = getattr(args, 'edit', False)
         if args.tool == "base64":
-            if args.filename: self.run_base64(args.filename); executed = True
+            if args.filename: self.run_base64(args.filename, copy_only=copy_only, edit=edit, preview=preview); executed = True
             else: log_error("Filename required for base64")
             return
 
         # If filename provided, assume download gen
         if args.filename:
-            self.run_download(args.filename, args.tool, args.write)
+            self.run_download(args.filename, args.tool, args.write, copy_only=copy_only, edit=edit, preview=preview)
             executed = True
         elif args.server:
             # Else assume server start if -s provided
-            self.run_server(args.server)
+            self.run_server(args.server, preview=preview)
             executed = True
             
         if not executed:
