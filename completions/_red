@@ -9,7 +9,7 @@ _red() {
     global_opts=(
         '-h[Show help message]'
         '-T[Set target IP/hostname/CIDR]:target:'
-        '-U[Set user credentials (user\:pass)]:user:'
+        '-U[Set user credentials (username\:password - auto-splits)]:user:'
         '-D[Set domain name]:domain:'
         '-H[Set NTLM hash]:hash:'
         '-i[Infrastructure enumeration module]'

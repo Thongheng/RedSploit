@@ -72,7 +72,7 @@ red -<TAB><TAB>
 -D  -- Set domain name
 -H  -- Set NTLM hash
 -T  -- Set target IP/hostname/CIDR
--U  -- Set credentials (username:password)
+-U  -- Set credentials (username:password - auto-splits)
 -f  -- File transfer module
 ...
 ```
