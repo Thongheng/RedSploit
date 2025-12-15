@@ -97,7 +97,31 @@ class FileModule(BaseModule):
             print("\nServer stopped.")
 
     def run(self, args_list):
-        log_warn("CLI mode is being refactored. Please use interactive mode.")
+        if "-download" in args_list:
+            # Need filename
+            # Simplistic parsing: find -download index, take next
+            try:
+                idx = args_list.index("-download")
+                if idx + 1 < len(args_list):
+                   filename = args_list[idx+1]
+                   self.run_download(filename)
+                else:
+                    log_error("Usage: -download <filename>")
+            except ValueError:
+                pass
+        elif "-base64" in args_list:
+             try:
+                idx = args_list.index("-base64")
+                if idx + 1 < len(args_list):
+                   filename = args_list[idx+1]
+                   self.run_base64(filename)
+             except ValueError: pass
+        elif "-http" in args_list:
+            self.run_server("http")
+        elif "-smb" in args_list:
+            self.run_server("smb")
+        else:
+             log_warn("No valid tool flag found. Use interactive mode.")
 
 
 class FileShell(BaseShell):
@@ -113,7 +137,7 @@ class FileShell(BaseShell):
 
     def do_download(self, arg):
         """Generate download command: download <filename> [tool]"""
-        arg, copy_only, edit, preview = self.parse_common_options(arg)
+        arg, copy_only, edit, preview, _ = self.parse_common_options(arg)
         parts = arg.split()
         if not parts:
             log_error("Usage: download <filename> [tool]")
@@ -135,7 +159,7 @@ class FileShell(BaseShell):
 
     def do_base64(self, arg):
         """Base64 encode a file: base64 <filename>"""
-        arg, copy_only, edit, preview = self.parse_common_options(arg)
+        arg, copy_only, edit, preview, _ = self.parse_common_options(arg)
         if not arg:
             log_error("Usage: base64 <filename>")
             return
@@ -147,7 +171,7 @@ class FileShell(BaseShell):
 
     def do_server(self, arg):
         """Start a server: server [http|smb]"""
-        arg, copy_only, edit, preview = self.parse_common_options(arg)
+        arg, copy_only, edit, preview, _ = self.parse_common_options(arg)
         server_type = arg.strip() or "http"
         self.file_module.run_server(server_type, preview=preview)
 

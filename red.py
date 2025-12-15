@@ -12,9 +12,7 @@ import argparse
 from redsploit.core.session import Session
 from redsploit.core.shell import RedShell
 from redsploit.core.colors import Colors, log_error
-from redsploit.modules.infra import InfraModule
-from redsploit.modules.web import WebModule
-from redsploit.modules.file import FileModule
+# Imports moved to inner scopes for lazy loading
 
 def main():
     parser = argparse.ArgumentParser(description="Red Team Pentest Helper", add_help=False)
@@ -38,12 +36,15 @@ def main():
     if args.h:
         # Check for context
         if args.i or "-i" in unknown:
+            from redsploit.modules.infra import InfraModule
             InfraModule(Session()).run(['-h'])
             sys.exit(0)
         elif args.w or "-w" in unknown:
+            from redsploit.modules.web import WebModule
             WebModule(Session()).run(['-h'])
             sys.exit(0)
         elif args.f or "-f" in unknown:
+            from redsploit.modules.file import FileModule
             FileModule(Session()).run(['-h'])
             sys.exit(0)
         elif "-set" in unknown:
@@ -203,10 +204,13 @@ Type 'help' or '?' to list commands.
         # CLI Mode
         try:
             if args.i:
+                from redsploit.modules.infra import InfraModule
                 InfraModule(session).run(unknown)
             elif args.w:
+                from redsploit.modules.web import WebModule
                 WebModule(session).run(unknown)
             elif args.f:
+                from redsploit.modules.file import FileModule
                 FileModule(session).run(unknown)
         except Exception as e:
             log_error(f"Module execution failed: {e}")

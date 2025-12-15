@@ -31,6 +31,38 @@ chmod +x red.py
 ./red.py
 ```
 
+### Configuration
+RedSploit uses a `config.yaml` file located in the project root. It is automatically created on first run if missing.
+
+### Wordlists
+Configure default wordlist paths in `config.yaml` to match your system (e.g., if you are using macOS vs Kali).
+```yaml
+web:
+  wordlists:
+    directory: /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+    subdomain: /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt
+    vhost: /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt
+```
+
+### Command History
+Command history is automatically saved to `~/.redsploit_history`. You can recall commands from previous sessions using the Up Arrow key.
+
+## Development
+RedSploit is designed to be easily extensible. 
+
+### Adding New Tools
+Tools are defined in a data-driven structure within their respective module files (`infra.py`, `web.py`, `file.py`).
+
+**Example (adding a tool to `INFRA_TOOLS`):**
+```python
+"my_tool": {
+    "cmd": "mytool -t {target} --scan",
+    "category": "My Category",
+    "requires": ["target"]
+}
+```
+The command template automatically injects variables like `{target}`, `{domain}`, `{url}`, and authenticates if `{auth}` is present.
+
 ### Usage
 
 **Interactive Mode:**

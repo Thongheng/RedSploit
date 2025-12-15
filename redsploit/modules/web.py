@@ -136,8 +136,27 @@ class WebModule(BaseModule):
             log_error(f"Error building command: {e}")
 
     # Legacy method for CLI
+    # Legacy CLI run method
     def run(self, args_list):
-        log_warn("CLI mode is being refactored. Please use interactive mode.")
+        for arg in args_list:
+            if arg.startswith("-"):
+                tool_name = arg.lstrip("-")
+                # Special mapping for commands that don't match 1:1 if needed
+                # But for now, most map directly (e.g. -nuclei -> nuclei)
+                # Map specific legacy flags to new tool names if different
+                alias_map = {
+                    "dns": "gobuster_dns",
+                    "dir": "gobuster_dir",
+                    "feroxbuster": "dir_ferox",
+                }
+                
+                tool_key = alias_map.get(tool_name, tool_name)
+                
+                if tool_key in self.TOOLS:
+                    self.run_tool(tool_key)
+                    return
+        
+        log_warn("No valid tool flag found. Use interactive mode.")
 
 
 class WebShell(BaseShell):

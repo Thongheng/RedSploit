@@ -214,9 +214,22 @@ class InfraModule(BaseModule):
     # Legacy CLI run method
     def run(self, args_list):
         # Simplistic mapping for now to keep CLI working
-        # ... logic to parse args and call run_tool ...
-        # For brevity in this refactor, I will just output a warning that CLI mode needs update or rely on interactive
-        log_warn("CLI mode is being refactored. Please use interactive mode.")
+        current_args = args_list
+        
+        # Map flags to tool names
+        # We need to strip '-' prefix
+        for arg in args_list:
+            if arg.startswith("-"):
+                tool_name = arg.lstrip("-")
+                # Check if this flag corresponds to a tool
+                if tool_name in self.TOOLS:
+                     # It's a tool! Run it.
+                     # We can also check for -auth or credentials in args_list if needed
+                     use_auth = "-auth" in args_list
+                     self.run_tool(tool_name, use_auth=use_auth)
+                     return
+
+        log_warn("No valid tool flag found. Use interactive mode or specify -<toolname>")
 
 
 class InfraShell(BaseShell):

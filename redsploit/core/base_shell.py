@@ -225,6 +225,7 @@ class BaseShell(cmd.Cmd):
         else:
 
             log_error("Usage: set <VARIABLE> <VALUE>")
+            print(f"\n{Colors.HEADER}Note: Setting DOMAIN will automatically populate TARGET for all modules if unset.{Colors.ENDC}")
             print(f"\n{Colors.HEADER}Valid Variables{Colors.ENDC}")
             print("=" * 60)
             print(f"{'Name':<20} {'Description'}")
