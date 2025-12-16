@@ -153,7 +153,7 @@ class BaseShell(cmd.Cmd):
                     pass
 
     def update_prompt(self):
-        target = self.session.get("TARGET")
+        target = self.session.get("target")
         module_str = f" ({Colors.FAIL}{self.module_name}{Colors.ENDC})" if self.module_name else ""
         
         if target:
@@ -246,30 +246,31 @@ class BaseShell(cmd.Cmd):
             return [o for o in options if o.startswith(text.lower())]
         return options
 
-    def do_show(self, arg):
-        """Show options or modules: SHOW OPTIONS | SHOW MODULES"""
-        arg = arg.lower()
-        if arg == "options":
-            self.session.show_options()
-        elif arg == "modules":
-            print(f"\n{Colors.HEADER}Available Modules{Colors.ENDC}")
-            print("=" * 40)
-            print(f"{'Name':<15} {'Description'}")
-            print("-" * 40)
-            print(f"{'infra':<15} Infrastructure Enumeration")
-            print(f"{'web':<15} Web Reconnaissance")
-            print(f"{'file':<15} File Transfer & Servers")
-            print(f"{'shell':<15} System Shell (Direct Exec)")
-            print("")
-        else:
-            log_warn("Unknown show command. Try 'show options' or 'show modules'.")
+    # Removed 'show' command - use 'options' directly or module names (infra/web/file/shell)
+    # def do_show(self, arg):
+    #     """Show options or modules: SHOW OPTIONS | SHOW MODULES"""
+    #     arg = arg.lower()
+    #     if arg == "options":
+    #         self.session.show_options()
+    #     elif arg == "modules":
+    #         print(f"\n{Colors.HEADER}Available Modules{Colors.ENDC}")
+    #         print("=" * 40)
+    #         print(f"{'Name':<15} {'Description'}")
+    #         print("-" * 40)
+    #         print(f"{'infra':<15} Infrastructure Enumeration")
+    #         print(f"{'web':<15} Web Reconnaissance")
+    #         print(f"{'file':<15} File Transfer & Servers")
+    #         print(f"{'shell':<15} System Shell (Direct Exec)")
+    #         print("")
+    #     else:
+    #         log_warn("Unknown show command. Try 'show options' or 'show modules'.")
 
-    def complete_show(self, text, line, begidx, endidx):
-        """Autocomplete options for 'show' command"""
-        options = ["options", "modules"]
-        if text:
-            return [o for o in options if o.startswith(text)]
-        return options
+    # def complete_show(self, text, line, begidx, endidx):
+    #     """Autocomplete options for 'show' command"""
+    #     options = ["options", "modules"]
+    #     if text:
+    #         return [o for o in options if o.startswith(text)]
+    #     return options
 
     def do_options(self, arg):
         """Show options (alias for 'show options')"""
@@ -507,28 +508,59 @@ class BaseShell(cmd.Cmd):
 
         
         # Core commands defined in BaseShell
-        core_cmds = ["use", "set", "show", "exit", "back", "shell", "help", "clear", "workspace", "loot", "playbook"]
+        # Categorize core commands
+        navigation_cmds = ["back", "use", "exit", "help", "clear"]
+        config_cmds = ["set", "options"]
+        advanced_cmds = ["workspace", "loot", "playbook"]
+        module_select_cmds = ["infra", "web", "file", "shell"]
+        
         module_cmds = []
         
+        # Categorized command storage
+        nav_found = []
+        config_found = []
+        advanced_found = []
+        module_select_found = []
+        
         # Introspect to find commands
-        core_cmds_found = []
         for name in dir(self):
             if name.startswith("do_"):
                 cmd_name = name[3:]
                 func = getattr(self, name)
                 doc = (func.__doc__ or "").strip().split("\n")[0]
                 
-                if cmd_name in core_cmds:
-                    core_cmds_found.append((cmd_name, doc))
+                if cmd_name in navigation_cmds:
+                    nav_found.append((cmd_name, doc))
+                elif cmd_name in config_cmds:
+                    config_found.append((cmd_name, doc))
+                elif cmd_name in advanced_cmds:
+                    advanced_found.append((cmd_name, doc))
+                elif cmd_name in module_select_cmds:
+                    module_select_found.append((cmd_name, doc))
                 else:
                     module_cmds.append((cmd_name, doc))
         
         # Only show Core Commands in the main shell
-        if self.module_name is None and core_cmds_found:
-            print(f"\n{Colors.HEADER}Core Commands{Colors.ENDC}")
-
-            for cmd_name, doc in sorted(core_cmds_found):
-                print(f"{cmd_name:<20} {doc}")
+        if self.module_name is None:
+            if nav_found:
+                print(f"\n{Colors.HEADER}Navigation{Colors.ENDC}")
+                for cmd_name, doc in sorted(nav_found):
+                    print(f"{cmd_name:<20} {doc}")
+            
+            if config_found:
+                print(f"\n{Colors.HEADER}Configuration{Colors.ENDC}")
+                for cmd_name, doc in sorted(config_found):
+                    print(f"{cmd_name:<20} {doc}")
+            
+            if module_select_found:
+                print(f"\n{Colors.HEADER}Modules{Colors.ENDC}")
+                for cmd_name, doc in sorted(module_select_found):
+                    print(f"{cmd_name:<20} {doc}")
+            
+            if advanced_found:
+                print(f"\n{Colors.HEADER}Advanced Features{Colors.ENDC}")
+                for cmd_name, doc in sorted(advanced_found):
+                    print(f"{cmd_name:<20} {doc}")
         
         if module_cmds:
             # Check for categories

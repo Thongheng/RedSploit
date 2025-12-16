@@ -15,6 +15,7 @@ class Session:
             "user": "",
             "username": "",
             "password": "",
+            "hash": "",
             "interface": get_default_interface(),
             "lport": "4444",
             "workspace": "default"
@@ -38,6 +39,7 @@ class Session:
             "user": {"required": True, "desc": "User credentials (username or username:password)"},
             "username": {"required": False, "desc": "Username (auto-set from user)"},
             "password": {"required": False, "desc": "Password (auto-set from user)"},
+            "hash": {"required": False, "desc": "NTLM Hash (for Pass-the-Hash)"},
             "domain": {"required": False, "desc": "Domain name (default: .)"},
             "interface": {"required": True, "desc": "Network Interface"},
             "lport": {"required": True, "desc": "Local Port (Reverse Shell)"},

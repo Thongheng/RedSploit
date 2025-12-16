@@ -128,8 +128,17 @@ def main():
 
     # Command to Module Mapping for Auto-Detection
     COMMAND_MAPPING = {
-        "infra": ["-nmap", "-rustscan"],
-        "web": ["-gobuster", "-feroxbuster", "-nuclei", "-wpscan", "-arjun", "-dns", "-dir", "-vhost", "-subzy", "-katana", "-waf", "-screenshots", "-tech"],
+        "infra": [
+            "-nmap", "-rustscan", "-smbclient", "-smbmap", "-enum4linux", "-netexec", 
+            "-bloodhound", "-ftp", "-msf", "-rdp", "-ssh", "-evil_winrm", "-psexec", 
+            "-wmiexec", "-secretsdump", "-kerbrute"
+        ],
+        "web": [
+            "-gobuster_dns", "-feroxbuster", "-nuclei", "-wpscan", "-arjun", 
+            "-dns", "-dir", "-vhost", "-subzy", "-katana", "-waf", "-screenshots", 
+            "-tech", "-subfinder", "-httpx", "-dir_ffuf", "-dir_ferox", "-dir_dirsearch", 
+            "-gobuster_dir"
+        ],
         "file": ["-download", "-upload", "-http", "-smb", "-base64"]
     }
 

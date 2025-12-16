@@ -1,4 +1,5 @@
 import os
+import shlex
 from ..core.colors import log_info, log_error, log_warn
 from ..core.base_shell import BaseShell
 from .base import ArgumentParserNoExit, BaseModule, HelpExit
@@ -119,14 +120,14 @@ class WebModule(BaseModule):
             log_warn("Target URL is not set. Use 'set TARGET <url>'")
             return
 
-        # Prepare formatting vars
+        # Prepare formatting vars with QUOTING
         format_args = {
-            "domain": domain,
-            "url": url,
-            "port": port,
-            "wordlist_dir": self.wordlist_dir,
-            "wordlist_subdomain": self.wordlist_subdomain,
-            "wordlist_vhost": self.wordlist_vhost
+            "domain": shlex.quote(domain or ""),
+            "url": shlex.quote(url or ""),
+            "port": shlex.quote(port or ""),
+            "wordlist_dir": shlex.quote(self.wordlist_dir),
+            "wordlist_subdomain": shlex.quote(self.wordlist_subdomain),
+            "wordlist_vhost": shlex.quote(self.wordlist_vhost)
         }
 
         try:
@@ -138,6 +139,37 @@ class WebModule(BaseModule):
     # Legacy method for CLI
     # Legacy CLI run method
     def run(self, args_list):
+        # Handle help request
+        if "-h" in args_list or "help" in args_list:
+            from ..core.colors import Colors
+            print(f"\n{Colors.HEADER}Web Reconnaissance Module{Colors.ENDC}")
+            print("Usage: red -w -<tool> [options]")
+            print("")
+            print(f"{Colors.HEADER}Available Tools:{Colors.ENDC}")
+            print("")
+            
+            # Group tools by category
+            categorized = {}
+            for tool_name, tool_data in self.TOOLS.items():
+                cat = tool_data.get("category", "Uncategorized")
+                if cat not in categorized:
+                    categorized[cat] = []
+                categorized[cat].append(tool_name)
+            
+            # Print by category
+            for cat in sorted(categorized.keys()):
+                print(f"{Colors.BOLD}{cat}{Colors.ENDC}")
+                for tool in sorted(categorized[cat]):
+                    print(f"  -{tool:<18} {self.TOOLS[tool].get('cmd', '')[:60]}")
+                print("")
+            
+            print(f"{Colors.HEADER}Examples:{Colors.ENDC}")
+            print("  red -T example.com -w -subfinder")
+            print("  red -T https://example.com -w -nuclei")
+            print("  red -T example.com -w -dir_ffuf")
+            print("")
+            return
+        
         for arg in args_list:
             if arg.startswith("-"):
                 tool_name = arg.lstrip("-")

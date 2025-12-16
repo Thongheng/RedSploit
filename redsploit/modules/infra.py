@@ -1,5 +1,5 @@
-import os
 import shlex
+import os
 from ..core.colors import log_info, log_warn, log_error
 from ..core.base_shell import BaseShell
 from .base import ArgumentParserNoExit, BaseModule, HelpExit
@@ -113,93 +113,88 @@ class InfraModule(BaseModule):
         # Use unified resolution
         domain_resolved, url_resolved, port_resolved = self.session.resolve_target()
         
-        # Determine target to use (some infra tools want IP/Domain, some URL?)
-        # For infra, we generally want just the target/domain string, not the URL prefix
-        # resolve_target returns (domain, url, port). domain is usually what we want for nmap/etc
-        target = domain_resolved
+        # Determine target to use - prioritize domain if available, else target IP
+        target = domain_resolved if domain_resolved else self.session.get("target")
 
         if not target:
              log_warn("Target is not set. Use 'set TARGET <ip/domain>'")
              return
 
-        reqs = tool.get("requires", [])
-        if "target" in reqs and not target:
-             # Should be covered by above check, but good for completeness
-             return
-            
-        params = {
-            "target": target,
-            "domain": domain_resolved # mapping for consistency if template uses {domain}
-        }
-        
-        # Auth Check
-        user = self.session.get("USERNAME")
-        password = self.session.get("PASSWORD")
-        interface = self.session.get("INTERFACE")
-        lport = self.session.get("LPORT")
+        # 1. Get Variables
+        user = self.session.get("username")
+        password = self.session.get("password")
+        hash_val = self.session.get("hash")
+        interface = self.session.get("interface")
+        lport = self.session.get("lport")
 
         # 2. Check Requirements
         reqs = tool.get("requires", [])
         if "target" in reqs and not target:
             log_warn("Target is not set.")
             return
-        if "domain" in reqs and not domain:
-            log_warn("Domain is not set.")
+        if "domain" in reqs and not domain_resolved:
+            log_warn("Domain is not set. (Try 'set domain ...')")
             return
         if "auth_mandatory" in reqs:
-            if not use_auth or not (user and password):
-                 log_warn("Credentials required.")
+            if not use_auth or not (user and (password or hash_val)):
+                 log_warn("Credentials required for this tool.")
                  return
 
         # 3. Build Auth String
         auth_str = ""
-        creds_str = "" # format user[:pass]
+        creds_str = "" # format user[:pass] or user@domain -hashes :hash
+        
         if use_auth:
              mode = tool.get("auth_mode", "")
              if mode == "u_p_flags":
                  # -u 'user' -p 'pass'
-                 if user: auth_str += f"-u '{user}' "
-                 if password: auth_str += f"-p '{password}' "
+                 if user: auth_str += f"-u {shlex.quote(user)} "
+                 if password: auth_str += f"-p {shlex.quote(password)} "
              elif mode == "flag_U":
                  # smbclient -U 'user%pass' or -N
                  if user and password:
-                     auth_str = f"-U '{user}%{password}'"
+                     auth_str = f"-U {shlex.quote(user + '%' + password)}"
                  else:
                      auth_str = "-N"
              elif mode == "rdp_flags":
                  # /u:'user' /p:'pass'
-                 if user: auth_str += f"/u:'{user}' "
-                 if password: auth_str += f"/p:'{password}' "
+                 if user: auth_str += f"/u:{shlex.quote(user)} "
+                 if password: auth_str += f"/p:{shlex.quote(password)} "
              elif mode == "custom_ftp":
                  # lftp -u 'user,pass'
-                 u = user or "anonymous"
-                 p = password or "anonymous"
-                 # This is injected via cmd format args, not {auth} usually, but let's handle it
-                 pass 
+                 pass # Handled in format_args
              elif mode == "impacket":
                  if user:
-                     creds_str = user
-                     if password: creds_str += f":{password}"
+                     creds_str = shlex.quote(user)
+                     if hash_val:
+                         # Pass-the-hash
+                         creds_str += f"@{shlex.quote(domain_resolved or '.')} -hashes :{shlex.quote(hash_val)}"
+                     elif password:
+                         creds_str += f":{shlex.quote(password)}"
         
         # 4. Format Command
         try:
-             # Prepare context vars
+             # Prepare context vars with QUOTING for security
              format_args = {
-                 "target": target,
-                 "domain": domain_resolved,
+                 "target": shlex.quote(target),
+                 "domain": shlex.quote(domain_resolved or ""),
                  "auth": auth_str,
-                 "user": user,
-                 "password": password,
+                 "user": shlex.quote(user or ""),
+                 "password": shlex.quote(password or ""),
                  "creds": creds_str,
-                 "lport": lport,
-                 "lhost": get_ip_address(interface) or "0.0.0.0",
-                 "payload": "windows/meterpreter/reverse_tcp"
+                 "lport": shlex.quote(lport or "4444"),
+                 "lhost": shlex.quote(get_ip_address(interface) or "0.0.0.0"),
+                 "payload": "windows/meterpreter/reverse_tcp" # Default payload
              }
              
              # Special case for FTP default anonymous
-             if tool_name == "ftp" and not use_auth:
-                  format_args["user"] = "anonymous"
-                  format_args["password"] = "anonymous"
+             if tool_name == "ftp":
+                 if not use_auth:
+                     format_args["user"] = "anonymous"
+                     format_args["password"] = "anonymous"
+                 else:
+                     format_args["user"] = shlex.quote(user or "anonymous")
+                     format_args["password"] = shlex.quote(password or "anonymous")
              
              cmd = tool["cmd"].format(**format_args)
              
@@ -213,8 +208,41 @@ class InfraModule(BaseModule):
 
     # Legacy CLI run method
     def run(self, args_list):
-        # Simplistic mapping for now to keep CLI working
-        current_args = args_list
+        # Handle help request
+        if "-h" in args_list or "help" in args_list:
+            from ..core.colors import Colors
+            print(f"\n{Colors.HEADER}Infrastructure Module{Colors.ENDC}")
+            print("Usage: red -i -<tool> [options]")
+            print("")
+            print(f"{Colors.HEADER}Available Tools:{Colors.ENDC}")
+            print("")
+            
+            # Group tools by category
+            categorized = {}
+            for tool_name, tool_data in self.TOOLS.items():
+                cat = tool_data.get("category", "Uncategorized")
+                if cat not in categorized:
+                    categorized[cat] = []
+                categorized[cat].append(tool_name)
+            
+            # Print by category
+            for cat in sorted(categorized.keys()):
+                print(f"{Colors.BOLD}{cat}{Colors.ENDC}")
+                for tool in sorted(categorized[cat]):
+                    print(f"  -{tool:<18} {self.TOOLS[tool].get('cmd', '')[:60]}")
+                print("")
+            
+            print(f"{Colors.HEADER}Examples:{Colors.ENDC}")
+            print("  red -T 10.10.10.10 -i -nmap")
+            print("  red -T 10.10.10.10 -U admin:pass -i -smbclient")
+            print("  red -T 10.10.10.10 -U admin -H <ntlm_hash> -i -psexec")
+            print("")
+            return
+        
+        # Auto-detect credits in CLI mode
+        user = self.session.get("username")
+        password = self.session.get("password")
+        has_creds = bool(user or password) # Or hash, but mainly user/pass for defaults
         
         # Map flags to tool names
         # We need to strip '-' prefix
@@ -224,8 +252,9 @@ class InfraModule(BaseModule):
                 # Check if this flag corresponds to a tool
                 if tool_name in self.TOOLS:
                      # It's a tool! Run it.
-                     # We can also check for -auth or credentials in args_list if needed
-                     use_auth = "-auth" in args_list
+                     # In interactive, use_auth logic relies on -auth flag.
+                     # In CLI, if -U is provided, we assume we want to use them.
+                     use_auth = has_creds # Auto-use credentials in CLI mode if set
                      self.run_tool(tool_name, use_auth=use_auth)
                      return
 

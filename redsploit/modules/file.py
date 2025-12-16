@@ -1,4 +1,5 @@
 import os
+import shlex
 import subprocess
 import socket
 import glob
@@ -32,7 +33,7 @@ class FileModule(BaseModule):
             log_error("Filename is required.")
             return
 
-        interface = self.session.get("INTERFACE")
+        interface = self.session.get("interface")
         ip_addr = get_ip_address(interface)
         
         if not ip_addr:
@@ -49,7 +50,11 @@ class FileModule(BaseModule):
             log_error(f"Unknown tool: {tool}")
             return
 
-        cmd = cmd_template.format(ip=ip_addr, filename=filename)
+        # Use shell quoting
+        cmd = cmd_template.format(
+            ip=shlex.quote(ip_addr), 
+            filename=shlex.quote(filename)
+        )
         
         if copy_only or edit or preview:
             self._exec(cmd, copy_only, edit, run=False, preview=preview)
@@ -65,13 +70,13 @@ class FileModule(BaseModule):
     def run_base64(self, filename, copy_only=False, edit=False, preview=False):
         if os.path.isfile(filename):
             log_success(f"Base64 encoded content of {filename}:")
-            cmd = self.TOOLS["base64"].format(filename=filename)
+            cmd = self.TOOLS["base64"].format(filename=shlex.quote(filename))
             self._exec(cmd, copy_only, edit, preview=preview)
         else:
             log_error(f"File {filename} not found locally.")
 
     def run_server(self, server_type="http", preview=False):
-        interface = self.session.get("INTERFACE")
+        interface = self.session.get("interface")
         ip_addr = get_ip_address(interface)
         
         if not ip_addr:
@@ -97,6 +102,30 @@ class FileModule(BaseModule):
             print("\nServer stopped.")
 
     def run(self, args_list):
+        # Handle help request
+        if "-h" in args_list or "help" in args_list:
+            from ..core.colors import Colors
+            print(f"\n{Colors.HEADER}File Transfer Module{Colors.ENDC}")
+            print("Usage: red -f <command> [arguments]")
+            print("")
+            print(f"{Colors.HEADER}Available Commands:{Colors.ENDC}")
+            print("")
+            print(f"{Colors.BOLD}File Transfer{Colors.ENDC}")
+            print("  -download <file> [tool]    Generate download command (wget, curl, iwr, certutil)")
+            print("  -base64 <file>             Encode file to base64")
+            print("")
+            print(f"{Colors.BOLD}Servers{Colors.ENDC}")
+            print("  -http                      Start HTTP server on port 8000")
+            print("  -smb                       Start SMB server")
+            print("")
+            print(f"{Colors.HEADER}Examples:{Colors.ENDC}")
+            print("  red -f -download linpeas.sh")
+            print("  red -f -download payload.exe curl")
+            print("  red -f -http")
+            print("  red -f -base64 exploit.sh")
+            print("")
+            return
+        
         if "-download" in args_list:
             # Need filename
             # Simplistic parsing: find -download index, take next
@@ -134,7 +163,7 @@ class FileModule(BaseModule):
             # Check if first arg is an interface
             potential_iface = non_flag_args[0]
             if get_ip_address(potential_iface):
-                self.session.set("INTERFACE", potential_iface)
+                self.session.set("interface", potential_iface)
                 non_flag_args.pop(0)
             
             if not non_flag_args:

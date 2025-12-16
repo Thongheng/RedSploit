@@ -13,13 +13,13 @@ _red_completion() {
     local common_opts="-c --copy -p --preview -e --edit"
     
     # Infrastructure module flags
-    local infra_opts="-nmap -rust -smb-c -smb-m -enum4 -nxc -bloodhound -ftp -msf -rdp -ssh -ewinrm -psexec -wmiexec -secrets -kerbrute"
+    local infra_opts="-nmap -rustscan -smbclient -smbmap -enum4linux -netexec -bloodhound -ftp -msf -rdp -ssh -evil_winrm -psexec -wmiexec -secretsdump -kerbrute"
     
     # Web module flags
-    local web_opts="-subfinder -gobuster-dns -httpx -dir_ffuf -vhost -dir_ferox -dir_dirsearch -nuclei -wpscan -arjun -dns -subzy -katana -waf -screenshots -tech"
+    local web_opts="-subfinder -gobuster_dns -httpx -dir_ffuf -vhost -dir_ferox -dir_dirsearch -nuclei -wpscan -arjun -dns -subzy -katana -waf -screenshots -tech"
     
     # File module flags
-    local file_opts="-w --write -t --tool -s --server -b64"
+    local file_opts="-download -base64 -http -smb"
     
     # Start with global options
     opts="$global_opts"

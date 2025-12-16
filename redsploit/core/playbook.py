@@ -1,4 +1,5 @@
 import os
+import subprocess
 import yaml
 import time
 from typing import List, Dict, Optional
@@ -78,6 +79,7 @@ class PlaybookManager:
                 domain, url, port = self.session.resolve_target()
                 context['url'] = url if url else ""
                 context['domain'] = domain if domain else ""
+                context['hash'] = self.session.get("hash")
                 
                 # Check for Loot iteration? (Future scope)
                 
@@ -100,8 +102,14 @@ class PlaybookManager:
                 log_warn("Skipping step...")
                 continue
             elif action == 'e' or action == '':
-                os.system(cmd)
-                log_success("Step complete.")
+                try:
+                    log_info(f"Executing: {cmd}")
+                    subprocess.run(cmd, shell=True, check=True)
+                    log_success("Step complete.")
+                except subprocess.CalledProcessError as e:
+                     log_error(f"Step failed with exit code {e.returncode}")
+                except Exception as e:
+                     log_error(f"Execution error: {e}")
             else:
                 log_error("Invalid choice.")
         
