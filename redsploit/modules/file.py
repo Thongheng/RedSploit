@@ -2,7 +2,7 @@ import os
 import subprocess
 import socket
 import glob
-from ..core.colors import log_info, log_success, log_error, Colors
+from ..core.colors import log_info, log_success, log_error, log_warn, Colors
 from ..core.base_shell import BaseShell
 from .base import ArgumentParserNoExit, BaseModule, HelpExit
 from ..core.utils import get_ip_address
