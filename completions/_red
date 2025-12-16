@@ -1,118 +1,68 @@
 #compdef red
 
 _red() {
-    local curcontext="$curcontext" state line
+    local curcontext="$curcontext" state line ret=1
     typeset -A opt_args
     
-    # Global flags
-    local -a global_opts
-    global_opts=(
-        '-h[Show help message]'
-        '-T[Set target IP/hostname/CIDR]:target:'
-        '-U[Set user credentials (username\:password - auto-splits)]:user:'
-        '-D[Set domain name]:domain:'
-        '-H[Set NTLM hash]:hash:'
-        '(-w -f)-i[Infrastructure enumeration module]'
-        '(-i -f)-w[Web reconnaissance module]'
-        '(-i -w)-f[File transfer module]'
-        '-set[Preset variables and launch interactive console]'
-    )
+    _arguments -C -s -S \
+        '-h[Show help message]' \
+        '-T[Set target IP/hostname/CIDR]:target:' \
+        '-U[Set user credentials]:user:' \
+        '-D[Set domain name]:domain:' \
+        '-H[Set NTLM hash]:hash:' \
+        '(-w -f)-i[Infrastructure enumeration module]' \
+        '(-i -f)-w[Web reconnaissance module]' \
+        '(-i -w)-f[File transfer module]' \
+        '-set[Preset variables and launch interactive console]' \
+        '-c[Copy command to clipboard]' \
+        '--copy[Copy command to clipboard]' \
+        '-p[Preview command without executing]' \
+        '--preview[Preview command without executing]' \
+        '-e[Edit command before execution]' \
+        '--edit[Edit command before execution]' \
+        '-nmap[Run Nmap scan]' \
+        '-rust[Run Rustscan]' \
+        '-smb-c[Run smbclient]' \
+        '-smb-m[Run smbmap]' \
+        '-enum4[Run enum4linux-ng]' \
+        '-nxc[Run NetExec SMB]' \
+        '-bloodhound[Run BloodHound-CE]' \
+        '-ftp[Run FTP enum]' \
+        '-msf[Start msfconsole handler]' \
+        '-rdp[Run RDP]' \
+        '-ssh[Run SSH]' \
+        '-ewinrm[Run Evil-WinRM]' \
+        '-psexec[Run Impacket PsExec]' \
+        '-wmiexec[Run Impacket WMIexec]' \
+        '-secrets[Run Impacket SecretsDump]' \
+        '-kerbrute[Run Kerbrute User Enum]' \
+        '-subfinder[Passive Subdomain]' \
+        '-gobuster-dns[Active Subdomain]' \
+        '-httpx[Web Server Validation]' \
+        '-dir_ffuf[Dir Bruteforce (ffuf)]' \
+        '-vhost[VHost Discovery]' \
+        '-dir_ferox[Dir Scan (Ferox)]' \
+        '-dir_dirsearch[Dir Scan (dirsearch)]' \
+        '-nuclei[Vuln Scan]' \
+        '-wpscan[WordPress Scan]' \
+        '-arjun[Param Discovery]' \
+        '-dns[DNS Enum]' \
+        '-subzy[Subdomain Takeover]' \
+        '-katana[Crawling]' \
+        '-waf[WAF Detection]' \
+        '-screenshots[Screenshots]' \
+        '-tech[Tech Detection]' \
+        '-w[Add output flag]' \
+        '--write[Add output flag]' \
+        '-t[Transfer tool]:tool:(wget curl iwr certutil scp base64)' \
+        '--tool[Transfer tool]:tool:(wget curl iwr certutil scp base64)' \
+        '-s[Server type]:server:(http smb)' \
+        '--server[Server type]:server:(http smb)' \
+        '-b64[Base64 encode file]' \
+        '*:filename:_files' \
+        && ret=0
     
-    # Common flags for all modules
-    local -a common_opts
-    common_opts=(
-        '-c[Copy command to clipboard]'
-        '--copy[Copy command to clipboard]'
-        '-p[Preview command without executing]'
-        '--preview[Preview command without executing]'
-        '-e[Edit command before execution]'
-        '--edit[Edit command before execution]'
-    )
-    
-    # Infrastructure module flags
-    local -a infra_opts
-    infra_opts=(
-        '-nmap[Run Nmap scan]'
-        '-rust[Run Rustscan]'
-        '-smb-c[Run smbclient]'
-        '-smb-m[Run smbmap]'
-        '-enum4[Run enum4linux-ng]'
-        '-nxc[Run NetExec SMB]'
-        '-bloodhound[Run BloodHound-CE]'
-        '-ftp[Run FTP enum]'
-        '-msf[Start msfconsole handler]'
-        '-rdp[Run RDP]'
-        '-ssh[Run SSH]'
-        '-ewinrm[Run Evil-WinRM]'
-        '-psexec[Run Impacket PsExec]'
-        '-wmiexec[Run Impacket WMIexec]'
-        '-secrets[Run Impacket SecretsDump]'
-        '-kerbrute[Run Kerbrute User Enum]'
-    )
-    
-    # Web module flags
-    local -a web_opts
-    web_opts=(
-        '-subfinder[Passive Subdomain]'
-        '-gobuster-dns[Active Subdomain]'
-        '-httpx[Web Server Validation]'
-        '-dir_ffuf[Dir Bruteforce (ffuf)]'
-        '-vhost[VHost Discovery]'
-        '-dir_ferox[Dir Scan (Ferox)]'
-        '-dir_dirsearch[Dir Scan (dirsearch)]'
-        '-nuclei[Vuln Scan]'
-        '-wpscan[WordPress Scan]'
-        '-arjun[Param Discovery]'
-        '-dns[DNS Enum]'
-        '-subzy[Subdomain Takeover]'
-        '-katana[Crawling]'
-        '-waf[WAF Detection]'
-        '-screenshots[Screenshots]'
-        '-tech[Tech Detection]'
-    )
-    
-    # File module flags
-    local -a file_opts
-    file_opts=(
-        '-w[Add output flag]'
-        '--write[Add output flag]'
-        '-t[Transfer tool]:tool:(wget curl iwr certutil scp base64)'
-        '--tool[Transfer tool]:tool:(wget curl iwr certutil scp base64)'
-        '-s[Server type]:server:(http smb)'
-        '--server[Server type]:server:(http smb)'
-        '-b64[Base64 encode file]'
-    )
-    
-    # Detect which module is active in the command line
-    local has_infra has_web has_file
-    has_infra=0
-    has_web=0
-    has_file=0
-    
-    for word in "${words[@]}"; do
-        case "$word" in
-            -i) has_infra=1 ;;
-            -w) has_web=1 ;;
-            -f) has_file=1 ;;
-        esac
-    done
-    
-    # Build completion options based on active module
-    local -a all_opts
-    all_opts=($global_opts)
-    
-    if [[ $has_infra -eq 1 ]]; then
-        all_opts+=($infra_opts $common_opts)
-    elif [[ $has_web -eq 1 ]]; then
-        all_opts+=($web_opts $common_opts)
-    elif [[ $has_file -eq 1 ]]; then
-        all_opts+=($file_opts $common_opts)
-        # Allow file completion for positional arguments (filename)
-        # Use *:: to indicate rest arguments are files
-        all_opts+=('*::filename:_files')
-    fi
-    
-    _arguments -s -S $all_opts
+    return ret
 }
 
 _red "$@"
