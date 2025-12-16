@@ -1,78 +1,17 @@
 #compdef red
 
+# Minimal completion - just always complete files for positional args
 _red() {
-    local curcontext="$curcontext" state line ret=1
-    typeset -A opt_args
-    local cur="${words[CURRENT]}"
-    
-    # If current word is empty or doesn't start with -, complete files
-    if [[ -z "$cur" ]] || [[ "$cur" != -* ]]; then
-        # But only if we're past the first argument
-        if (( CURRENT > 1 )); then
-            _files
-            return 0
-        fi
-    fi
-    
-    _arguments -C -s -S \
-        '-h[Show help message]' \
-        '-T[Set target IP/hostname/CIDR]:target:' \
-        '-U[Set user credentials]:user:' \
-        '-D[Set domain name]:domain:' \
-        '-H[Set NTLM hash]:hash:' \
-        '(-w -f)-i[Infrastructure enumeration module]' \
-        '(-i -f)-w[Web reconnaissance module]' \
-        '(-i -w)-f[File transfer module]' \
-        '-set[Preset variables and launch interactive console]' \
-        '-c[Copy command to clipboard]' \
-        '--copy[Copy command to clipboard]' \
-        '-p[Preview command without executing]' \
-        '--preview[Preview command without executing]' \
-        '-e[Edit command before execution]' \
-        '--edit[Edit command before execution]' \
-        '-nmap[Run Nmap scan]' \
-        '-rust[Run Rustscan]' \
-        '-smb-c[Run smbclient]' \
-        '-smb-m[Run smbmap]' \
-        '-enum4[Run enum4linux-ng]' \
-        '-nxc[Run NetExec SMB]' \
-        '-bloodhound[Run BloodHound-CE]' \
-        '-ftp[Run FTP enum]' \
-        '-msf[Start msfconsole handler]' \
-        '-rdp[Run RDP]' \
-        '-ssh[Run SSH]' \
-        '-ewinrm[Run Evil-WinRM]' \
-        '-psexec[Run Impacket PsExec]' \
-        '-wmiexec[Run Impacket WMIexec]' \
-        '-secrets[Run Impacket SecretsDump]' \
-        '-kerbrute[Run Kerbrute User Enum]' \
-        '-subfinder[Passive Subdomain]' \
-        '-gobuster-dns[Active Subdomain]' \
-        '-httpx[Web Server Validation]' \
-        '-dir_ffuf[Dir Bruteforce (ffuf)]' \
-        '-vhost[VHost Discovery]' \
-        '-dir_ferox[Dir Scan (Ferox)]' \
-        '-dir_dirsearch[Dir Scan (dirsearch)]' \
-        '-nuclei[Vuln Scan]' \
-        '-wpscan[WordPress Scan]' \
-        '-arjun[Param Discovery]' \
-        '-dns[DNS Enum]' \
-        '-subzy[Subdomain Takeover]' \
-        '-katana[Crawling]' \
-        '-waf[WAF Detection]' \
-        '-screenshots[Screenshots]' \
-        '-tech[Tech Detection]' \
-        '-w[Add output flag]' \
-        '--write[Add output flag]' \
-        '-t[Transfer tool]:tool:(wget curl iwr certutil scp base64)' \
-        '--tool[Transfer tool]:tool:(wget curl iwr certutil scp base64)' \
-        '-s[Server type]:server:(http smb)' \
-        '--server[Server type]:server:(http smb)' \
-        '-b64[Base64 encode file]' \
-        '*:filename:_files' \
-        && ret=0
-    
-    return ret
+    _arguments \
+        '-h[Show help]' \
+        '-T[Target]:target:' \
+        '-U[User]:user:' \
+        '-D[Domain]:domain:' \
+        '-H[Hash]:hash:' \
+        '-i[Infra module]' \
+        '-w[Web module]' \
+        '-f[File module]' \
+        '*:file:_files'
 }
 
 _red "$@"
