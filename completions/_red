@@ -4,6 +4,12 @@ _red() {
     local curcontext="$curcontext" state line ret=1
     typeset -A opt_args
     
+    # If current word doesn't start with -, complete files
+    if [[ ${words[CURRENT]} != -* ]] && (( CURRENT > 1 )); then
+        _files
+        return
+    fi
+    
     _arguments -C -s -S \
         '-h[Show help message]' \
         '-T[Set target IP/hostname/CIDR]:target:' \
