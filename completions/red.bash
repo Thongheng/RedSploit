@@ -56,6 +56,12 @@ _red_completion() {
             ;;
     esac
     
+    # Check if we should fallback to file completion (only for file module and when not starting a flag)
+    if [[ " ${COMP_WORDS[@]} " =~ " -f " ]] && [[ ! "${cur}" =~ ^- ]]; then
+         COMPREPLY=( $(compgen -f -- ${cur}) )
+         return 0
+    fi
+    
     COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
     return 0
 }

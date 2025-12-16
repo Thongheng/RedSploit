@@ -12,9 +12,9 @@ _red() {
         '-U[Set user credentials (username\:password - auto-splits)]:user:'
         '-D[Set domain name]:domain:'
         '-H[Set NTLM hash]:hash:'
-        '-i[Infrastructure enumeration module]'
-        '-w[Web reconnaissance module]'
-        '-f[File transfer module]'
+        '(-w -f)-i[Infrastructure enumeration module]'
+        '(-i -f)-w[Web reconnaissance module]'
+        '(-i -w)-f[File transfer module]'
         '-set[Preset variables and launch interactive console]'
     )
     
@@ -108,7 +108,8 @@ _red() {
     elif [[ $has_file -eq 1 ]]; then
         all_opts+=($file_opts $common_opts)
         # Allow file completion for positional arguments (filename)
-        all_opts+=('*:filename:_files')
+        # Use *:: to indicate rest arguments are files
+        all_opts+=('*::filename:_files')
     fi
     
     _arguments -s -S $all_opts
