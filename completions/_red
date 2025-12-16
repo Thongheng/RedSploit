@@ -107,6 +107,8 @@ _red() {
         all_opts+=($web_opts $common_opts)
     elif [[ $has_file -eq 1 ]]; then
         all_opts+=($file_opts $common_opts)
+        # Allow file completion for positional arguments (filename)
+        all_opts+=('*:filename:_files')
     fi
     
     _arguments -s -S $all_opts
