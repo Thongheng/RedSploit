@@ -233,3 +233,10 @@ class FileShell(BaseShell):
         if text:
             return [t for t in types if t.startswith(text)]
         return types
+
+    def complete_use(self, text, line, begidx, endidx):
+        """Autocomplete module names for 'use' command, excluding loot and playbook"""
+        modules = ["infra", "web", "file", "shell", "main"]
+        if text:
+            return [m for m in modules if m.startswith(text)]
+        return modules

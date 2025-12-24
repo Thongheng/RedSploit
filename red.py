@@ -134,9 +134,9 @@ def main():
             "-wmiexec", "-secretsdump", "-kerbrute"
         ],
         "web": [
-            "-gobuster_dns", "-feroxbuster", "-nuclei", "-wpscan", "-arjun", 
-            "-dns", "-dir", "-vhost", "-subzy", "-katana", "-waf", "-screenshots", 
-            "-tech", "-subfinder", "-httpx", "-dir_ffuf", "-dir_ferox", "-dir_dirsearch", 
+            "-gobuster_dns", "-feroxbuster", "-nuclei", "-wpscan",
+            "-dns", "-dir", "-vhost", "-subzy", "-waf", "-screenshots",
+            "-subfinder", "-dir_ffuf", "-dir_ferox", "-dir_dirsearch", 
             "-gobuster_dir"
         ],
         "file": ["-download", "-upload", "-http", "-smb", "-base64"]

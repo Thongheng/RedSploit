@@ -26,11 +26,6 @@ class WebModule(BaseModule):
             "category": "Subdomain Discovery",
             "requires": ["domain"]
         },
-        "httpx": {
-            "cmd": "echo {domain} | httpx -silent -title -tech-detect -status-code",
-            "category": "Web Server Validation",
-            "requires": ["domain"]
-        },
         "dir_ffuf": {
             "cmd": "ffuf -u {url}/FUZZ -w {wordlist_dir} -mc 200,301,302,403",
             "category": "Directory Scanning",
@@ -71,23 +66,8 @@ class WebModule(BaseModule):
             "category": "Vulnerability Scanning",
             "requires": ["url"]
         },
-        "arjun": {
-            "cmd": "arjun -u {url}",
-            "category": "Parameter Discovery",
-            "requires": ["url"]
-        },
-        "katana": {
-            "cmd": "katana -u {url}",
-            "category": "Crawling",
-            "requires": ["url"]
-        },
         "screenshots": {
             "cmd": "gowitness scan --single {url}",
-            "category": "Reconnaissance",
-            "requires": ["url"]
-        },
-        "tech": {
-            "cmd": "whatweb {url}",
             "category": "Reconnaissance",
             "requires": ["url"]
         }
@@ -229,3 +209,10 @@ class WebShell(BaseShell):
                 return [o for o in options if o.startswith(text)]
             return options
         return complete_tool
+
+    def complete_use(self, text, line, begidx, endidx):
+        """Autocomplete module names for 'use' command, excluding loot and playbook"""
+        modules = ["infra", "web", "file", "shell", "main"]
+        if text:
+            return [m for m in modules if m.startswith(text)]
+        return modules

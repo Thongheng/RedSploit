@@ -8,7 +8,7 @@ from ..core.utils import get_ip_address
 class InfraModule(BaseModule):
     TOOLS = {
         "nmap": {
-            "cmd": "nmap -sV -sC -Pn -v {target}",
+            "cmd": "nmap -sV -sC -Pn -v {config_flags} {target}",
             "category": "Scanners",
             "requires": ["target"]
         },
@@ -24,7 +24,7 @@ class InfraModule(BaseModule):
             "auth_mode": "flag_U", # Special case logic or generic template? Let's use generic template logic
         },
         "smbmap": {
-            "cmd": "smbmap -H {target} {auth}",
+            "cmd": "smbmap -H {target} {auth} --no-banner -q",
             "category": "SMB Tools",
             "requires": ["target"],
             "auth_mode": "u_p_flags" 
@@ -65,7 +65,7 @@ class InfraModule(BaseModule):
             "auth_mode": "rdp_flags" # /u /p
         },
         "ssh": {
-            "cmd": "sshpass -p '{password}' ssh {user}@{target}",
+            "cmd": "sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {user}@{target}",
             "category": "Remote Access",
             "requires": ["target", "auth_mandatory"],
             "auth_mode": "custom" # handled by template
@@ -172,7 +172,22 @@ class InfraModule(BaseModule):
                      elif password:
                          creds_str += f":{shlex.quote(password)}"
         
-        # 4. Format Command
+        # 4. Get Tool Configuration Flags
+        config_flags = ""
+        
+        # Check for tool-specific config
+        if tool_name == "nmap":
+            mode_flags = self.session.get_config_flags("infra", "nmap", "mode")
+            if mode_flags:
+                config_flags = mode_flags
+        
+        if tool_name == "smbclient":
+            auth_config = self.session.get_config_flags("infra", "smbclient", "auth")
+            if auth_config:
+                # Override auth_str if config is set
+                auth_str = auth_config
+        
+        # 5. Format Command
         try:
              # Prepare context vars with QUOTING for security
              format_args = {
@@ -184,8 +199,9 @@ class InfraModule(BaseModule):
                  "creds": creds_str,
                  "lport": shlex.quote(lport or "4444"),
                  "lhost": shlex.quote(get_ip_address(interface) or "0.0.0.0"),
-                 "payload": "windows/meterpreter/reverse_tcp" # Default payload
-             }
+                  "payload": "windows/meterpreter/reverse_tcp",  # Default payload
+                  "config_flags": config_flags
+              }
              
              # Special case for FTP default anonymous
              if tool_name == "ftp":
@@ -283,11 +299,17 @@ class InfraShell(BaseShell):
 
     def _create_do_method(self, tool_name):
         def do_tool(arg):
-            """Run tool"""
+            """Run tool or configure it"""
+            # Check if this is a config subcommand
+            if arg.strip() == "config" or arg.strip().startswith("config "):
+                self._handle_tool_config(tool_name, arg.replace("config", "").strip())
+                return
+            
+            # Normal tool execution
             _, copy_only, edit, preview, use_auth = self.parse_common_options(arg)
             self.infra_module.run_tool(tool_name, copy_only, edit, preview, use_auth)
         
-        do_tool.__doc__ = f"Run {tool_name}"
+        do_tool.__doc__ = f"Run {tool_name} or use '{tool_name} config' to configure"
         do_tool.__name__ = f"do_{tool_name}"
         return do_tool
 
@@ -298,3 +320,57 @@ class InfraShell(BaseShell):
                 return [o for o in options if o.startswith(text)]
             return options
         return complete_tool
+
+    def complete_use(self, text, line, begidx, endidx):
+        """Autocomplete module names for 'use' command, excluding loot and playbook"""
+        modules = ["infra", "web", "file", "shell", "main"]
+        if text:
+            return [m for m in modules if m.startswith(text)]
+        return modules
+
+    def _handle_tool_config(self, tool_name, config_arg):
+        """Handle configuration for a specific tool"""
+        from ..core.colors import Colors, log_warn, log_error
+        
+        # Get available configs for this tool
+        tool_configs = self.session.config.get("infra", {}).get("configs", {}).get(tool_name, {})
+        
+        if not tool_configs:
+            log_warn(f"No configuration options available for {tool_name}")
+            return
+        
+        # If no argument, show available configs
+        if not config_arg:
+            print(f"\n{Colors.HEADER}{tool_name} Configuration Options{Colors.ENDC}")
+            print("=" * 60)
+            for key, options in tool_configs.items():
+                print(f"\n{Colors.BOLD}{key}:{Colors.ENDC}")
+                for opt_name, opt_value in options.items():
+                    current = self.session.get_tool_config("infra", tool_name, key)
+                    marker = " *" if current == opt_name else ""
+                    print(f"  {opt_name:<15} {opt_value}{marker}")
+            print(f"\nUsage: {tool_name} config <key>=<value>")
+            print(f"Example: {tool_name} config mode=udp")
+            print()
+            return
+        
+        # Parse key=value format
+        if "=" not in config_arg:
+            log_error(f"Usage: {tool_name} config <key>=<value>")
+            return
+        
+        key, value = config_arg.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        
+        # Validate and set
+        if key not in tool_configs:
+            log_error(f"Unknown config key '{key}' for {tool_name}")
+            return
+        
+        if value not in tool_configs[key]:
+            log_error(f"Unknown value '{value}' for {tool_name}.{key}")
+            print(f"Valid values: {', '.join(tool_configs[key].keys())}")
+            return
+        
+        self.session.set_tool_config("infra", tool_name, key, value)

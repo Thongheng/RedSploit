@@ -51,6 +51,9 @@ class Session:
         
         # Initialize Playbook Manager
         self.playbook = PlaybookManager(self)
+        
+        # Tool configuration tracking
+        self.active_configs = {}  # Stores {module.tool: {config_key: config_value}}
 
     def load_config(self):
         default_config = {
@@ -274,3 +277,52 @@ class Session:
             print("")
         except Exception as e:
             log_error(f"Error listing workspaces: {e}")
+
+    def set_tool_config(self, module: str, tool: str, key: str, value: str) -> bool:
+        """Set a tool configuration preset."""
+        config_path = self.config.get(module, {}).get("configs", {}).get(tool, {}).get(key, {})
+        
+        if value not in config_path:
+            log_error(f"Unknown config value '{value}' for {tool}.{key}")
+            available = ", ".join(config_path.keys())
+            print(f"Available values: {available}")
+            return False
+        
+        tool_key = f"{module}.{tool}"
+        if tool_key not in self.active_configs:
+            self.active_configs[tool_key] = {}
+        
+        self.active_configs[tool_key][key] = value
+        log_success(f"Set {tool}.{key} => {value}")
+        return True
+
+    def get_tool_config(self, module: str, tool: str, key: str = None):
+        """Get active configuration for a tool."""
+        tool_key = f"{module}.{tool}"
+        if key:
+            return self.active_configs.get(tool_key, {}).get(key)
+        return self.active_configs.get(tool_key, {})
+
+    def get_config_flags(self, module: str, tool: str, key: str) -> str:
+        """Get the actual flags from config based on active setting."""
+        active_value = self.get_tool_config(module, tool, key)
+        if not active_value:
+            return ""
+        
+        return self.config.get(module, {}).get("configs", {}).get(tool, {}).get(key, {}).get(active_value, "")
+
+    def show_configs(self):
+        """Display current active configurations"""
+        if not self.active_configs:
+            print("No active configurations.")
+            return
+        
+        print(f"\n{Colors.HEADER}Active Tool Configurations{Colors.ENDC}")
+        print("=" * 60)
+        for tool_key, configs in self.active_configs.items():
+            print(f"\n{Colors.BOLD}{tool_key}{Colors.ENDC}")
+            for key, value in configs.items():
+                module, tool = tool_key.split('.')
+                flags = self.get_config_flags(module, tool, key)
+                print(f"  {key}: {value} => {flags}")
+        print()

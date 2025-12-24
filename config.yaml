@@ -3,3 +3,23 @@ web:
     directory: /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
     subdomain: /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt
     vhost: /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt
+  configs:
+    protocol:
+      default: "http"
+      https: "https"
+
+infra:
+  configs:
+    nmap:
+      mode:
+        default: ""
+        udp: "-sU"
+        stealth: "-sS -T2"
+        full: "-sV -sC -A -p-"
+        quick: "-sV -F"
+    smbclient:
+      auth:
+        default: ""
+        none: "-N"
+        guest: "-N -U ''"
+

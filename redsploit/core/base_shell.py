@@ -437,6 +437,13 @@ class BaseShell(cmd.Cmd):
                  return [f for f in files if f.startswith(text)]
         return []
 
+    def do_config(self, arg):
+        """
+        Show all active tool configurations.
+        Usage: config [list]
+        """
+        self.session.show_configs()
+
     def complete_loot(self, text, line, begidx, endidx):
         """Autocomplete for loot command"""
         parts = line.split()
