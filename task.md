@@ -19,9 +19,6 @@ sort -u all_raw.txt
       - [ ] nmap config : -sU
       - [ ] smbclient config : -N for no auth 
       - [ ] add https config for target 
-- [ ] Loot and playbook should not appear in suggestion in other module like webb, infra, file 
-- [ ] Remove  moudle 
-      - [ ] web HTTPX, Arjun, katana, tech
 - [ ] add
 
 ```

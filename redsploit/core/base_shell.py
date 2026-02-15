@@ -154,10 +154,15 @@ class BaseShell(cmd.Cmd):
 
     def update_prompt(self):
         target = self.session.get("target")
+        domain = self.session.get("domain")
+        
+        # Preference: Domain > Target
+        display = domain if domain else target
+        
         module_str = f" ({Colors.FAIL}{self.module_name}{Colors.ENDC})" if self.module_name else ""
         
-        if target:
-            self.prompt = f"{Colors.FAIL}{Colors.BOLD}redsploit{Colors.ENDC}{module_str} ({Colors.OKCYAN}{target}{Colors.ENDC}) > "
+        if display:
+            self.prompt = f"{Colors.FAIL}{Colors.BOLD}redsploit{Colors.ENDC}{module_str} ({Colors.OKCYAN}{display}{Colors.ENDC}) > "
         else:
             self.prompt = f"{Colors.FAIL}{Colors.BOLD}redsploit{Colors.ENDC}{module_str} > "
 
@@ -496,6 +501,64 @@ class BaseShell(cmd.Cmd):
     def do_shell(self, arg):
         """Run a shell command"""
         subprocess.run(arg, shell=True)
+
+    def do_addhost(self, arg):
+        """
+        Add current TARGET and DOMAIN (or specified domains) to /etc/hosts.
+        Usage: 
+            addhost                 (Adds current session DOMAIN)
+            addhost sub.example.com (Adds specified domain/subdomain)
+        Note: Requires sudo privileges.
+        """
+        target = self.session.get("target")
+        
+        if not target:
+            log_error("TARGET must be set.")
+            return
+
+        domains_to_add = []
+        if arg:
+            # User provided domains
+            domains_to_add = arg.split()
+        else:
+            # Fallback to session domain
+            domain = self.session.get("domain")
+            if domain:
+                domains_to_add.append(domain)
+            else:
+                log_error("No DOMAIN set in session. Usage: addhost <domain>")
+                return
+
+        try:
+            # check existing content once
+            with open("/etc/hosts", "r") as f:
+                content = f.read()
+            
+            new_entries = []
+            for d in domains_to_add:
+                entry = f"{target}\t{d}"
+                if entry in content:
+                    log_warn(f"Entry '{entry}' already exists in /etc/hosts")
+                else:
+                    new_entries.append(entry)
+            
+            if new_entries:
+                with open("/etc/hosts", "a") as f:
+                    for entry in new_entries:
+                        f.write(f"\n{entry}") # Don't add extra newline at end, just one at start of each block? 
+                        # actually \n{entry} is fine if file ends with newline. 
+                        # safer:
+                        # f.write(f"{entry}\n") if we ensure we start on new line. 
+                        # simple append:
+                        # f.write(f"\n{entry}")
+                
+                for entry in new_entries:
+                    log_success(f"Added '{entry}' to /etc/hosts")
+            
+        except PermissionError:
+            log_error("Permission denied. Please run redsploit with sudo to modify /etc/hosts.")
+        except Exception as e:
+            log_error(f"Failed to write to /etc/hosts: {e}")
 
     def do_help(self, arg):
         """List available commands with descriptions."""
