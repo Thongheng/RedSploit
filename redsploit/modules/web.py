@@ -193,7 +193,7 @@ class WebShell(BaseShell):
     def _create_do_method(self, tool_name):
         def do_tool(arg):
             """Run tool"""
-            # Fix unpacking: expects 5 values now (use_auth was added but web doesn't use it yet)
+            # 5th value is no_auth (not used by web module)
             _, copy_only, edit, preview, _ = self.parse_common_options(arg)
             self.web_module.run_tool(tool_name, copy_only, edit, preview)
         

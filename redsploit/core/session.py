@@ -278,6 +278,22 @@ class Session:
         except Exception as e:
             log_error(f"Error listing workspaces: {e}")
 
+    def delete_workspace(self, name: str) -> bool:
+        """Delete a saved workspace and its associated loot file."""
+        path = os.path.join(self.workspace_dir, f"{name}.json")
+        if not os.path.exists(path):
+            log_error(f"Workspace '{name}' not found.")
+            return False
+        try:
+            os.remove(path)
+            loot_path = os.path.join(self.workspace_dir, f"{name}_loot.json")
+            if os.path.exists(loot_path):
+                os.remove(loot_path)
+            return True
+        except Exception as e:
+            log_error(f"Failed to delete workspace '{name}': {e}")
+            return False
+
     def set_tool_config(self, module: str, tool: str, key: str, value: str) -> bool:
         """Set a tool configuration preset."""
         config_path = self.config.get(module, {}).get("configs", {}).get(tool, {}).get(key, {})

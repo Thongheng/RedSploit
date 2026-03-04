@@ -167,12 +167,12 @@ class BaseShell(cmd.Cmd):
             self.prompt = f"{Colors.FAIL}{Colors.BOLD}redsploit{Colors.ENDC}{module_str} > "
 
     def parse_common_options(self, arg):
-        """Parse -c (copy), -e (edit), -p (preview), and -auth flags from argument string."""
+        """Parse -c (copy), -e (edit), -p (preview), and -noauth flags from argument string."""
         args = arg.split()
         copy_only = False
         edit = False
         preview = False
-        use_auth = False
+        no_auth = False
         
         if "-c" in args:
             copy_only = True
@@ -186,11 +186,11 @@ class BaseShell(cmd.Cmd):
             preview = True
             args.remove("-p")
             
-        if "-auth" in args:
-            use_auth = True
-            args.remove("-auth")
+        if "-noauth" in args:
+            no_auth = True
+            args.remove("-noauth")
             
-        return " ".join(args), copy_only, edit, preview, use_auth
+        return " ".join(args), copy_only, edit, preview, no_auth
 
     def do_back(self, arg):
         """Return to the main menu"""
@@ -288,10 +288,11 @@ class BaseShell(cmd.Cmd):
             workspace save <name>
             workspace load <name>
             workspace list
+            workspace delete <name>
         """
         parts = arg.split()
         if not parts:
-            log_error("Usage: workspace <save|load|list> [name]")
+            log_error("Usage: workspace <save|load|list|delete> [name]")
             return
 
         cmd = parts[0].lower()
@@ -319,6 +320,23 @@ class BaseShell(cmd.Cmd):
                 log_success(f"Workspace '{name}' loaded.")
                 self.session.set("workspace", name)
                 self.update_prompt()
+
+        elif cmd == "delete":
+            if len(parts) < 2:
+                log_error("Usage: workspace delete <name>")
+                return
+            name = parts[1]
+            current = self.session.get("workspace")
+            if name == current:
+                log_warn(f"'{name}' is the currently active workspace.")
+                print("Are you sure you want to delete it? (y/N) ", end="", flush=True)
+                confirm = input().strip().lower()
+                if confirm != "y":
+                    print("Cancelled.")
+                    return
+            if self.session.delete_workspace(name):
+                log_success(f"Workspace '{name}' deleted.")
+
         else:
             log_error(f"Unknown workspace command: {cmd}")
 
@@ -471,18 +489,17 @@ class BaseShell(cmd.Cmd):
     def complete_workspace(self, text, line, begidx, endidx):
         """Autocomplete for workspace command"""
         parts = line.split()
-        # if typing the subcommand (save, load, list)
+        # if typing the subcommand (save, load, list, delete)
         if len(parts) == 1 or (len(parts) == 2 and not line.endswith(' ')):
-             cmds = ["save", "load", "list"]
+             cmds = ["save", "load", "list", "delete"]
              return [c for c in cmds if c.startswith(text)]
         
-        # if typing the name for load
-        if len(parts) >= 2 and parts[1] == "load":
-            # List available files
+        # if typing the name for load or delete
+        if len(parts) >= 2 and parts[1] in ("load", "delete"):
             import os
             ws_dir = self.session.workspace_dir
             if os.path.exists(ws_dir):
-                files = [f[:-5] for f in os.listdir(ws_dir) if f.endswith(".json")]
+                files = [f[:-5] for f in os.listdir(ws_dir) if f.endswith(".json") and not f.endswith("_loot.json")]
                 prefix = parts[2] if len(parts) > 2 else ""
                 return [f for f in files if f.startswith(prefix)]
         
@@ -572,7 +589,7 @@ class BaseShell(cmd.Cmd):
         print(f"{'-c':<10} Copy command to clipboard without running")
         print(f"{'-p':<10} Preview command without running")
         print(f"{'-e':<10} Edit command before running")
-        print(f"{'-auth':<10} Use credentials from session (interactive mode)")
+        print(f"{'-noauth':<10} Skip credentials for this run (force anonymous/null session)")
 
 
 

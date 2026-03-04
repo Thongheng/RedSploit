@@ -104,7 +104,7 @@ class InfraModule(BaseModule):
     def __init__(self, session):
         super().__init__(session)
 
-    def run_tool(self, tool_name, copy_only=False, edit=False, preview=False, use_auth=False):
+    def run_tool(self, tool_name, copy_only=False, edit=False, preview=False, no_auth=False):
         tool = self.TOOLS.get(tool_name)
         if not tool:
             log_error(f"Tool {tool_name} not found.")
@@ -127,7 +127,11 @@ class InfraModule(BaseModule):
         interface = self.session.get("interface")
         lport = self.session.get("lport")
 
-        # 2. Check Requirements
+        # 2. Auto-enable auth if credentials are present (unless -noauth was passed)
+        has_creds = bool(user and (password or hash_val))
+        use_auth = has_creds and not no_auth
+
+        # 3. Check Requirements
         reqs = tool.get("requires", [])
         if "target" in reqs and not target:
             log_warn("Target is not set.")
@@ -136,8 +140,8 @@ class InfraModule(BaseModule):
             log_warn("Domain is not set. (Try 'set domain ...')")
             return
         if "auth_mandatory" in reqs:
-            if not use_auth or not (user and (password or hash_val)):
-                 log_warn("Credentials required for this tool.")
+            if not (user and (password or hash_val)):
+                 log_warn("Credentials required for this tool. Use 'set user <username:password>'")
                  return
 
         # 3. Build Auth String
@@ -268,10 +272,9 @@ class InfraModule(BaseModule):
                 # Check if this flag corresponds to a tool
                 if tool_name in self.TOOLS:
                      # It's a tool! Run it.
-                     # In interactive, use_auth logic relies on -auth flag.
-                     # In CLI, if -U is provided, we assume we want to use them.
-                     use_auth = has_creds # Auto-use credentials in CLI mode if set
-                     self.run_tool(tool_name, use_auth=use_auth)
+                      # In CLI, auth is always on by default if creds are set.
+                      # -noauth is not supported in CLI mode (interactive only).
+                     self.run_tool(tool_name, no_auth=False)
                      return
 
         log_warn("No valid tool flag found. Use interactive mode or specify -<toolname>")
@@ -305,9 +308,9 @@ class InfraShell(BaseShell):
                 self._handle_tool_config(tool_name, arg.replace("config", "").strip())
                 return
             
-            # Normal tool execution
-            _, copy_only, edit, preview, use_auth = self.parse_common_options(arg)
-            self.infra_module.run_tool(tool_name, copy_only, edit, preview, use_auth)
+            # Normal tool execution — 5th value is now no_auth
+            _, copy_only, edit, preview, no_auth = self.parse_common_options(arg)
+            self.infra_module.run_tool(tool_name, copy_only, edit, preview, no_auth)
         
         do_tool.__doc__ = f"Run {tool_name} or use '{tool_name} config' to configure"
         do_tool.__name__ = f"do_{tool_name}"
@@ -315,7 +318,7 @@ class InfraShell(BaseShell):
 
     def _create_complete_method(self):
         def complete_tool(text, line, begidx, endidx):
-            options = ["-c", "-e", "-p", "-auth"]
+            options = ["-c", "-e", "-p", "-noauth"]
             if text:
                 return [o for o in options if o.startswith(text)]
             return options
