@@ -7,8 +7,10 @@ class Colors:
     FAIL = '\033[91m'
     ENDC = '\033[0m'
     BOLD = '\033[1m'
+    DIM = '\033[2m'
 
 def log_info(msg): print(f"{Colors.OKCYAN}[*] {msg}{Colors.ENDC}")
 def log_success(msg): print(f"{Colors.OKGREEN}[+] {msg}{Colors.ENDC}")
 def log_warn(msg): print(f"{Colors.WARNING}[!] {msg}{Colors.ENDC}")
 def log_error(msg): print(f"{Colors.FAIL}[-] {msg}{Colors.ENDC}")
+def log_run(cmd): print(f"{Colors.BOLD}[>] {cmd}{Colors.ENDC}")

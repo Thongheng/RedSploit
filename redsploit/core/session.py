@@ -183,62 +183,81 @@ class Session:
             log_success(f"{key} => {value}")
 
     def show_options(self):
-        # Metadata moved to self.VAR_METADATA
+        print(f"\n{Colors.HEADER}Session Variables{Colors.ENDC}")
 
-        print(f"\n{Colors.HEADER}Module Options{Colors.ENDC}")
-        
-        # Define columns
-        headers = ["Variable", "Value", "Description"]
-        col_widths = [20, 30, 40]
-        
-        # Colors
-        C_VAR = Colors.OKBLUE + Colors.BOLD
-        C_VAL = Colors.WARNING
-        C_DESC = Colors.ENDC
-        C_BORDER = Colors.OKBLUE # Or white/grey
+        headers = ["Variable", "Value", "Req", "Description"]
+        col_widths = [12, 24, 3, 35]
+
+        C_VAR    = Colors.OKBLUE + Colors.BOLD
+        C_VAL    = Colors.WARNING
+        C_BORDER = Colors.OKBLUE
         C_HEADER = Colors.BOLD
-        C_RESET = Colors.ENDC
+        C_RESET  = Colors.ENDC
 
-        # Helper to print separator
-        def print_sep(top=False, bottom=False, mid=False):
-            # Box drawing chars: ─ │ ┌ ┐ └ ┘ ├ ┤ ┼
-            h_line = "─"
-            v_line = "│"
-            
+        def print_sep(top=False, bottom=False):
             if top:
                 left, mid_j, right = "┌", "┬", "┐"
             elif bottom:
                 left, mid_j, right = "└", "┴", "┘"
             else:
                 left, mid_j, right = "├", "┼", "┤"
-            
-            line = left + mid_j.join([h_line * (w + 2) for w in col_widths]) + right
+            line = left + mid_j.join(["─" * (w + 2) for w in col_widths]) + right
             print(f"{C_BORDER}{line}{C_RESET}")
 
-        # Print Header
+        def make_row(cells):
+            """cells: list of (visible_str, colored_str) per column"""
+            parts = []
+            for i, (vis, col) in enumerate(cells):
+                pad = " " * max(0, col_widths[i] - len(vis))
+                parts.append(f"{C_BORDER}│{C_RESET} {col}{pad} ")
+            return "".join(parts) + f"{C_BORDER}│{C_RESET}"
+
         print_sep(top=True)
-        header_row = f"{C_BORDER}│{C_RESET} {C_HEADER}{headers[0]:<{col_widths[0]}}{C_RESET} {C_BORDER}│{C_RESET} {C_HEADER}{headers[1]:<{col_widths[1]}}{C_RESET} {C_BORDER}│{C_RESET} {C_HEADER}{headers[2]:<{col_widths[2]}}{C_RESET} {C_BORDER}│{C_RESET}"
-        print(header_row)
+        header_cells = [(h, f"{C_HEADER}{h}{C_RESET}") for h in headers]
+        print(make_row(header_cells))
         print_sep()
 
-        # Print Rows
         for key, value in self.env.items():
-            if key == "user": continue  # Hide user, show username/password instead
+            if key == "user":
+                continue
             meta = self.VAR_METADATA.get(key, {"required": False, "desc": "Custom Variable"})
-            
-            # Truncate value if too long
+            required = meta.get("required", False)
+            is_unset = not str(value).strip()
+
+            # Variable column
+            var_col = f"{C_VAR}{key}{C_RESET}"
+
+            # Value column
             val_str = str(value)
             if len(val_str) > col_widths[1]:
-                val_str = val_str[:col_widths[1]-3] + "..."
+                val_str = val_str[:col_widths[1] - 3] + "..."
+            if required and is_unset:
+                val_vis = "(unset)"
+                val_col = f"{Colors.DIM}(unset){C_RESET}"
+            else:
+                val_vis = val_str
+                val_col = f"{C_VAL}{val_str}{C_RESET}"
 
-            row = (
-                f"{C_BORDER}│{C_RESET} {C_VAR}{key:<{col_widths[0]}}{C_RESET} "
-                f"{C_BORDER}│{C_RESET} {C_VAL}{val_str:<{col_widths[1]}}{C_RESET} "
-                f"{C_BORDER}│{C_RESET} {C_DESC}{meta['desc']:<{col_widths[2]}}{C_RESET} "
-                f"{C_BORDER}│{C_RESET}"
-            )
-            print(row)
-        
+            # Required column
+            req_str = "yes" if required else "no"
+            if required and is_unset:
+                req_col = f"{Colors.FAIL}{req_str}{C_RESET}"
+            else:
+                req_col = f"{Colors.DIM}{req_str}{C_RESET}"
+
+            # Description column
+            desc = meta.get("desc", "")
+            if len(desc) > col_widths[3]:
+                desc = desc[:col_widths[3] - 1] + "…"
+
+            cells = [
+                (key,     var_col),
+                (val_vis, val_col),
+                (req_str, req_col),
+                (desc,    desc),
+            ]
+            print(make_row(cells))
+
         print_sep(bottom=True)
         print("")
 
@@ -278,18 +297,31 @@ class Session:
     def list_workspaces(self):
         """List available workspaces."""
         try:
-            files = [f for f in os.listdir(self.workspace_dir) if f.endswith('.json')]
+            files = [
+                f for f in os.listdir(self.workspace_dir)
+                if f.endswith('.json') and not f.endswith('_loot.json')
+            ]
+            current = self.env.get("workspace", "default")
+
+            INNER_W = 44
+            title = "─ Workspaces "
+            top = f"┌{title}{'─' * (INNER_W - len(title) + 1)}┐"
+            bot = f"└{'─' * (INNER_W + 1)}┘"
+
+            print(f"\n{Colors.OKBLUE}{top}{Colors.ENDC}")
             if not files:
-                print("No workspaces found.")
-                return
-            
-            print(f"\n{Colors.HEADER}Workspaces{Colors.ENDC}")
-            print("=" * 20)
-            for f in sorted(files):
-                name = f[:-5] # Remove .json
-                current = "*" if self.env.get("workspace") == name else " "
-                print(f"[{current}] {name}")
-            print("")
+                empty = "  No workspaces found."
+                print(f"{Colors.OKBLUE}│{Colors.ENDC} {empty:<{INNER_W}} {Colors.OKBLUE}│{Colors.ENDC}")
+            else:
+                for f in sorted(files):
+                    name = f[:-5]
+                    is_current = (name == current)
+                    marker = f"{Colors.OKGREEN}●{Colors.ENDC}" if is_current else f"{Colors.DIM}○{Colors.ENDC}"
+                    label  = f"{Colors.BOLD}{name}{Colors.ENDC}" if is_current else name
+                    # visible len of "  ● name" = 4 + len(name)
+                    padding = " " * max(0, INNER_W - 4 - len(name))
+                    print(f"{Colors.OKBLUE}│{Colors.ENDC}  {marker} {label}{padding}{Colors.OKBLUE}│{Colors.ENDC}")
+            print(f"{Colors.OKBLUE}{bot}{Colors.ENDC}\n")
         except Exception as e:
             log_error(f"Error listing workspaces: {e}")
 

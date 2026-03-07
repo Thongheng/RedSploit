@@ -5,7 +5,7 @@ import subprocess
 import shutil
 import time
 from typing import Optional
-from ..core.colors import log_info, log_success, log_warn, log_error, Colors
+from ..core.colors import log_info, log_success, log_warn, log_error, log_run, Colors
 
 class HelpExit(Exception):
     pass
@@ -50,7 +50,7 @@ class BaseModule:
         if copy_only:
             self._copy_to_clipboard(cmd)
         elif run:
-            log_info(f"Running: {cmd}")
+            log_run(cmd)
             log_enabled = self.session.get("log") == "on"
             log_file = None
             try:
@@ -149,7 +149,7 @@ class BaseModule:
             print(f"{Colors.BOLD}{cat}{Colors.ENDC}")
             for tool in sorted(categorized[cat]):
                 desc = tools[tool].get("desc", tools[tool].get("cmd", "")[:60])
-            print(f"  -{tool:<18} {desc}")
+                print(f"  -{tool:<18} {desc}")
             print("")
 
         if examples:

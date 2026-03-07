@@ -71,37 +71,54 @@ class LootManager:
     def list_loot(self):
         """Print a formatted table of loot."""
         if not self.loot_data:
-            print("Loot locker is empty.")
+            print(f"\n{Colors.DIM}Loot locker is empty.{Colors.ENDC}\n")
             return
 
-        print(f"\n{Colors.HEADER}Loot Locker ({self.workspace_name}){Colors.ENDC}")
-        
-        # Columns: ID, Type, Target, Service, Content
-        headers = ["ID", "Type", "Target", "Service", "Content"]
-        widths = [4, 10, 15, 10, 40]
-        
-        # Header
-        header_str = ""
-        for i, h in enumerate(headers):
-            header_str += f"{h:<{widths[i]}} "
-        
-        print("=" * len(header_str))
-        print(f"{Colors.BOLD}{header_str}{Colors.ENDC}")
-        print("-" * len(header_str))
-        
+        print(f"\n{Colors.HEADER}Loot Locker{Colors.ENDC} {Colors.DIM}({self.workspace_name}){Colors.ENDC}")
+
+        headers   = ["#",  "Type", "Target", "Service", "Content"]
+        col_widths = [4,    8,      15,        10,        38]
+
+        C_BORDER  = Colors.OKBLUE
+        C_HEADER  = Colors.BOLD
+        C_CONTENT = Colors.OKGREEN
+        C_RESET   = Colors.ENDC
+
+        def print_sep(top=False, bottom=False):
+            if top:
+                left, mid_j, right = "┌", "┬", "┐"
+            elif bottom:
+                left, mid_j, right = "└", "┴", "┘"
+            else:
+                left, mid_j, right = "├", "┼", "┤"
+            line = left + mid_j.join(["─" * (w + 2) for w in col_widths]) + right
+            print(f"{C_BORDER}{line}{C_RESET}")
+
+        print_sep(top=True)
+        header_parts = [f"{C_BORDER}│{C_RESET} {C_HEADER}{h:<{col_widths[i]}}{C_RESET}" for i, h in enumerate(headers)]
+        print(" ".join(header_parts) + f" {C_BORDER}│{C_RESET}")
+        print_sep()
+
         for entry in self.loot_data:
-            row = ""
-            row += f"{str(entry.get('id', '?')):<{widths[0]}} "
-            row += f"{entry.get('type', 'unk'):<{widths[1]}} "
-            row += f"{entry.get('target', ''):<{widths[2]}} "
-            row += f"{entry.get('service', ''):<{widths[3]}} "
-            
-            content = entry.get('content', '')
-            if len(content) > widths[4]:
-                content = content[:widths[4]-3] + "..."
-            row += f"{content:<{widths[4]}} "
-            
+            loot_id  = str(entry.get("id", "?"))
+            loot_type = entry.get("type", "unk")
+            target   = entry.get("target", "")
+            service  = entry.get("service", "")
+            content  = entry.get("content", "")
+            if len(content) > col_widths[4]:
+                content = content[:col_widths[4] - 3] + "..."
+
+            row = (
+                f"{C_BORDER}│{C_RESET} {loot_id:<{col_widths[0]}} "
+                f"{C_BORDER}│{C_RESET} {loot_type:<{col_widths[1]}} "
+                f"{C_BORDER}│{C_RESET} {target:<{col_widths[2]}} "
+                f"{C_BORDER}│{C_RESET} {service:<{col_widths[3]}} "
+                f"{C_BORDER}│{C_RESET} {C_CONTENT}{content:<{col_widths[4]}}{C_RESET} "
+                f"{C_BORDER}│{C_RESET}"
+            )
             print(row)
+
+        print_sep(bottom=True)
         print("")
 
     def set_workspace(self, workspace_name: str):

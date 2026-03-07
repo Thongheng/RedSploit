@@ -155,16 +155,35 @@ class BaseShell(cmd.Cmd):
     def update_prompt(self):
         target = self.session.get("target")
         domain = self.session.get("domain")
-        
-        # Preference: Domain > Target
+        user = self.session.get("username")
+        workspace = self.session.get("workspace")
+
         display = domain if domain else target
-        
-        module_str = f" ({Colors.FAIL}{self.module_name}{Colors.ENDC})" if self.module_name else ""
-        
+
+        # Build context segments separated by dim │
+        segments = []
+        if workspace and workspace != "default":
+            segments.append(f"{Colors.OKCYAN}ws:{workspace}{Colors.ENDC}")
         if display:
-            self.prompt = f"{Colors.FAIL}{Colors.BOLD}redsploit{Colors.ENDC}{module_str} ({Colors.OKCYAN}{display}{Colors.ENDC}) > "
+            segments.append(f"{Colors.WARNING}{display}{Colors.ENDC}")
+        if user:
+            segments.append(f"{Colors.OKGREEN}{user}{Colors.ENDC}")
+
+        sep = f" {Colors.DIM}│{Colors.ENDC} "
+        context_str = sep.join(segments) if segments else ""
+
+        module_part = (
+            f" {Colors.DIM}({Colors.ENDC}{Colors.FAIL}{self.module_name}{Colors.ENDC}{Colors.DIM}){Colors.ENDC}"
+            if self.module_name else ""
+        )
+
+        if context_str:
+            self.prompt = (
+                f"{Colors.FAIL}{Colors.BOLD}redsploit{Colors.ENDC}{module_part}"
+                f" {Colors.DIM}[{Colors.ENDC}{context_str}{Colors.DIM}]{Colors.ENDC} > "
+            )
         else:
-            self.prompt = f"{Colors.FAIL}{Colors.BOLD}redsploit{Colors.ENDC}{module_str} > "
+            self.prompt = f"{Colors.FAIL}{Colors.BOLD}redsploit{Colors.ENDC}{module_part} > "
 
     def parse_common_options(self, arg):
         """Parse -c (copy), -e (edit), -p (preview), and -noauth flags from argument string."""
@@ -625,37 +644,35 @@ class BaseShell(cmd.Cmd):
                     print(f"{cmd_name:<20} {doc}")
         
         if module_cmds:
-            # Check for categories
             categories = getattr(self, "COMMAND_CATEGORIES", {})
-            
-            # Group by category
+
             categorized = {}
-            uncategorized = []
-            
             for cmd_name, doc in module_cmds:
-                cat = categories.get(cmd_name)
-                if cat:
-                    if cat not in categorized: categorized[cat] = []
-                    categorized[cat].append((cmd_name, doc))
-                else:
-                    uncategorized.append((cmd_name, doc))
-            
-            # Print Main Header
+                cat = categories.get(cmd_name, "Uncategorized")
+                if cat not in categorized:
+                    categorized[cat] = []
+                categorized[cat].append((cmd_name, doc))
+
+            BOX_W = 56  # visible chars between │ borders
+
+            def _print_category_box(title, entries):
+                # INNER_W = visible chars between │ borders (= total line - 2)
+                title_str = f"─ {title} "
+                dashes = "─" * max(0, BOX_W - len(title_str))
+                top = f"┌{title_str}{dashes}┐"
+                bot = f"└{'─' * BOX_W}┘"
+                print(f"\n{Colors.OKBLUE}{top}{Colors.ENDC}")
+                for cmd_name, doc in sorted(entries):
+                    content = f"  {cmd_name:<18} {doc}"
+                    if len(content) > BOX_W:
+                        content = content[:BOX_W - 1] + "…"
+                    print(f"{Colors.OKBLUE}│{Colors.ENDC}{content:<{BOX_W}}{Colors.OKBLUE}│{Colors.ENDC}")
+                print(f"{Colors.OKBLUE}{bot}{Colors.ENDC}")
+
             print(f"\n{Colors.HEADER}Module Commands{Colors.ENDC}")
+            for cat in sorted(categorized.keys()):
+                _print_category_box(cat, categorized[cat])
 
-
-            # Print Categorized
-            for cat, cmds in sorted(categorized.items()):
-                print(f"\n{Colors.BOLD}{cat}{Colors.ENDC}")
-                for cmd_name, doc in sorted(cmds):
-                    print(f"  {cmd_name:<18} {doc}")
-            
-            # Print Uncategorized
-            if uncategorized:
-                print(f"\n{Colors.BOLD}Uncategorized{Colors.ENDC}")
-                for cmd_name, doc in sorted(uncategorized):
-                    print(f"  {cmd_name:<18} {doc}")
-        
         print("")
 
     def default(self, line):
@@ -733,6 +750,27 @@ class ModuleShell(BaseShell):
                 return [o for o in options if o.startswith(text)]
             return options
         return complete_tool
+
+    def preloop(self):
+        """Print a context summary when entering a module shell."""
+        target = self.session.get("target")
+        domain = self.session.get("domain")
+        user = self.session.get("username")
+
+        display = domain if domain else target
+
+        parts = []
+        if display:
+            parts.append(f"target={Colors.WARNING}{display}{Colors.ENDC}")
+        if user:
+            parts.append(f"user={Colors.OKGREEN}{user}{Colors.ENDC}")
+
+        ctx = "  ".join(parts) if parts else f"{Colors.DIM}(no context set — use 'set target <ip>'){Colors.ENDC}"
+        print(
+            f"\n{Colors.OKBLUE}[{Colors.ENDC}"
+            f"{Colors.FAIL}{Colors.BOLD}{self.module_name}{Colors.ENDC}"
+            f"{Colors.OKBLUE}]{Colors.ENDC} {ctx}\n"
+        )
 
     def complete_use(self, text, line, begidx, endidx):
         modules = ["infra", "web", "file", "shell", "main"]

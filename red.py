@@ -167,17 +167,27 @@ def main():
         try:
             # Print Banner Once
             print(rf"""
-{Colors.FAIL}
-    ____          __ _____       __      _ __ 
+{Colors.FAIL}    ____          __ _____       __      _ __
    / __ \___  ___/ // ___/____  / /___  (_) /_
   / /_/ / _ \/ _  / \__ \/ __ \/ / __ \/ / __/
- / _, _/  __/ /_/ / ___/ / /_/ / / /_/ / / /_ 
-/_/ |_|\___/\__,_//____/ .___/_/\____/_/\__/  
-                      /_/                     
-Version 2.1.1
-{Colors.ENDC}
-Type 'help' or '?' to list commands.
-""")
+ / _, _/  __/ /_/ / ___/ / /_/ / / /_/ / / /_
+/_/ |_|\___/\__,_//____/ .___/_/\____/_/\__/
+                      /_/                     {Colors.ENDC}""")
+            print(f"  {Colors.DIM}Red Team Pentest Assistant  ·  v2.1.1{Colors.ENDC}")
+            print(f"  {Colors.OKBLUE}{'─' * 51}{Colors.ENDC}")
+
+            # Session snapshot (show context if any flags were passed)
+            snap = []
+            if session.get("target"):
+                snap.append(f"{Colors.BOLD}target{Colors.ENDC}={Colors.WARNING}{session.get('target')}{Colors.ENDC}")
+            if session.get("domain"):
+                snap.append(f"{Colors.BOLD}domain{Colors.ENDC}={Colors.OKCYAN}{session.get('domain')}{Colors.ENDC}")
+            if session.get("username"):
+                snap.append(f"{Colors.BOLD}user{Colors.ENDC}={Colors.OKGREEN}{session.get('username')}{Colors.ENDC}")
+            if snap:
+                print(f"  {'  '.join(snap)}")
+
+            print(f"\n  {Colors.DIM}Type 'help' for commands.{Colors.ENDC}\n")
             
             # Main Loop
             session.next_shell = "main"
