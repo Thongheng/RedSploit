@@ -129,7 +129,7 @@ def main():
     # Command to Module Mapping for Auto-Detection
     COMMAND_MAPPING = {
         "infra": [
-            "-nmap", "-rustscan", "-smbclient", "-smbmap", "-enum4linux", "-netexec", 
+            "-nmap", "-rustscan", "-smbclient", "-smbmap", "-enum4linux", "-nxc", 
             "-bloodhound", "-ftp", "-msf", "-rdp", "-ssh", "-evil_winrm", "-psexec", 
             "-wmiexec", "-secretsdump", "-kerbrute"
         ],
@@ -174,7 +174,7 @@ def main():
  / _, _/  __/ /_/ / ___/ / /_/ / / /_/ / / /_ 
 /_/ |_|\___/\__,_//____/ .___/_/\____/_/\__/  
                       /_/                     
-Version 2.0.0
+Version 2.1.1
 {Colors.ENDC}
 Type 'help' or '?' to list commands.
 """)

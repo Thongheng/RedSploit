@@ -45,7 +45,7 @@ class InfraModule(BaseModule):
             "requires": ["target"],
             "auth_mode": "u_p_flags"
         },
-        "netexec": {
+        "nxc": {
             "cmd": "nxc smb {target} {auth}",
             "binary": "nxc",
             "desc": "SMB credential testing",
@@ -240,9 +240,9 @@ class InfraModule(BaseModule):
                  "creds": creds_str,
                  "lport": shlex.quote(lport or "4444"),
                  "lhost": shlex.quote(get_ip_address(interface) or "0.0.0.0"),
-                  "payload": self.session.get("payload") or "windows/meterpreter/reverse_tcp",
-                  "config_flags": config_flags
-              }
+                 "payload": "",  # Set by msf config block below if needed
+                 "config_flags": config_flags
+             }
              
              # Special case for FTP default anonymous
              if tool_name == "ftp":
@@ -252,6 +252,11 @@ class InfraModule(BaseModule):
                  else:
                      format_args["user"] = shlex.quote(user or "anonymous")
                      format_args["password"] = shlex.quote(password or "anonymous")
+             
+             # Special case for MSF: read payload from config
+             if tool_name == "msf":
+                 payload_from_config = self.session.get_config_flags("infra", "msf", "payload")
+                 format_args["payload"] = payload_from_config or "windows/meterpreter/reverse_tcp"
              
              cmd = tool["cmd"].format(**format_args)
              

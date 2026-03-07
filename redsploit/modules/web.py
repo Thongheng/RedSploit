@@ -141,9 +141,9 @@ class WebModule(BaseModule):
             "domain": shlex.quote(domain or ""),
             "url": shlex.quote(url or ""),
             "port": shlex.quote(port or ""),
-            "wordlist_dir": shlex.quote(self.session.get("wordlist_dir") or self.wordlist_dir),
-            "wordlist_subdomain": shlex.quote(self.session.get("wordlist_subdomain") or self.wordlist_subdomain),
-            "wordlist_vhost": shlex.quote(self.session.get("wordlist_vhost") or self.wordlist_vhost)
+            "wordlist_dir": shlex.quote(self.wordlist_dir),
+            "wordlist_subdomain": shlex.quote(self.wordlist_subdomain),
+            "wordlist_vhost": shlex.quote(self.wordlist_vhost)
         }
 
         try:

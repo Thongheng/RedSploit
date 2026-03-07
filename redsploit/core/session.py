@@ -21,10 +21,6 @@ class Session:
             "fileport": "8000",
             "workspace": "default",
             "log": "",
-            "payload": "",
-            "wordlist_dir": "",
-            "wordlist_subdomain": "",
-            "wordlist_vhost": ""
         }
         self.next_shell: Optional[str] = None
         
@@ -52,10 +48,6 @@ class Session:
             "fileport": {"required": False, "desc": "File server port (default: 8000)"},
             "workspace": {"required": True, "desc": "Workspace name"},
             "log": {"required": False, "desc": "Enable output logging (set to 'on' to enable)"},
-            "payload": {"required": False, "desc": "Metasploit payload type"},
-            "wordlist_dir": {"required": False, "desc": "Directory wordlist override"},
-            "wordlist_subdomain": {"required": False, "desc": "Subdomain wordlist override"},
-            "wordlist_vhost": {"required": False, "desc": "Vhost wordlist override"},
         }
         
         # Initialize Loot Manager

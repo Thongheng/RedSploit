@@ -1,6 +1,6 @@
 web:
   wordlists:
-    directory: /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+    directory: /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt
     subdomain: /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt
     vhost: /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt
   configs:
@@ -22,4 +22,12 @@ infra:
         default: ""
         none: "-N"
         guest: "-N -U ''"
+    msf:
+      payload:
+        default: "windows/meterpreter/reverse_tcp"
+        linux_tcp: "linux/x64/meterpreter/reverse_tcp"
+        linux_shell: "linux/x64/shell_reverse_tcp"
+        windows_shell: "windows/x64/shell_reverse_tcp"
+        windows_https: "windows/meterpreter/reverse_https"
+
 

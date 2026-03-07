@@ -13,7 +13,7 @@ _red_completion() {
     local common_opts="-c --copy -p --preview -e --edit"
     
     # Infrastructure module flags
-    local infra_opts="-nmap -rustscan -smbclient -smbmap -enum4linux -netexec -bloodhound -ftp -msf -rdp -ssh -evil_winrm -psexec -wmiexec -secretsdump -kerbrute"
+    local infra_opts="-nmap -rustscan -smbclient -smbmap -enum4linux -nxc -bloodhound -ftp -msf -rdp -ssh -evil_winrm -psexec -wmiexec -secretsdump -kerbrute"
     
     # Web module flags
     local web_opts="-subfinder -gobuster_dns -httpx -dir_ffuf -vhost -dir_ferox -dir_dirsearch -nuclei -wpscan -arjun -dns -subzy -katana -waf -screenshots -tech"
