@@ -54,7 +54,7 @@ class InfraModule(BaseModule):
             "auth_mode": "u_p_flags"
         },
         "bloodhound": {
-            "cmd": "bloodhound-ce-python {auth} -ns {target} -d {domain} -c all",
+            "cmd": "bloodhound-ce-python {auth} -ns {ip} -d {domain} -c all",
             "binary": "bloodhound-ce-python",
             "desc": "Active Directory graph collection",
             "category": "Active Directory",
@@ -233,6 +233,7 @@ class InfraModule(BaseModule):
              # Prepare context vars with QUOTING for security
              format_args = {
                  "target": shlex.quote(target),
+                 "ip": shlex.quote(self.session.get("target") or target),
                  "domain": shlex.quote(domain_resolved or ""),
                  "auth": auth_str,
                  "user": shlex.quote(user or ""),
