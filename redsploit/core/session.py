@@ -18,14 +18,20 @@ class Session:
             "hash": "",
             "interface": get_default_interface(),
             "lport": "4444",
-            "workspace": "default"
+            "fileport": "8000",
+            "workspace": "default",
+            "log": "",
+            "payload": "",
+            "wordlist_dir": "",
+            "wordlist_subdomain": "",
+            "wordlist_vhost": ""
         }
         self.next_shell: Optional[str] = None
         
-        # Ensure workspace directory exists
+        # Ensure workspace directory exists with restrictive permissions
         self.workspace_dir = os.path.expanduser("~/.redsploit/workspaces")
         if not os.path.exists(self.workspace_dir):
-            os.makedirs(self.workspace_dir, exist_ok=True)
+            os.makedirs(self.workspace_dir, mode=0o700, exist_ok=True)
 
         # Config Loading
         # Determine project root (redsploit/core/session.py -> ../../)
@@ -43,7 +49,13 @@ class Session:
             "domain": {"required": False, "desc": "Domain name (default: .)"},
             "interface": {"required": True, "desc": "Network Interface"},
             "lport": {"required": True, "desc": "Local Port (Reverse Shell)"},
+            "fileport": {"required": False, "desc": "File server port (default: 8000)"},
             "workspace": {"required": True, "desc": "Workspace name"},
+            "log": {"required": False, "desc": "Enable output logging (set to 'on' to enable)"},
+            "payload": {"required": False, "desc": "Metasploit payload type"},
+            "wordlist_dir": {"required": False, "desc": "Directory wordlist override"},
+            "wordlist_subdomain": {"required": False, "desc": "Subdomain wordlist override"},
+            "wordlist_vhost": {"required": False, "desc": "Vhost wordlist override"},
         }
         
         # Initialize Loot Manager
@@ -56,12 +68,20 @@ class Session:
         self.active_configs = {}  # Stores {module.tool: {config_key: config_value}}
 
     def load_config(self):
+        # Try common SecLists locations
+        seclists_base = None
+        for base in ["/usr/share/seclists", "/opt/homebrew/share/seclists", "/usr/local/share/seclists"]:
+            if os.path.isdir(base):
+                seclists_base = base
+                break
+        seclists_base = seclists_base or "/usr/share/seclists"
+
         default_config = {
             "web": {
                 "wordlists": {
-                    "directory": "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt",
-                    "subdomain": "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt",
-                    "vhost": "/usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt"
+                    "directory": f"{seclists_base}/Discovery/Web-Content/directory-list-2.3-medium.txt",
+                    "subdomain": f"{seclists_base}/Discovery/DNS/subdomains-top1million-5000.txt",
+                    "vhost": f"{seclists_base}/Discovery/DNS/subdomains-top1million-20000.txt"
                 }
             }
         }
@@ -70,7 +90,7 @@ class Session:
             try:
                 with open(self.config_path, 'r') as f:
                     return yaml.safe_load(f) or default_config
-            except Exception as e:
+            except (yaml.YAMLError, OSError) as e:
                 log_error(f"Failed to load config: {e}")
                 return default_config
         else:
@@ -136,13 +156,15 @@ class Session:
             return
 
         # Basic validation for known variables
-        if key == "lport":
+        if key in ("lport", "fileport"):
             try:
                 port = int(value)
                 if not (1 <= port <= 65535):
-                    log_warn(f"Port {port} is out of valid range (1-65535). Setting anyway.")
+                    log_error(f"Port {port} is out of valid range (1-65535).")
+                    return
             except ValueError:
-                log_warn(f"lport should be a number. Got: {value}. Setting anyway.")
+                log_error(f"{key} must be a number. Got: {value}")
+                return
         
         # Handle auto-split for user variable
         if key == "user":
@@ -234,6 +256,7 @@ class Session:
             path = os.path.join(self.workspace_dir, f"{name}.json")
             with open(path, 'w') as f:
                 json.dump(self.env, f, indent=4)
+            os.chmod(path, 0o600)
             return True
         except Exception as e:
             log_error(f"Failed to save workspace '{name}': {e}")
@@ -293,6 +316,14 @@ class Session:
         except Exception as e:
             log_error(f"Failed to delete workspace '{name}': {e}")
             return False
+
+    def get_log_dir(self) -> str:
+        """Get the log directory for the current workspace."""
+        workspace = self.get("workspace") or "default"
+        log_dir = os.path.join(self.workspace_dir, f"{workspace}_logs")
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir, mode=0o700, exist_ok=True)
+        return log_dir
 
     def set_tool_config(self, module: str, tool: str, key: str, value: str) -> bool:
         """Set a tool configuration preset."""

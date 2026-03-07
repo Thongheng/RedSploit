@@ -33,7 +33,7 @@ class PlaybookManager:
                     data = yaml.safe_load(pf)
                     desc = data.get('description', '')
                     name = data.get('name', f)
-            except:
+            except Exception:
                 desc = "Error reading file"
 
             print(f"{f:<20} {desc}")

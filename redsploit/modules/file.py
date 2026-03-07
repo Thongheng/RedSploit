@@ -9,14 +9,13 @@ from .base import ArgumentParserNoExit, BaseModule, HelpExit
 from ..core.utils import get_ip_address
 
 class FileModule(BaseModule):
-    # Templates for utilities
     TOOLS = {
-        "wget": "wget http://{ip}:8000/{filename}",
-        "wget_write": "wget http://{ip}:8000/{filename} -O {filename}",
-        "curl": "curl http://{ip}:8000/{filename} -O",
-        "curl_write": "curl http://{ip}:8000/{filename} -o {filename}",
-        "iwr": "iwr http://{ip}:8000/{filename} -OutFile {filename}",
-        "certutil": "certutil -urlcache -split -f http://{ip}:8000/{filename} {filename}",
+        "wget": "wget http://{ip}:{port}/{filename}",
+        "wget_write": "wget http://{ip}:{port}/{filename} -O {filename}",
+        "curl": "curl http://{ip}:{port}/{filename} -O",
+        "curl_write": "curl http://{ip}:{port}/{filename} -o {filename}",
+        "iwr": "iwr http://{ip}:{port}/{filename} -OutFile {filename}",
+        "certutil": "certutil -urlcache -split -f http://{ip}:{port}/{filename} {filename}",
         "scp": "scp user@{ip}:$(pwd)/{filename} .",
         "base64": "base64 {filename}"
     }
@@ -50,9 +49,10 @@ class FileModule(BaseModule):
             log_error(f"Unknown tool: {tool}")
             return
 
-        # Use shell quoting
+        fileport = self.session.get("fileport") or "8000"
         cmd = cmd_template.format(
-            ip=shlex.quote(ip_addr), 
+            ip=shlex.quote(ip_addr),
+            port=fileport,
             filename=shlex.quote(filename)
         )
         
@@ -63,8 +63,9 @@ class FileModule(BaseModule):
             self._exec(cmd, copy_only=False, edit=False, run=False, preview=preview)
             
             # Auto-start server if not running
-            if not self.is_port_in_use(8000):
-                log_info("Autostarting HTTP server on port 8000...")
+            port = int(self.session.get("fileport") or "8000")
+            if not self.is_port_in_use(port):
+                log_info(f"Autostarting HTTP server on port {port}...")
                 self.run_server("http")
 
     def run_base64(self, filename, copy_only=False, edit=False, preview=False):
@@ -83,10 +84,11 @@ class FileModule(BaseModule):
             log_error(f"Could not find IP for interface {interface}")
             return
 
+        fileport = self.session.get("fileport") or "8000"
         cmd = []
         if server_type == "http":
-            cmd = ["python3", "-m", "http.server", "8000"]
-            msg = f"Starting HTTP server on {interface} ({ip_addr}:8000)..."
+            cmd = ["python3", "-m", "http.server", fileport]
+            msg = f"Starting HTTP server on {interface} ({ip_addr}:{fileport})..."
         elif server_type == "smb":
             cmd = ["sudo", "impacket-smbserver", "share", ".", "-smb2support"]
             msg = f"Starting SMB server on {interface}..."
@@ -115,7 +117,7 @@ class FileModule(BaseModule):
             print("  -base64 <file>             Encode file to base64")
             print("")
             print(f"{Colors.BOLD}Servers{Colors.ENDC}")
-            print("  -http                      Start HTTP server on port 8000")
+            print("  -http                      Start HTTP server (default port: 8000, set with 'set fileport')")
             print("  -smb                       Start SMB server")
             print("")
             print(f"{Colors.HEADER}Examples:{Colors.ENDC}")

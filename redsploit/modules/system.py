@@ -1,6 +1,5 @@
-import os
+import subprocess
 from ..core.base_shell import BaseShell
-from ..core.colors import log_info
 
 class SystemShell(BaseShell):
     def __init__(self, session):
@@ -8,7 +7,7 @@ class SystemShell(BaseShell):
 
     def default(self, line):
         """Execute system commands directly"""
-        os.system(line)
+        subprocess.run(line, shell=True)
 
     def emptyline(self):
         """Do nothing on empty line"""

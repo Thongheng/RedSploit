@@ -251,32 +251,6 @@ class BaseShell(cmd.Cmd):
             return [o for o in options if o.startswith(text.lower())]
         return options
 
-    # Removed 'show' command - use 'options' directly or module names (infra/web/file/shell)
-    # def do_show(self, arg):
-    #     """Show options or modules: SHOW OPTIONS | SHOW MODULES"""
-    #     arg = arg.lower()
-    #     if arg == "options":
-    #         self.session.show_options()
-    #     elif arg == "modules":
-    #         print(f"\n{Colors.HEADER}Available Modules{Colors.ENDC}")
-    #         print("=" * 40)
-    #         print(f"{'Name':<15} {'Description'}")
-    #         print("-" * 40)
-    #         print(f"{'infra':<15} Infrastructure Enumeration")
-    #         print(f"{'web':<15} Web Reconnaissance")
-    #         print(f"{'file':<15} File Transfer & Servers")
-    #         print(f"{'shell':<15} System Shell (Direct Exec)")
-    #         print("")
-    #     else:
-    #         log_warn("Unknown show command. Try 'show options' or 'show modules'.")
-
-    # def complete_show(self, text, line, begidx, endidx):
-    #     """Autocomplete options for 'show' command"""
-    #     options = ["options", "modules"]
-    #     if text:
-    #         return [o for o in options if o.startswith(text)]
-    #     return options
-
     def do_options(self, arg):
         """Show options (alias for 'show options')"""
         self.session.show_options()
@@ -507,7 +481,7 @@ class BaseShell(cmd.Cmd):
 
     def do_clear(self, arg):
         """Clear the console screen"""
-        subprocess.run("clear", shell=True)
+        subprocess.run(["clear"])
 
     def do_exit(self, arg):
         """Exit the console"""
@@ -590,6 +564,7 @@ class BaseShell(cmd.Cmd):
         print(f"{'-p':<10} Preview command without running")
         print(f"{'-e':<10} Edit command before running")
         print(f"{'-noauth':<10} Skip credentials for this run (force anonymous/null session)")
+        print(f"\n{'<tool> -h':<10} Show detailed help for a specific tool")
 
 
 
@@ -685,3 +660,82 @@ class BaseShell(cmd.Cmd):
 
     def default(self, line):
         log_warn(f"Unknown command: {line}. Use 'shell <cmd>' to run system commands.")
+
+
+class ModuleShell(BaseShell):
+    """Base class for module shells that auto-bind TOOLS as do_ commands."""
+    MODULE_CLASS = None
+
+    def __init__(self, session, module_name):
+        super().__init__(session, module_name)
+        self.module = self.MODULE_CLASS(session)
+
+        for name, data in self.module.TOOLS.items():
+            self.COMMAND_CATEGORIES[name] = data.get("category", "Uncategorized")
+            method = self._create_do_method(name)
+            method.__doc__ = data.get("desc", f"Run {name}")
+            setattr(self, f"do_{name}", method)
+            setattr(self, f"complete_{name}", self._create_complete_method())
+
+    def _show_tool_help(self, tool_name):
+        """Show detailed help for a specific tool."""
+        tool = self.module.TOOLS.get(tool_name)
+        if not tool:
+            return
+
+        print(f"\n{Colors.HEADER}{tool_name}{Colors.ENDC}")
+        if tool.get("desc"):
+            print(f"  {tool['desc']}")
+        print(f"\n{Colors.BOLD}Command template:{Colors.ENDC}")
+        print(f"  {tool.get('cmd', '')}")
+        print(f"\n{Colors.BOLD}Binary:{Colors.ENDC} {tool.get('binary', 'N/A')}")
+
+        reqs = tool.get("requires", [])
+        if reqs:
+            print(f"{Colors.BOLD}Requires:{Colors.ENDC} {', '.join(reqs)}")
+
+        auth_mode = tool.get("auth_mode")
+        if auth_mode:
+            print(f"{Colors.BOLD}Auth mode:{Colors.ENDC} {auth_mode}")
+
+        print(f"\n{Colors.BOLD}Flags:{Colors.ENDC}")
+        print("  -c         Copy command to clipboard without running")
+        print("  -p         Preview command without running")
+        print("  -e         Edit command before running")
+        print("  -noauth    Skip credentials for this run")
+
+        # Show config options if available
+        tool_configs = self.session.config.get(self.module_name, {}).get("configs", {}).get(tool_name, {})
+        if tool_configs:
+            print(f"\n{Colors.BOLD}Config options:{Colors.ENDC}")
+            for key, options in tool_configs.items():
+                current = self.session.get_tool_config(self.module_name, tool_name, key)
+                print(f"  {key}: {', '.join(options.keys())}" + (f" (current: {current})" if current else ""))
+
+        print()
+
+    def _create_do_method(self, tool_name):
+        def do_tool(arg):
+            """Run tool"""
+            if arg.strip() in ("-h", "--help", "help"):
+                self._show_tool_help(tool_name)
+                return
+            _, copy_only, edit, preview, no_auth = self.parse_common_options(arg)
+            self.module.run_tool(tool_name, copy_only, edit, preview, no_auth)
+        do_tool.__doc__ = f"Run {tool_name}"
+        do_tool.__name__ = f"do_{tool_name}"
+        return do_tool
+
+    def _create_complete_method(self):
+        def complete_tool(text, line, begidx, endidx):
+            options = ["-c", "-e", "-p", "-noauth"]
+            if text:
+                return [o for o in options if o.startswith(text)]
+            return options
+        return complete_tool
+
+    def complete_use(self, text, line, begidx, endidx):
+        modules = ["infra", "web", "file", "shell", "main"]
+        if text:
+            return [m for m in modules if m.startswith(text)]
+        return modules

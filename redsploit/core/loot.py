@@ -18,7 +18,7 @@ class LootManager:
             try:
                 with open(self.loot_file, 'r') as f:
                     self.loot_data = json.load(f)
-            except Exception as e:
+            except (json.JSONDecodeError, OSError) as e:
                 log_error(f"Failed to load loot: {e}")
                 self.loot_data = []
         else:
@@ -29,6 +29,7 @@ class LootManager:
         try:
             with open(self.loot_file, 'w') as f:
                 json.dump(self.loot_data, f, indent=4)
+            os.chmod(self.loot_file, 0o600)
         except Exception as e:
             log_error(f"Failed to save loot: {e}")
 

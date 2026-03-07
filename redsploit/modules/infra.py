@@ -1,7 +1,7 @@
 import shlex
 import os
 from ..core.colors import log_info, log_warn, log_error
-from ..core.base_shell import BaseShell
+from ..core.base_shell import BaseShell, ModuleShell
 from .base import ArgumentParserNoExit, BaseModule, HelpExit
 from ..core.utils import get_ip_address
 
@@ -9,93 +9,125 @@ class InfraModule(BaseModule):
     TOOLS = {
         "nmap": {
             "cmd": "nmap -sV -sC -Pn -v {config_flags} {target}",
+            "binary": "nmap",
+            "desc": "Service/version scan with default scripts",
             "category": "Scanners",
             "requires": ["target"]
         },
         "rustscan": {
             "cmd": "rustscan -a {target} --ulimit 5000",
+            "binary": "rustscan",
+            "desc": "Fast port scanner",
             "category": "Scanners",
             "requires": ["target"]
         },
         "smbclient": {
             "cmd": "smbclient -L //{target}/ {auth}",
+            "binary": "smbclient",
+            "desc": "List SMB shares",
             "category": "SMB Tools",
             "requires": ["target"],
-            "auth_mode": "flag_U", # Special case logic or generic template? Let's use generic template logic
+            "auth_mode": "flag_U",
         },
         "smbmap": {
             "cmd": "smbmap -H {target} {auth} --no-banner -q",
+            "binary": "smbmap",
+            "desc": "Enumerate SMB shares and permissions",
             "category": "SMB Tools",
             "requires": ["target"],
-            "auth_mode": "u_p_flags" 
+            "auth_mode": "u_p_flags"
         },
         "enum4linux": {
             "cmd": "enum4linux-ng -A {auth} {target}",
+            "binary": "enum4linux-ng",
+            "desc": "SMB/NetBIOS enumeration",
             "category": "SMB Tools",
             "requires": ["target"],
             "auth_mode": "u_p_flags"
         },
         "netexec": {
             "cmd": "nxc smb {target} {auth}",
+            "binary": "nxc",
+            "desc": "SMB credential testing",
             "category": "SMB Tools",
-            "requires": ["target", "auth_mandatory"], # Custom check
+            "requires": ["target", "auth_mandatory"],
             "auth_mode": "u_p_flags"
         },
         "bloodhound": {
             "cmd": "bloodhound-ce-python {auth} -ns {target} -d {domain} -c all",
+            "binary": "bloodhound-ce-python",
+            "desc": "Active Directory graph collection",
             "category": "Active Directory",
             "requires": ["target", "domain", "auth_mandatory"],
             "auth_mode": "u_p_flags"
         },
         "ftp": {
             "cmd": "lftp -u '{user},{password}' ftp://{target}",
+            "binary": "lftp",
+            "desc": "FTP client session",
             "category": "Remote Access",
             "requires": ["target"],
             "auth_mode": "custom_ftp"
         },
         "msf": {
             "cmd": "msfconsole -q -x \"use exploit/multi/handler; set payload {payload}; set LHOST {lhost}; set LPORT {lport}; run\"",
+            "binary": "msfconsole",
+            "desc": "Metasploit reverse shell handler",
             "category": "Exploitation",
             "requires": ["lport", "interface"]
         },
         "rdp": {
             "cmd": "xfreerdp3 /v:{target} +clipboard /dynamic-resolution /drive:share,. {auth}",
+            "binary": "xfreerdp3",
+            "desc": "Remote desktop connection",
             "category": "Remote Access",
             "requires": ["target"],
-            "auth_mode": "rdp_flags" # /u /p
+            "auth_mode": "rdp_flags"
         },
         "ssh": {
             "cmd": "sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {user}@{target}",
+            "binary": "sshpass",
+            "desc": "SSH login with password",
             "category": "Remote Access",
             "requires": ["target", "auth_mandatory"],
-            "auth_mode": "custom" # handled by template
+            "auth_mode": "custom"
         },
         "evil_winrm": {
             "cmd": "evil-winrm-py -i {target} {auth}",
+            "binary": "evil-winrm-py",
+            "desc": "WinRM shell access",
             "category": "Remote Execution",
             "requires": ["target"],
             "auth_mode": "u_p_flags"
         },
         "psexec": {
             "cmd": "impacket-psexec {creds}@{target}",
+            "binary": "impacket-psexec",
+            "desc": "Impacket remote execution via SMB",
             "category": "Remote Execution",
             "requires": ["target"],
             "auth_mode": "impacket"
         },
         "wmiexec": {
             "cmd": "impacket-wmiexec {creds}@{target}",
+            "binary": "impacket-wmiexec",
+            "desc": "Impacket remote execution via WMI",
             "category": "Remote Execution",
             "requires": ["target"],
             "auth_mode": "impacket"
         },
         "secretsdump": {
             "cmd": "impacket-secretsdump {creds}@{target}",
+            "binary": "impacket-secretsdump",
+            "desc": "Dump secrets via Impacket",
             "category": "Active Directory",
             "requires": ["target"],
             "auth_mode": "impacket"
         },
         "kerbrute": {
             "cmd": "kerbrute userenum --dc {target} -d {domain} users.txt",
+            "binary": "kerbrute",
+            "desc": "Kerberos username enumeration",
             "category": "Active Directory",
             "requires": ["target", "domain"]
         }
@@ -108,6 +140,11 @@ class InfraModule(BaseModule):
         tool = self.TOOLS.get(tool_name)
         if not tool:
             log_error(f"Tool {tool_name} not found.")
+            return
+
+        # Check tool availability
+        binary = tool.get("binary")
+        if binary and not self._check_tool(binary):
             return
 
         # Use unified resolution
@@ -203,7 +240,7 @@ class InfraModule(BaseModule):
                  "creds": creds_str,
                  "lport": shlex.quote(lport or "4444"),
                  "lhost": shlex.quote(get_ip_address(interface) or "0.0.0.0"),
-                  "payload": "windows/meterpreter/reverse_tcp",  # Default payload
+                  "payload": self.session.get("payload") or "windows/meterpreter/reverse_tcp",
                   "config_flags": config_flags
               }
              
@@ -223,40 +260,21 @@ class InfraModule(BaseModule):
              
              self._exec(cmd, copy_only, edit, preview=preview)
              
-        except Exception as e:
-            log_error(f"Error building command: {e}")
+        except KeyError as e:
+            log_error(f"Missing variable in command template: {e}")
 
-    # Legacy CLI run method
     def run(self, args_list):
-        # Handle help request
         if "-h" in args_list or "help" in args_list:
-            from ..core.colors import Colors
-            print(f"\n{Colors.HEADER}Infrastructure Module{Colors.ENDC}")
-            print("Usage: red -i -<tool> [options]")
-            print("")
-            print(f"{Colors.HEADER}Available Tools:{Colors.ENDC}")
-            print("")
-            
-            # Group tools by category
-            categorized = {}
-            for tool_name, tool_data in self.TOOLS.items():
-                cat = tool_data.get("category", "Uncategorized")
-                if cat not in categorized:
-                    categorized[cat] = []
-                categorized[cat].append(tool_name)
-            
-            # Print by category
-            for cat in sorted(categorized.keys()):
-                print(f"{Colors.BOLD}{cat}{Colors.ENDC}")
-                for tool in sorted(categorized[cat]):
-                    print(f"  -{tool:<18} {self.TOOLS[tool].get('cmd', '')[:60]}")
-                print("")
-            
-            print(f"{Colors.HEADER}Examples:{Colors.ENDC}")
-            print("  red -T 10.10.10.10 -i -nmap")
-            print("  red -T 10.10.10.10 -U admin:pass -i -smbclient")
-            print("  red -T 10.10.10.10 -U admin -H <ntlm_hash> -i -psexec")
-            print("")
+            self._print_help(
+                "Infrastructure Module",
+                "red -i -<tool> [options]",
+                self.TOOLS,
+                [
+                    "red -T 10.10.10.10 -i -nmap",
+                    "red -T 10.10.10.10 -U admin:pass -i -smbclient",
+                    "red -T 10.10.10.10 -U admin -H <ntlm_hash> -i -psexec",
+                ]
+            )
             return
         
         # Auto-detect credits in CLI mode
@@ -280,56 +298,27 @@ class InfraModule(BaseModule):
         log_warn("No valid tool flag found. Use interactive mode or specify -<toolname>")
 
 
-class InfraShell(BaseShell):
-    # Dynamic Command Categories
+class InfraShell(ModuleShell):
+    MODULE_CLASS = InfraModule
     COMMAND_CATEGORIES = {}
-    
+
     def __init__(self, session):
         super().__init__(session, "infra")
-        self.infra_module = InfraModule(session)
-        
-        # Populate Categories
-        for name, data in self.infra_module.TOOLS.items():
-            self.COMMAND_CATEGORIES[name] = data.get("category", "Uncategorized")
-            
-            # Bind do_ method
-            func = self._create_do_method(name)
-            setattr(self, f"do_{name}", func)
-            
-            # Bind complete_ method
-            comp_func = self._create_complete_method()
-            setattr(self, f"complete_{name}", comp_func)
 
     def _create_do_method(self, tool_name):
         def do_tool(arg):
             """Run tool or configure it"""
-            # Check if this is a config subcommand
+            if arg.strip() in ("-h", "--help", "help"):
+                self._show_tool_help(tool_name)
+                return
             if arg.strip() == "config" or arg.strip().startswith("config "):
                 self._handle_tool_config(tool_name, arg.replace("config", "").strip())
                 return
-            
-            # Normal tool execution — 5th value is now no_auth
             _, copy_only, edit, preview, no_auth = self.parse_common_options(arg)
-            self.infra_module.run_tool(tool_name, copy_only, edit, preview, no_auth)
-        
+            self.module.run_tool(tool_name, copy_only, edit, preview, no_auth)
         do_tool.__doc__ = f"Run {tool_name} or use '{tool_name} config' to configure"
         do_tool.__name__ = f"do_{tool_name}"
         return do_tool
-
-    def _create_complete_method(self):
-        def complete_tool(text, line, begidx, endidx):
-            options = ["-c", "-e", "-p", "-noauth"]
-            if text:
-                return [o for o in options if o.startswith(text)]
-            return options
-        return complete_tool
-
-    def complete_use(self, text, line, begidx, endidx):
-        """Autocomplete module names for 'use' command, excluding loot and playbook"""
-        modules = ["infra", "web", "file", "shell", "main"]
-        if text:
-            return [m for m in modules if m.startswith(text)]
-        return modules
 
     def _handle_tool_config(self, tool_name, config_arg):
         """Handle configuration for a specific tool"""
