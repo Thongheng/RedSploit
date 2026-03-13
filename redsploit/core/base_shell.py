@@ -577,13 +577,20 @@ class BaseShell(cmd.Cmd):
             super().do_help(arg)
             return
 
-        print(f"\n{Colors.HEADER}Global Flags{Colors.ENDC}")
+        if self.module_name is None:
+            print(f"\n{Colors.HEADER}Quick Start{Colors.ENDC}")
+            print("  set target 10.10.10.10     Set the active target")
+            print("  use infra                  Enter a module shell")
+            print("  infra nmap                 Run one module command from the main shell")
+            print("  options                    Show current session context")
+            print("  loot, workspace, playbook  Use built-in workflow helpers")
 
-        print(f"{'-c':<10} Copy command to clipboard without running")
-        print(f"{'-p':<10} Preview command without running")
-        print(f"{'-e':<10} Edit command before running")
-        print(f"{'-noauth':<10} Skip credentials for this run (force anonymous/null session)")
-        print(f"\n{'<tool> -h':<10} Show detailed help for a specific tool")
+        print(f"\n{Colors.HEADER}Global Flags{Colors.ENDC}")
+        print(f"{'-c, --copy':<16} Copy command to clipboard without running")
+        print(f"{'-p, --preview':<16} Preview command without running")
+        print(f"{'-e, --edit':<16} Edit command before running")
+        print(f"{'-noauth':<16} Skip credentials for this run")
+        print(f"\n{'<tool> -h':<16} Show detailed help for a specific tool")
 
 
 
@@ -696,40 +703,7 @@ class ModuleShell(BaseShell):
 
     def _show_tool_help(self, tool_name):
         """Show detailed help for a specific tool."""
-        tool = self.module.TOOLS.get(tool_name)
-        if not tool:
-            return
-
-        print(f"\n{Colors.HEADER}{tool_name}{Colors.ENDC}")
-        if tool.get("desc"):
-            print(f"  {tool['desc']}")
-        print(f"\n{Colors.BOLD}Command template:{Colors.ENDC}")
-        print(f"  {tool.get('cmd', '')}")
-        print(f"\n{Colors.BOLD}Binary:{Colors.ENDC} {tool.get('binary', 'N/A')}")
-
-        reqs = tool.get("requires", [])
-        if reqs:
-            print(f"{Colors.BOLD}Requires:{Colors.ENDC} {', '.join(reqs)}")
-
-        auth_mode = tool.get("auth_mode")
-        if auth_mode:
-            print(f"{Colors.BOLD}Auth mode:{Colors.ENDC} {auth_mode}")
-
-        print(f"\n{Colors.BOLD}Flags:{Colors.ENDC}")
-        print("  -c         Copy command to clipboard without running")
-        print("  -p         Preview command without running")
-        print("  -e         Edit command before running")
-        print("  -noauth    Skip credentials for this run")
-
-        # Show config options if available
-        tool_configs = self.session.config.get(self.module_name, {}).get("configs", {}).get(tool_name, {})
-        if tool_configs:
-            print(f"\n{Colors.BOLD}Config options:{Colors.ENDC}")
-            for key, options in tool_configs.items():
-                current = self.session.get_tool_config(self.module_name, tool_name, key)
-                print(f"  {key}: {', '.join(options.keys())}" + (f" (current: {current})" if current else ""))
-
-        print()
+        self.module.print_tool_help(self.module_name, tool_name)
 
     def _create_do_method(self, tool_name):
         def do_tool(arg):
@@ -743,6 +717,14 @@ class ModuleShell(BaseShell):
         do_tool.__name__ = f"do_{tool_name}"
         return do_tool
 
+    def do_help(self, arg):
+        if arg:
+            tool_name = self.module.resolve_tool_name(arg.strip())
+            if tool_name:
+                self._show_tool_help(tool_name)
+                return
+        super().do_help(arg)
+
     def _create_complete_method(self):
         def complete_tool(text, line, begidx, endidx):
             options = ["-c", "-e", "-p", "-noauth"]
@@ -750,6 +732,15 @@ class ModuleShell(BaseShell):
                 return [o for o in options if o.startswith(text)]
             return options
         return complete_tool
+
+    def default(self, line):
+        parts = line.split(maxsplit=1)
+        if parts:
+            tool_name = self.module.resolve_tool_name(parts[0])
+            if tool_name:
+                arg = parts[1] if len(parts) > 1 else ""
+                return getattr(self, f"do_{tool_name}")(arg)
+        super().default(line)
 
     def preloop(self):
         """Print a context summary when entering a module shell."""

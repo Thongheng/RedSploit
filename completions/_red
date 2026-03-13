@@ -8,9 +8,12 @@ _red() {
         '-U[User]:user:' \
         '-D[Domain]:domain:' \
         '-H[Hash]:hash:' \
+        '-I[Interface]:interface:' \
+        '-P[Listener port]:port:' \
         '-i[Infra module]' \
         '-w[Web module]' \
         '-f[File module]' \
+        '-headerscan[HTTP security header scanner]' \
         '*:file:_files'
 }
 

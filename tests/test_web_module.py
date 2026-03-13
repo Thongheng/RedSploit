@@ -1,3 +1,4 @@
+import json
 import pytest
 from unittest.mock import patch
 from redsploit.modules.web import WebModule
@@ -78,3 +79,109 @@ class TestToolCheck:
         web.run_tool("subfinder")
         captured = capsys.readouterr()
         assert "not found" in captured.out
+
+
+class FakeResponse:
+    def __init__(self, status_code=200, headers=None):
+        self.status_code = status_code
+        self.headers = headers or {}
+
+
+class TestHeaderscan:
+    @patch("requests.Session.request")
+    def test_headerscan_uses_session_target_when_url_missing(self, mock_request, web, session, capsys):
+        session.set("target", "https://example.com")
+        capsys.readouterr()
+        mock_request.return_value = FakeResponse(headers={"Server": "nginx"})
+
+        web.run_tool("headerscan", scanner_args=["--json"])
+
+        captured = capsys.readouterr()
+        output = json.loads(captured.out)
+        assert output[0]["url"] == "https://example.com"
+        assert mock_request.call_args.kwargs["url"] == "https://example.com"
+
+    @patch("requests.Session.request")
+    def test_headerscan_explicit_url_overrides_session_target(self, mock_request, web, session, capsys):
+        session.set("target", "https://session.example")
+        capsys.readouterr()
+        mock_request.return_value = FakeResponse(headers={"Server": "nginx"})
+
+        web.run(["-headerscan", "https://explicit.example", "--json"])
+
+        captured = capsys.readouterr()
+        output = json.loads(captured.out)
+        assert output[0]["url"] == "https://explicit.example"
+        assert mock_request.call_args.kwargs["url"] == "https://explicit.example"
+
+    @patch("requests.Session.request")
+    def test_headerscan_file_input_takes_precedence(self, mock_request, web, session, tmp_path, capsys):
+        session.set("target", "https://session.example")
+        capsys.readouterr()
+        targets_file = tmp_path / "targets.txt"
+        targets_file.write_text("https://one.example\n# comment\nhttps://two.example\n")
+        mock_request.return_value = FakeResponse(headers={"Server": "nginx"})
+
+        web.run_tool("headerscan", scanner_args=["-f", str(targets_file), "--json"])
+
+        captured = capsys.readouterr()
+        output = json.loads(captured.out)
+        assert [item["url"] for item in output] == ["https://one.example", "https://two.example"]
+        assert mock_request.call_count == 2
+
+    @patch("requests.Session.request")
+    def test_headerscan_api_mode_uses_api_profile(self, mock_request, web, capsys):
+        mock_request.return_value = FakeResponse(headers={})
+
+        web.run_tool("headerscan", scanner_args=["https://api.example.com", "--api", "--json"])
+
+        captured = capsys.readouterr()
+        output = json.loads(captured.out)
+        assert "Cache-Control" in output[0]["missing_headers"]
+        assert "X-Frame-Options" not in output[0]["missing_headers"]
+
+    @patch("requests.Session.request")
+    def test_headerscan_passes_request_options(self, mock_request, web, capsys):
+        mock_request.return_value = FakeResponse(headers={"Server": "nginx"})
+
+        web.run_tool(
+            "headerscan",
+            scanner_args=[
+                "https://example.com",
+                "-X",
+                "POST",
+                "-H",
+                "Authorization: Bearer token",
+                "--follow-redirects",
+                "--json",
+            ],
+        )
+
+        capsys.readouterr()
+        assert mock_request.call_args.kwargs["method"] == "POST"
+        assert mock_request.call_args.kwargs["headers"]["Authorization"] == "Bearer token"
+        assert mock_request.call_args.kwargs["allow_redirects"] is True
+
+    @patch("requests.Session.request")
+    def test_headerscan_supports_detailed_output(self, mock_request, web, capsys):
+        mock_request.return_value = FakeResponse(headers={"Server": "nginx"})
+
+        web.run_tool("headerscan", scanner_args=["https://example.com", "--detailed"])
+
+        captured = capsys.readouterr()
+        assert "Detailed Security Header Analysis" in captured.out
+
+    @pytest.mark.parametrize(
+        "scanner_args",
+        [
+            ["--include-headers", "hsts,csp"],
+            ["--exclude-headers", "server"],
+            ["--only-critical"],
+            ["--proxy", "http://127.0.0.1:8080"],
+            ["--timeout", "3"],
+        ],
+    )
+    def test_headerscan_rejects_removed_flags(self, scanner_args, web, capsys):
+        web.run_tool("headerscan", scanner_args=scanner_args)
+        captured = capsys.readouterr()
+        assert "Unsupported option for headerscan" in captured.out

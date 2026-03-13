@@ -23,8 +23,172 @@ class ArgumentParserNoExit(argparse.ArgumentParser):
         return
 
 class BaseModule:
+    HELP_FLAGS = {"-h", "--help", "help"}
+    EXECUTION_FLAG_MAP = {
+        "-c": "copy_only",
+        "--copy": "copy_only",
+        "-e": "edit",
+        "--edit": "edit",
+        "-p": "preview",
+        "--preview": "preview",
+        "-noauth": "no_auth",
+        "--noauth": "no_auth",
+    }
+
     def __init__(self, session) -> None:
         self.session = session
+
+    @classmethod
+    def parse_cli_options(cls, args_list):
+        """Parse shared execution flags from raw CLI args."""
+        flags = {
+            "copy_only": False,
+            "edit": False,
+            "preview": False,
+            "no_auth": False,
+        }
+        filtered = []
+
+        for arg in args_list:
+            flag_name = cls.EXECUTION_FLAG_MAP.get(arg)
+            if flag_name:
+                flags[flag_name] = True
+            else:
+                filtered.append(arg)
+
+        return filtered, flags
+
+    @classmethod
+    def resolve_tool_name(cls, raw_name: str):
+        """Resolve canonical tool names from flags, hyphenated names, or aliases."""
+        if not raw_name:
+            return None
+
+        normalized = raw_name.lstrip("-").replace("-", "_")
+        if normalized in getattr(cls, "TOOLS", {}):
+            return normalized
+
+        for tool_name, tool_data in getattr(cls, "TOOLS", {}).items():
+            for alias in tool_data.get("aliases", []):
+                if normalized == alias.replace("-", "_"):
+                    return tool_name
+
+        return None
+
+    @classmethod
+    def has_help_flag(cls, args_list):
+        return any(arg in cls.HELP_FLAGS for arg in args_list)
+
+    @classmethod
+    def find_tool_invocation(cls, args_list):
+        for idx, arg in enumerate(args_list):
+            if not arg.startswith("-"):
+                continue
+            resolved_name = cls.resolve_tool_name(arg)
+            if resolved_name:
+                return idx, resolved_name
+        return None, None
+
+    def print_tool_help(self, module_name: str, tool_name: str) -> None:
+        tool = getattr(self, "TOOLS", {}).get(tool_name)
+        if not tool:
+            log_error(f"Tool '{tool_name}' not found.")
+            return
+
+        print(f"\n{Colors.HEADER}{tool_name}{Colors.ENDC}")
+        if tool.get("desc"):
+            print(f"  {tool['desc']}")
+        print(f"\n{Colors.BOLD}Binary:{Colors.ENDC} {tool.get('binary', 'N/A') or 'built-in'}")
+
+        reqs = tool.get("requires", [])
+        if reqs:
+            print(f"{Colors.BOLD}Session inputs:{Colors.ENDC} {', '.join(reqs)}")
+
+        auth_mode = tool.get("auth_mode")
+        if auth_mode:
+            print(f"{Colors.BOLD}Auth mode:{Colors.ENDC} {auth_mode}")
+
+        aliases = tool.get("aliases", [])
+        if aliases:
+            print(f"{Colors.BOLD}Aliases:{Colors.ENDC} {', '.join(aliases)}")
+
+        print(f"\n{Colors.BOLD}Recommended usage:{Colors.ENDC}")
+        for example in self._tool_examples(module_name, tool_name, tool):
+            print(f"  {example}")
+
+        print(f"\n{Colors.BOLD}Command template:{Colors.ENDC}")
+        print(f"  {tool.get('cmd', '')}")
+
+        if tool.get("cmd") == "built-in":
+            print(f"\n{Colors.BOLD}Runtime flags:{Colors.ENDC}")
+            print("  --web      Use the web profile")
+            print("  --api      Use the API profile")
+            print("  --json     Output JSON")
+            print("  --detailed Output a detailed report")
+            print("  -X/-H/-f   Request method, custom headers, and file input")
+        else:
+            print(f"\n{Colors.BOLD}Flags:{Colors.ENDC}")
+            print("  -c         Copy command to clipboard without running")
+            print("  -p         Preview command without running")
+            print("  -e         Edit command before running")
+            print("  -noauth    Skip credentials for this run")
+
+        tool_configs = self.session.config.get(module_name, {}).get("configs", {}).get(tool_name, {})
+        if tool_configs:
+            print(f"\n{Colors.BOLD}Config options:{Colors.ENDC}")
+            for key, options in tool_configs.items():
+                current = self.session.get_tool_config(module_name, tool_name, key)
+                suffix = f" (current: {current})" if current else ""
+                print(f"  {key}: {', '.join(options.keys())}{suffix}")
+
+        print("")
+
+    def _tool_examples(self, module_name: str, tool_name: str, tool: dict):
+        reqs = set(tool.get("requires", []))
+
+        if module_name == "infra":
+            if tool_name == "msf":
+                return [
+                    "red -i -P 4444 -msf",
+                    "set payload windows/x64/shell_reverse_tcp -> msf",
+                ]
+            if tool_name == "msfvenom":
+                return [
+                    "red -i -P 4444 -msfvenom -p",
+                    "set payload linux/x64/shell_reverse_tcp -> set payload_file shell.elf -> msfvenom",
+                ]
+
+            cli_parts = ["red", "-i"]
+            interactive_steps = []
+
+            if "target" in reqs:
+                cli_parts.extend(["-T", "10.10.10.10"])
+                interactive_steps.append("set target 10.10.10.10")
+            if "domain" in reqs:
+                cli_parts.extend(["-D", "corp.local"])
+                interactive_steps.append("set domain corp.local")
+            if "auth_mandatory" in reqs:
+                cli_parts.extend(["-U", "admin:Password123!"])
+                interactive_steps.append("set user admin:Password123!")
+
+            cli_parts.append(f"-{tool_name}")
+            interactive_steps.append(tool_name)
+            return [" ".join(cli_parts), " -> ".join(interactive_steps)]
+
+        if module_name == "web":
+            if tool_name == "headerscan":
+                return [
+                    "red -w -headerscan",
+                    "red -w -headerscan https://example.com --detailed",
+                    "set target https://example.com -> headerscan --json",
+                ]
+            sample_target = "https://example.com" if "url" in reqs else "example.com"
+            return [
+                f"red -w -T {sample_target} -{tool_name}",
+                f"set target {sample_target} -> {tool_name}",
+            ]
+
+        return [tool_name]
 
     def _check_tool(self, binary: str) -> bool:
         """Check if a tool binary is available on PATH."""

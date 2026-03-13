@@ -36,6 +36,14 @@ class TestSessionSetGet:
         assert session.get("username") == "admin"
         assert session.get("password") == "pass:word"
 
+    def test_payload_variable_is_supported(self, session):
+        session.set("payload", "linux/x64/shell_reverse_tcp")
+        assert session.get("payload") == "linux/x64/shell_reverse_tcp"
+
+    def test_lhost_variable_is_supported(self, session):
+        session.set("lhost", "10.10.14.7")
+        assert session.get("lhost") == "10.10.14.7"
+
 
 class TestPortValidation:
     def test_valid_port(self, session):

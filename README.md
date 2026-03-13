@@ -70,13 +70,17 @@ The command template automatically injects variables like `{target}`, `{domain}`
 red
 # or with preset values
 red -set -T 10.10.10.10
+red -set target 10.10.10.10
 ```
 
 **CLI Mode:**
 ```bash
-red -T 10.10.10.10 -U admin:pass123 -i nmap -p-
-red -w -T example.com -gobuster
-red -f -T 10.10.10.10 -download /etc/passwd
+red -T 10.10.10.10 -i -nmap -p
+red -T https://example.com -w -gobuster --preview
+red -w -headerscan https://example.com --detailed
+red -f -download linpeas.sh -c
+red -i -P 4444 -msfvenom -p
+red -i -P 4444 -msf
 ```
 
 **Command Flags:**
@@ -88,14 +92,14 @@ When running commands, you can use these flags to modify behavior:
 | `-c` / `--copy` | Copy command to clipboard without executing | `red -T 10.10.10.10 -w -dir_ferox -c` |
 | `-p` / `--preview` | Preview the command without executing | `red -T 10.10.10.10 -i -nmap -p` |
 | `-e` / `--edit` | Edit the command before execution | `red -T 10.10.10.10 -w -nuclei -e` |
-| `-auth` | Use credentials from session (interactive mode only) | `smbclient -auth` |
+| `-noauth` | Skip credentials for this run | `red -T 10.10.10.10 -U admin:pass -i -smbclient -noauth` |
 
 **Set Variables:**
 ```bash
-red -T 10.10.10.10      # Set target
-red -U admin:pass       # Set user credentials (auto-splits to username:password)
-red -D WORKGROUP        # Set domain
-red -H <ntlm_hash>      # Set NTLM hash
+red -set -T 10.10.10.10      # Start interactive mode with target preset
+red -set -U admin:pass       # Start interactive mode with credentials preset
+red -set -D WORKGROUP        # Start interactive mode with domain preset
+red -set -H <ntlm_hash>      # Start interactive mode with hash preset
 ```
 
 ## Available Modules
@@ -117,7 +121,11 @@ red -H <ntlm_hash>      # Set NTLM hash
 | `domain` | Domain name (default: .) |
 | `hash` | NTLM hash (alternative to password) |
 | `interface` | Network interface |
+| `lhost` | Listener host override (used by Metasploit helpers) |
 | `lport` | Local port for reverse shells (default: 4444) |
+| `payload` | Payload name for Metasploit helpers |
+| `payload_format` | Output format for `msfvenom` |
+| `payload_file` | Output filename for generated payloads |
 | `workspace` | Workspace name (default: default) |
 
 ## Credential Handling
@@ -145,8 +153,13 @@ red -set user admin
   red -T 10.10.10.10 -i -smb-c
   ```
 
-  # With credentials (use -auth flag)
-  > smbclient -auth
+- **Interactive Mode**: set session values once, then run the tool
+  ```bash
+  > set target 10.10.10.10
+  > set user admin:pass
+  > use infra
+  > smbclient
+  > smbclient -noauth
   ```
 
 ## Loot Locker (Credential Management)
@@ -178,7 +191,7 @@ ID   Type       Target          Service    Content
 [+] Loaded loot #1 into session variables.
 
 # 4. Run tools with the loaded credential
-> smbclient -auth
+> smbclient
 ```
 
 > **Note**: The `service` and `target` fields in `loot add` are optional metadata to help you organize your loot. They do not restrict usage.
@@ -210,19 +223,44 @@ red -T 10.10.10.10 -i -nmap
 # Web directory enumeration
 red -T example.com -w -dir_ffuf
 
+# Header security scan using the current session target
+red -set target https://example.com
+red -w -headerscan --json
+
+# Header security scan for an explicit URL
+red -w -headerscan https://example.com --detailed
+
 # SMB enumeration with credentials (CLI auto-auth)
 red -T 10.10.10.10 -U admin:pass -i -smb-c
 
 # SMB enumeration without credentials (NULL session)
 red -T 10.10.10.10 -i -smb-c
 
+# Generate a payload that matches your handler
+red -set payload windows/x64/shell_reverse_tcp
+red -set lhost 10.10.14.7
+red -set payload_file beacon.exe
+red -i -msfvenom -p
+
+# Start a matching Metasploit listener
+red -set payload windows/x64/shell_reverse_tcp
+red -set lhost 10.10.14.7
+red -i -P 4444 -msf
+
 # Interactive mode with credentials
-red -i
+red
 > set target 10.10.10.10
 > set user admin:password
 > use infra
-> smbclient -auth  # Use credentials
-> smbmap           # NULL session (default)
+> smbclient        # Uses credentials automatically
+> smbclient -noauth
+> set payload linux/x64/shell_reverse_tcp
+> set payload_file shell.elf
+> msfvenom -p
+> msf
+> back
+> use web
+> headerscan --json
 ```
 
 ## License

