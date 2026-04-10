@@ -319,8 +319,9 @@ class Session:
         print_sep(bottom=True)
         print("")
 
-    def save_workspace(self, name: str) -> bool:
+    def save_workspace(self, name: Optional[str] = None) -> bool:
         """Save current environment variables to a workspace file."""
+        name = name or self.get("workspace") or "default"
         try:
             path = os.path.join(self.workspace_dir, f"{name}.json")
             with open(path, 'w') as f:

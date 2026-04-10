@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "active": true,
+  "skill": "code-review",
+  "keyword": "code-review",
+  "phase": "planning",
+  "activated_at": "2026-04-10T06:45:20.310Z",
+  "updated_at": "2026-04-10T06:45:46.381Z",
+  "source": "keyword-detector",
+  "session_id": "",
+  "thread_id": "019d7620-ce9d-7600-bc53-9388f452c962",
+  "turn_id": "019d7620-d0cf-76f2-8c2f-a0f6fef190b5",
+  "iteration": 1,
+  "last_turn_at": "2026-04-10T06:47:20.237Z"
+}

@@ -1,6 +1,6 @@
 {
-  "last_turn_at": "2026-04-10T06:35:20.007Z",
-  "turn_count": 30,
-  "last_progress_at": "2026-04-10T06:35:20.007Z",
-  "last_agent_output": "Done.\n\nThose variables are now hidden from the main `options` / session variable table:\n- `payload`\n"
+  "last_turn_at": "2026-04-10T06:47:20.291Z",
+  "turn_count": 41,
+  "last_progress_at": "2026-04-10T06:47:20.291Z",
+  "last_agent_output": "The main shell is smarter now: bare tool names and aliases auto-route to the right module, `help <to"
 }

@@ -291,7 +291,7 @@ class BaseShell(cmd.Cmd):
         """
         Manage workspaces.
         Usage: 
-            workspace save <name>
+            workspace save [name]
             workspace load <name>
             workspace list
             workspace delete <name>
@@ -307,15 +307,17 @@ class BaseShell(cmd.Cmd):
             self.session.list_workspaces()
         
         elif cmd == "save":
-            if len(parts) < 2:
-                log_error("Usage: workspace save <name>")
-                return
-            name = parts[1]
+            current_name = self.session.get("workspace") or "default"
+            name = parts[1] if len(parts) >= 2 else current_name
+            path = os.path.join(self.session.workspace_dir, f"{name}.json")
+            existed = os.path.exists(path)
             if self.session.save_workspace(name):
-                log_success(f"Workspace '{name}' saved.")
-                self.session.set("workspace", name)
-                # Switch loot context
-                self.session.loot.set_workspace(name)
+                action = "updated" if existed and len(parts) < 2 else "saved"
+                log_success(f"Workspace '{name}' {action}.")
+                if len(parts) >= 2:
+                    self.session.set("workspace", name)
+                    # Switch loot context
+                    self.session.loot.set_workspace(name)
         
         elif cmd == "load":
             if len(parts) < 2:

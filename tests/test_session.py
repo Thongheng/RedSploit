@@ -2,6 +2,7 @@ import json
 import os
 import pytest
 from redsploit.core.session import Session
+from redsploit.core.shell import RedShell
 
 
 class TestSessionSetGet:
@@ -149,3 +150,29 @@ class TestWorkspace:
         path = os.path.join(str(tmp_path), "perm_test.json")
         stat = os.stat(path)
         assert oct(stat.st_mode & 0o777) == "0o600"
+
+    def test_save_workspace_without_name_uses_current_workspace(self, session, tmp_path):
+        session.workspace_dir = str(tmp_path)
+        session.set("workspace", "engagement1")
+        session.set("target", "10.10.10.10")
+
+        assert session.save_workspace()
+        assert os.path.exists(os.path.join(str(tmp_path), "engagement1.json"))
+
+    def test_save_workspace_with_name_creates_new_workspace_file(self, session, tmp_path):
+        session.workspace_dir = str(tmp_path)
+        session.set("workspace", "current_ws")
+        session.set("target", "10.10.10.10")
+
+        assert session.save_workspace("new_ws")
+        assert os.path.exists(os.path.join(str(tmp_path), "new_ws.json"))
+
+    def test_workspace_command_save_without_name_updates_current_workspace(self, session, tmp_path):
+        session.workspace_dir = str(tmp_path)
+        session.loot.workspace_dir = str(tmp_path)
+        session.set("workspace", "active_ws")
+        shell = RedShell(session)
+
+        shell.do_workspace("save")
+
+        assert os.path.exists(os.path.join(str(tmp_path), "active_ws.json"))
