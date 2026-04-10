@@ -215,6 +215,11 @@ class SummaryService:
         in_host_scripts = False
         current_port = None
         host_script_lines = []
+        identity: Dict[str, str] = {}
+        tls: Dict[str, str] = {}
+        timing: Dict[str, str] = {}
+        web: Dict[str, str] = {}
+        smb: Dict[str, str] = {}
 
         for line in captured_output.splitlines():
             stripped = line.rstrip()
@@ -274,8 +279,22 @@ class SummaryService:
                 detail_line = self._normalize_script_line(stripped)
                 if in_host_scripts:
                     host_script_lines.append(detail_line)
+                    self._collect_host_script_detail(detail_line, smb, timing)
                 elif current_port is not None:
                     current_port["details"].append(detail_line)
+                    self._collect_port_detail(current_port["service"], detail_line, identity, tls, timing, web, smb)
+
+        domain, site = self._extract_ldap_identity(open_ports)
+        if domain and "Domain" not in identity:
+            identity["Domain"] = domain
+        if site:
+            identity["Site"] = site
+
+        role = self._infer_role(open_ports, identity)
+        service_info_map = self._parse_service_info(service_info)
+        if service_info_map.get("Host") and "Computer" not in identity:
+            identity["Computer"] = service_info_map["Host"]
+        os_name = service_info_map.get("OS")
 
         return {
             "report_target": report_target,
@@ -286,6 +305,13 @@ class SummaryService:
             "open_ports": open_ports,
             "open_port_count": len(open_ports),
             "host_script_lines": host_script_lines,
+            "identity": identity,
+            "tls": tls,
+            "timing": timing,
+            "web": web,
+            "smb": smb,
+            "role": role,
+            "os_name": os_name,
         }
 
     def _extract_ports(self, captured_output: str, exit_code: int) -> Dict[str, Any]:
@@ -396,33 +422,46 @@ class SummaryService:
             if target:
                 overview.append(f"Target: {target}")
             overview.append(f"Host: {analysis.get('host_status', 'unknown')}")
+            if analysis.get("role"):
+                overview.append(f"Likely Role: {analysis['role']}")
+            if analysis.get("identity", {}).get("DNS Computer"):
+                overview.append(f"Hostname: {analysis['identity']['DNS Computer']}")
+            elif analysis.get("identity", {}).get("Computer"):
+                overview.append(f"Hostname: {analysis['identity']['Computer']}")
+            if analysis.get("identity", {}).get("Domain"):
+                overview.append(f"Domain: {analysis['identity']['Domain']}")
+            if analysis.get("os_name"):
+                overview.append(f"OS: {analysis['os_name']}")
             overview.append(f"Open ports: {analysis.get('open_port_count', 0)}")
             if analysis.get("not_shown"):
                 overview.append(f"Not shown: {analysis['not_shown']}")
-            if analysis.get("service_info"):
-                overview.append(f"Service Info: {analysis['service_info']}")
             if analysis.get("scan_duration"):
                 overview.append(f"Scan Duration: {analysis['scan_duration']}")
 
             sections = []
             if analysis.get("open_ports"):
+                service_rows = [
+                    self._format_service_row(item["port"], item["service"], item.get("version", ""))
+                    for item in analysis["open_ports"]
+                ]
                 sections.append(
                     {
                         "title": "Open Services",
-                        "lines": [item["raw"] for item in analysis["open_ports"]],
+                        "lines": service_rows,
                     }
                 )
 
-            port_detail_lines = []
-            for item in analysis.get("open_ports", []):
-                if item.get("details"):
-                    port_detail_lines.append(f"{item['port']}/{item['service']}")
-                    port_detail_lines.extend(item["details"])
-            if port_detail_lines:
-                sections.append({"title": "Port Script Details", "lines": port_detail_lines})
+            identity_lines = self._nmap_identity_lines(analysis)
+            if identity_lines:
+                sections.append({"title": "Identity & AD", "lines": identity_lines})
 
-            if analysis.get("host_script_lines"):
-                sections.append({"title": "Host Script Results", "lines": analysis["host_script_lines"]})
+            access_lines = self._nmap_access_lines(analysis)
+            if access_lines:
+                sections.append({"title": "Access & Protocol Notes", "lines": access_lines})
+
+            timing_lines = self._nmap_timing_lines(analysis)
+            if timing_lines:
+                sections.append({"title": "Timing & TLS", "lines": timing_lines})
 
             return {"title": title, "overview": overview, "sections": sections}
 
@@ -533,3 +572,161 @@ class SummaryService:
         if line.startswith("|"):
             return "  " + line[1:].rstrip()
         return line
+
+    def _collect_port_detail(
+        self,
+        service: str,
+        detail_line: str,
+        identity: Dict[str, str],
+        tls: Dict[str, str],
+        timing: Dict[str, str],
+        web: Dict[str, str],
+        smb: Dict[str, str],
+    ) -> None:
+        stripped = detail_line.strip()
+        if not stripped:
+            return
+
+        key, _, value = stripped.partition(":")
+        key = key.strip()
+        value = value.strip()
+
+        if service == "ms-wbt-server":
+            mapping = {
+                "Target_Name": "Target Name",
+                "NetBIOS_Domain_Name": "NetBIOS Domain",
+                "NetBIOS_Computer_Name": "Computer",
+                "DNS_Domain_Name": "Domain",
+                "DNS_Computer_Name": "DNS Computer",
+                "DNS_Tree_Name": "DNS Tree",
+                "Product_Version": "Product Version",
+                "System_Time": "System Time",
+            }
+            if key in mapping and value:
+                identity[mapping[key]] = value
+                if key == "System_Time":
+                    timing["RDP System Time"] = value
+            elif key == "ssl-cert" and "commonName=" in value:
+                tls["Certificate CN"] = value.split("commonName=", 1)[1].strip()
+            elif key == "Issuer" and "commonName=" in value:
+                tls["Certificate Issuer"] = value.split("commonName=", 1)[1].strip()
+            elif key == "Not valid before":
+                tls["Valid From"] = value
+            elif key == "Not valid after":
+                tls["Valid Until"] = value
+            elif key == "ssl-date":
+                timing["TLS Time"] = value
+
+        if service == "http":
+            if key == "http-server-header":
+                web["HTTP Server"] = value
+            elif key == "http-title":
+                web["HTTP Title"] = value
+
+        if service.startswith("microsoft-ds"):
+            if key == "smb2-security-mode":
+                smb["SMB Signing"] = value
+            elif stripped.startswith("Message signing"):
+                smb["SMB Signing"] = stripped
+
+    def _collect_host_script_detail(self, detail_line: str, smb: Dict[str, str], timing: Dict[str, str]) -> None:
+        stripped = detail_line.strip()
+        if not stripped:
+            return
+
+        if stripped.startswith("Message signing"):
+            smb["SMB Signing"] = stripped
+            return
+
+        if stripped.startswith("clock-skew:"):
+            timing["Clock Skew"] = stripped.split(":", 1)[1].strip()
+            return
+
+        if stripped.startswith("date:"):
+            timing["SMB Time"] = stripped.split(":", 1)[1].strip()
+
+    def _extract_ldap_identity(self, open_ports: List[Dict[str, Any]]) -> Tuple[Optional[str], Optional[str]]:
+        for item in open_ports:
+            if item["service"] != "ldap":
+                continue
+            version = item.get("version", "")
+            match = re.search(r"Domain:\s*([^,]+),\s*Site:\s*([^)]+)", version)
+            if match:
+                return match.group(1).strip(), match.group(2).strip()
+        return None, None
+
+    def _parse_service_info(self, service_info: Optional[str]) -> Dict[str, str]:
+        if not service_info:
+            return {}
+        parsed = {}
+        for segment in service_info.split(";"):
+            if ":" not in segment:
+                continue
+            key, value = segment.split(":", 1)
+            parsed[key.strip()] = value.strip()
+        return parsed
+
+    def _infer_role(self, open_ports: List[Dict[str, Any]], identity: Dict[str, str]) -> Optional[str]:
+        ports = {item["port"] for item in open_ports}
+        has_ad_ports = {"53", "88", "389", "445", "464", "3268"}.issubset(ports)
+        if has_ad_ports or identity.get("Domain"):
+            return "Domain Controller"
+        if "5985" in ports and "445" in ports:
+            return "Windows Server"
+        return None
+
+    def _format_service_row(self, port: str, service: str, version: str) -> str:
+        service_col = f"{port:<5} {service:<14}"
+        return f"{service_col} {version}".rstrip()
+
+    def _nmap_identity_lines(self, analysis: Dict[str, Any]) -> List[str]:
+        identity = analysis.get("identity", {})
+        lines = []
+        ordered_keys = [
+            "Target Name",
+            "Computer",
+            "DNS Computer",
+            "Domain",
+            "DNS Tree",
+            "NetBIOS Domain",
+            "Site",
+            "Product Version",
+        ]
+        for key in ordered_keys:
+            if identity.get(key):
+                lines.append(f"{key}: {identity[key]}")
+        return lines
+
+    def _nmap_access_lines(self, analysis: Dict[str, Any]) -> List[str]:
+        lines = []
+        smb = analysis.get("smb", {})
+        web = analysis.get("web", {})
+        ports = {item["port"] for item in analysis.get("open_ports", [])}
+
+        if "445" in ports:
+            lines.append("SMB: exposed on 445/tcp")
+        if smb.get("SMB Signing"):
+            lines.append(f"SMB Signing: {smb['SMB Signing']}")
+        if "3389" in ports:
+            lines.append("RDP: exposed on 3389/tcp")
+        if "5985" in ports:
+            lines.append("WinRM/HTTP: exposed on 5985/tcp")
+        if web.get("HTTP Server"):
+            lines.append(f"HTTP Server: {web['HTTP Server']}")
+        if web.get("HTTP Title"):
+            lines.append(f"HTTP Title: {web['HTTP Title']}")
+        return lines
+
+    def _nmap_timing_lines(self, analysis: Dict[str, Any]) -> List[str]:
+        lines = []
+        timing = analysis.get("timing", {})
+        tls = analysis.get("tls", {})
+
+        for key in ("Clock Skew", "RDP System Time", "SMB Time", "TLS Time"):
+            if timing.get(key):
+                lines.append(f"{key}: {timing[key]}")
+
+        for key in ("Certificate CN", "Certificate Issuer", "Valid From", "Valid Until"):
+            if tls.get(key):
+                lines.append(f"{key}: {tls[key]}")
+        return lines
