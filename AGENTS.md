@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-`red.py` is the CLI entrypoint. Shared shell, session, config, and utility logic lives in `redsploit/core/`. Operator-facing tool catalogs and module behavior live in `redsploit/modules/` (`infra.py`, `web.py`, `file.py`, `system.py`). Tests live in `tests/` and mirror the feature area they cover, for example `test_web_module.py` and `test_session.py`. Automation assets live in `playbooks/`, shell completion scripts live in `completions/`, and `config.yaml` holds local defaults. `SecHeader/` is a separate helper with its own README and dependency file.
+`red.py` is the CLI entrypoint. Shared shell, session, config, and utility logic lives in `redsploit/core/`. Operator-facing tool catalogs and module behavior live in `redsploit/modules/` (`infra.py`, `web.py`, `file.py`, `system.py`). Tests live in `tests/` and mirror the feature area they cover, for example `test_web_module.py` and `test_session.py`. Automation assets live in `playbooks/`, shell completion scripts live in `completions/`, and `config.yaml` holds local defaults.
 
 ## Build, Test, and Development Commands
 `python3 -m venv .venv && source .venv/bin/activate` creates a local environment.
