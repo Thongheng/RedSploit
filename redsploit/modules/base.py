@@ -261,6 +261,11 @@ class BaseModule:
         }
 
     def _summary_enabled(self) -> bool:
+        session_override = (self.session.get("summary") or "").strip().lower()
+        if session_override in {"off", "false", "0", "no"}:
+            return False
+        if session_override in {"on", "true", "1", "yes"}:
+            return True
         return bool(self.session.config.get("summary", {}).get("enabled", True))
 
     def _warn_on_unsupported_summary(self) -> bool:

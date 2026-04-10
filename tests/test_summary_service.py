@@ -176,6 +176,43 @@ def test_supported_tool_appends_summary_after_raw_output(session, capsys):
     assert "appended" in captured
 
 
+def test_nxc_uses_captured_clean_view_path(session):
+    infra = InfraModule(session)
+    session.set("target", "10.10.10.10")
+    session.set("user", "admin:pass123")
+
+    with patch("shutil.which", return_value="/usr/bin/nxc"):
+        with patch.object(infra, "_run_with_summary") as run_with_summary:
+            with patch.object(infra, "_run_passthrough") as run_passthrough:
+                infra.run_tool("nxc")
+
+    assert run_with_summary.called
+    assert not run_passthrough.called
+
+
+def test_other_noninteractive_recon_tools_use_captured_clean_view_path(session):
+    infra = InfraModule(session)
+    session.set("target", "10.10.10.10")
+    session.set("domain", "example.local")
+    session.set("user", "admin:pass123")
+
+    cases = [
+        ("smbclient", "/usr/bin/smbclient"),
+        ("smbmap", "/usr/bin/smbmap"),
+        ("enum4linux", "/usr/bin/enum4linux-ng"),
+        ("bloodhound", "/usr/bin/bloodhound-ce-python"),
+        ("kerbrute", "/usr/bin/kerbrute"),
+    ]
+
+    for tool_name, binary_path in cases:
+        with patch("shutil.which", return_value=binary_path):
+            with patch.object(infra, "_run_with_summary") as run_with_summary:
+                with patch.object(infra, "_run_passthrough") as run_passthrough:
+                    infra.run_tool(tool_name)
+        assert run_with_summary.called, tool_name
+        assert not run_passthrough.called, tool_name
+
+
 def test_no_summary_flag_keeps_supported_tool_on_raw_path(session):
     infra = InfraModule(session)
     session.set("target", "10.10.10.10")
@@ -189,14 +226,29 @@ def test_no_summary_flag_keeps_supported_tool_on_raw_path(session):
     assert run_passthrough.called
 
 
+def test_session_summary_off_disables_clean_view_globally(session):
+    infra = InfraModule(session)
+    session.set("target", "10.10.10.10")
+    session.set("summary", "off")
+
+    with patch("shutil.which", return_value="/usr/bin/nmap"):
+        with patch.object(infra, "_run_with_summary") as run_with_summary:
+            with patch.object(infra, "_run_passthrough") as run_passthrough:
+                infra.run_tool("nmap")
+
+    assert not run_with_summary.called
+    assert run_passthrough.called
+
+
 def test_passthrough_tool_warns_when_summary_is_unsupported(session, capsys):
     infra = InfraModule(session)
     session.set("target", "10.10.10.10")
+    session.set("lport", "4444")
 
-    with patch("shutil.which", return_value="/usr/bin/smbclient"):
+    with patch("shutil.which", return_value="/usr/bin/msfconsole"):
         with patch.object(infra, "_run_passthrough") as run_passthrough:
-            infra.run_tool("smbclient")
+            infra.run_tool("msf")
 
     captured = capsys.readouterr().out
-    assert "Post-run summary is not supported for infra.smbclient" in captured
+    assert "Post-run summary is not supported for infra.msf" in captured
     assert run_passthrough.called

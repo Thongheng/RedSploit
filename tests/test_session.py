@@ -44,6 +44,10 @@ class TestSessionSetGet:
         session.set("lhost", "10.10.14.7")
         assert session.get("lhost") == "10.10.14.7"
 
+    def test_summary_session_variable_is_supported(self, session):
+        session.set("summary", "off")
+        assert session.get("summary") == "off"
+
     def test_summary_config_defaults_exist(self, session):
         assert session.config["summary"]["enabled"] is True
         assert "openrouter" in session.config["summary"]["providers"]

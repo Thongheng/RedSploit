@@ -28,6 +28,7 @@ class Session:
             "wordlist_vhost": "",
             "workspace": "default",
             "log": "",
+            "summary": "",
         }
         self.next_shell: Optional[str] = None
         
@@ -62,6 +63,7 @@ class Session:
             "wordlist_vhost": {"required": False, "desc": "Override vhost wordlist path"},
             "workspace": {"required": True, "desc": "Workspace name"},
             "log": {"required": False, "desc": "Enable output logging (set to 'on' to enable)"},
+            "summary": {"required": False, "desc": "Cleaner output mode (on/off)"},
         }
         
         # Initialize Loot Manager

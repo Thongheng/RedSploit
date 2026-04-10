@@ -34,7 +34,8 @@ class InfraModule(BaseModule):
             "requires": ["target"],
             "auth_mode": "flag_U",
             "aliases": ["smb-c"],
-            "execution_mode": "passthrough",
+            "execution_mode": "captured",
+            "summary_profile": "generic",
         },
         "smbmap": {
             "cmd": "smbmap -H {target} {auth} --no-banner -q",
@@ -44,7 +45,8 @@ class InfraModule(BaseModule):
             "requires": ["target"],
             "auth_mode": "u_p_flags",
             "aliases": ["smb-map"],
-            "execution_mode": "passthrough",
+            "execution_mode": "captured",
+            "summary_profile": "generic",
         },
         "enum4linux": {
             "cmd": "enum4linux-ng -A {auth} {target}",
@@ -53,7 +55,8 @@ class InfraModule(BaseModule):
             "category": "SMB Tools",
             "requires": ["target"],
             "auth_mode": "u_p_flags",
-            "execution_mode": "passthrough",
+            "execution_mode": "captured",
+            "summary_profile": "generic",
         },
         "nxc": {
             "cmd": "nxc smb {target} {auth}",
@@ -62,7 +65,8 @@ class InfraModule(BaseModule):
             "category": "SMB Tools",
             "requires": ["target", "auth_mandatory"],
             "auth_mode": "u_p_flags",
-            "execution_mode": "passthrough",
+            "execution_mode": "captured",
+            "summary_profile": "generic",
         },
         "bloodhound": {
             "cmd": "bloodhound-ce-python {auth} -ns {ip} -d {domain} -c all",
@@ -71,7 +75,8 @@ class InfraModule(BaseModule):
             "category": "Active Directory",
             "requires": ["target", "domain", "auth_mandatory"],
             "auth_mode": "u_p_flags",
-            "execution_mode": "passthrough",
+            "execution_mode": "captured",
+            "summary_profile": "generic",
         },
         "ftp": {
             "cmd": "lftp -u '{user},{password}' ftp://{target}",
@@ -161,7 +166,8 @@ class InfraModule(BaseModule):
             "desc": "Kerberos username enumeration",
             "category": "Active Directory",
             "requires": ["target", "domain"],
-            "execution_mode": "passthrough",
+            "execution_mode": "captured",
+            "summary_profile": "generic",
         }
     }
 

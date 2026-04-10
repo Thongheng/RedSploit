@@ -1,6 +1,6 @@
 {
-  "last_turn_at": "2026-04-10T04:46:04.375Z",
-  "turn_count": 21,
-  "last_progress_at": "2026-04-10T04:46:04.375Z",
-  "last_agent_output": "Tightened the `nmap` clean view to be more useful for a pentester.\n\nWhat changed:\n- removed low-sign"
+  "last_turn_at": "2026-04-10T06:32:35.442Z",
+  "turn_count": 28,
+  "last_progress_at": "2026-04-10T06:32:35.442Z",
+  "last_agent_output": "Added a one-time session command.\n\nIn interactive mode, use:\n```bash\nset summary off\n```\n\nTo turn it"
 }

@@ -115,6 +115,12 @@ Use this flag if you want raw tool output only:
 red -T 10.10.10.10 -i -nmap --no-summary
 ```
 
+For a session-wide disable in interactive mode:
+
+```bash
+set summary off
+```
+
 ## Supported Summary Tools
 
 - Infra: `nmap`, `rustscan`

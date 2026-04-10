@@ -142,6 +142,7 @@ red -set -H <ntlm_hash>      # Start interactive mode with hash preset
 | `payload_format` | Output format for `msfvenom` |
 | `payload_file` | Output filename for generated payloads |
 | `workspace` | Workspace name (default: default) |
+| `summary` | Cleaner output mode (`on` or `off`) |
 
 ## AI Summaries
 
@@ -156,6 +157,12 @@ RedSploit uses this provider order for AI cleanup summaries:
 2. ChatAnywhere (`CHATANYWHERE_API_KEY`)
 
 If no provider is available or the request fails, the underlying tool output still succeeds and RedSploit falls back to a local summary when possible.
+
+To disable the cleaner globally for the current session:
+
+```bash
+set summary off
+```
 
 ## Credential Handling
 

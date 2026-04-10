@@ -66,7 +66,9 @@ class WebModule(BaseModule):
             "binary": "ffuf",
             "desc": "Virtual host discovery via ffuf",
             "category": "Subdomain Discovery",
-            "requires": ["url", "domain"]
+            "requires": ["url", "domain"],
+            "execution_mode": "captured",
+            "summary_profile": "generic",
         },
         "dir_ferox": {
             "cmd": "feroxbuster -u {url}",
@@ -112,7 +114,9 @@ class WebModule(BaseModule):
             "binary": "wpscan",
             "desc": "WordPress vulnerability scanner",
             "category": "Vulnerability Scanning",
-            "requires": ["url"]
+            "requires": ["url"],
+            "execution_mode": "captured",
+            "summary_profile": "generic",
         },
         "waf": {
             "cmd": "wafw00f {url}",
