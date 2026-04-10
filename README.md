@@ -37,8 +37,6 @@ chmod +x red.py
 ### Configuration
 RedSploit uses a `config.yaml` file located in the project root. It is automatically created on first run if missing.
 
-For full setup instructions, including AI summary API keys and manual environment configuration, see [SETUP.md](./SETUP.md).
-
 To verify both AI providers after setup:
 
 ```bash
@@ -58,8 +56,71 @@ summary:
   warn_on_unsupported: true
 ```
 
+### AI Summary Setup
+
+The installer can configure AI-summary API keys for you. It will:
+
+- ask once whether you want to store AI-summary API keys
+- prompt for `OPENROUTER_API_KEY`
+- prompt for `CHATANYWHERE_API_KEY`
+- detect whether your shell is `zsh` or `bash`
+- write an idempotent managed export block to your shell rc file
+
+You can test provider access after setup with:
+
+```bash
+./install.sh --test
+```
+
+Manual setup also works:
+
+```bash
+export OPENROUTER_API_KEY="your-openrouter-key"
+export CHATANYWHERE_API_KEY="your-chatanywhere-key"
+```
+
+Then reload your shell:
+
+```bash
+source ~/.zshrc
+# or
+source ~/.bashrc
+```
+
 ### Command History
 Command history is automatically saved to `~/.redsploit_history`. You can recall commands from previous sessions using the Up Arrow key.
+
+### Shell Completion
+
+RedSploit supports native shell completion for bash and zsh.
+
+Recommended setup:
+
+```bash
+./install.sh
+```
+
+If you only want completion setup:
+
+```bash
+./setup_completion.sh
+```
+
+Manual install examples:
+
+```bash
+# zsh, system-wide
+sudo cp completions/_red /usr/share/zsh/site-functions/_red
+
+# bash, system-wide
+sudo cp completions/red.bash /etc/bash_completion.d/red
+```
+
+Quick test:
+
+```bash
+red -<TAB><TAB>
+```
 
 ## Development
 RedSploit is designed to be easily extensible. 
