@@ -39,6 +39,12 @@ RedSploit uses a `config.yaml` file located in the project root. It is automatic
 
 For full setup instructions, including AI summary API keys and manual environment configuration, see [SETUP.md](./SETUP.md).
 
+To verify both AI providers after setup:
+
+```bash
+./install.sh --test
+```
+
 ### Wordlists
 Configure default wordlist paths in `config.yaml` to match your system (e.g., if you are using macOS vs Kali).
 ```yaml

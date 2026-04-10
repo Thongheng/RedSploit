@@ -17,6 +17,11 @@ INSTALL_TARGET=""
 RC_FILE=""
 CURRENT_STEP=0
 TOTAL_STEPS=4
+TEST_ONLY=0
+OPENROUTER_TEST_URL="https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_TEST_MODEL="openrouter/free"
+CHATANYWHERE_TEST_URL="https://api.chatanywhere.tech/v1/chat/completions"
+CHATANYWHERE_TEST_MODEL="gpt-5-nano"
 
 setup_colors() {
     if is_interactive_terminal; then
@@ -58,10 +63,25 @@ print_step() {
     printf '%s[%d/%d]%s %s%s%s\n' "$C_BLUE" "$CURRENT_STEP" "$TOTAL_STEPS" "$C_RESET" "$C_BOLD" "$1" "$C_RESET"
 }
 
+print_usage() {
+    cat <<EOF
+Usage: ./install.sh [--test] [--help]
+
+Options:
+  --test    Test OpenRouter and ChatAnywhere API access using configured API keys
+  --help    Show this help message
+EOF
+}
+
 print_banner() {
     setup_colors
-    printf '%s%sRedSploit Setup%s\n' "$C_BOLD" "$C_RED" "$C_RESET"
-    printf '%s%sQuick installer for command, completion, and AI summary config%s\n' "$C_DIM" "$C_BLUE" "$C_RESET"
+    if [ "$TEST_ONLY" -eq 1 ]; then
+        printf '%s%sRedSploit AI Provider Test%s\n' "$C_BOLD" "$C_RED" "$C_RESET"
+        printf '%s%sQuick probe for OpenRouter and ChatAnywhere connectivity%s\n' "$C_DIM" "$C_BLUE" "$C_RESET"
+    else
+        printf '%s%sRedSploit Setup%s\n' "$C_BOLD" "$C_RED" "$C_RESET"
+        printf '%s%sQuick installer for command, completion, and AI summary config%s\n' "$C_DIM" "$C_BLUE" "$C_RESET"
+    fi
     echo ""
 }
 
@@ -232,6 +252,57 @@ write_path_block() {
     } >> "$rc_file"
 }
 
+extract_api_key_from_rc() {
+    local rc_file="$1"
+    local variable_name="$2"
+
+    if [ ! -f "$rc_file" ]; then
+        return 0
+    fi
+
+    awk -v start="$MANAGED_BLOCK_START" -v end="$MANAGED_BLOCK_END" '
+        $0 == start { in_block=1; next }
+        $0 == end { in_block=0; next }
+        in_block { print }
+    ' "$rc_file" | VARIABLE_NAME="$variable_name" bash -c '
+        while IFS= read -r line; do
+            eval "$line"
+        done
+        printf "%s" "${!VARIABLE_NAME:-}"
+    ' 2>/dev/null || true
+}
+
+resolve_api_key() {
+    local variable_name="$1"
+    local key_value shell_name fallback_rc
+
+    key_value="${!variable_name:-}"
+    if [ -n "$key_value" ]; then
+        printf '%s' "$key_value"
+        return 0
+    fi
+
+    if [ -n "$RC_FILE" ]; then
+        key_value="$(extract_api_key_from_rc "$RC_FILE" "$variable_name")"
+        if [ -n "$key_value" ]; then
+            printf '%s' "$key_value"
+            return 0
+        fi
+    fi
+
+    shell_name="$(detect_real_shell_name)"
+    fallback_rc="$(resolve_shell_rc_file "$shell_name" 2>/dev/null || true)"
+    if [ -n "$fallback_rc" ]; then
+        key_value="$(extract_api_key_from_rc "$fallback_rc" "$variable_name")"
+        if [ -n "$key_value" ]; then
+            printf '%s' "$key_value"
+            return 0
+        fi
+    fi
+
+    return 0
+}
+
 choose_install_mode() {
     if [ -n "$INSTALL_MODE" ]; then
         return 0
@@ -247,6 +318,27 @@ choose_install_mode() {
     else
         INSTALL_MODE="local"
     fi
+}
+
+parse_args() {
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --test)
+                TEST_ONLY=1
+                TOTAL_STEPS=2
+                ;;
+            --help|-h)
+                print_usage
+                exit 0
+                ;;
+            *)
+                echo "Unknown option: $1" >&2
+                print_usage >&2
+                exit 1
+                ;;
+        esac
+        shift
+    done
 }
 
 ensure_rc_ownership() {
@@ -288,6 +380,110 @@ maybe_configure_path() {
     write_path_block "$RC_FILE" "$path_dir"
     ensure_rc_ownership "$RC_FILE"
     echo "✓ Added PATH export to $RC_FILE"
+}
+
+test_ai_provider() {
+    local provider_name="$1"
+    local url="$2"
+    local model="$3"
+    local api_key="$4"
+    local response_file http_code preview
+
+    if [ -z "$api_key" ]; then
+        log_warn "$provider_name key not found. Set it in the environment or run the installer first."
+        return 1
+    fi
+
+    response_file="$(mktemp)"
+    http_code="$(
+        curl -sS -m 20 \
+            -o "$response_file" \
+            -w "%{http_code}" \
+            -X POST "$url" \
+            -H "Authorization: Bearer $api_key" \
+            -H "Content-Type: application/json" \
+            --data "{\"model\":\"$model\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with OK only.\"}]}" \
+            2>/dev/null
+    )" || {
+        rm -f "$response_file"
+        log_warn "$provider_name request failed before receiving an HTTP response."
+        return 1
+    }
+
+    if [[ ! "$http_code" =~ ^2 ]]; then
+        preview="$(python3 - "$response_file" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+try:
+    with open(path, "r", encoding="utf-8") as handle:
+        data = json.load(handle)
+    print((data.get("error", {}).get("message") or str(data))[:180])
+except Exception:
+    with open(path, "r", encoding="utf-8", errors="replace") as handle:
+        print(handle.read().strip()[:180])
+PY
+)"
+        rm -f "$response_file"
+        log_warn "$provider_name test failed (HTTP $http_code): $preview"
+        return 1
+    fi
+
+    preview="$(python3 - "$response_file" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as handle:
+    data = json.load(handle)
+
+content = data["choices"][0]["message"]["content"]
+if isinstance(content, list):
+    text_parts = []
+    for item in content:
+        if isinstance(item, dict):
+            text_parts.append(item.get("text", ""))
+    content = "".join(text_parts)
+
+print(str(content).strip()[:120])
+PY
+)" || preview=""
+
+    rm -f "$response_file"
+    log_success "$provider_name test passed${preview:+: $preview}"
+    return 0
+}
+
+run_ai_provider_tests() {
+    local openrouter_key chatanywhere_key failures=0
+
+    print_step "Inspect environment"
+    local shell_name
+    shell_name="$(detect_real_shell_name)"
+    RC_FILE="$(resolve_shell_rc_file "$shell_name" 2>/dev/null || true)"
+    log_info "Detected user: $REAL_USER"
+    log_info "Detected shell: $shell_name"
+    if [ -n "$RC_FILE" ]; then
+        log_info "Shell rc file: $RC_FILE"
+    fi
+
+    print_step "Test AI providers"
+    openrouter_key="$(resolve_api_key OPENROUTER_API_KEY)"
+    chatanywhere_key="$(resolve_api_key CHATANYWHERE_API_KEY)"
+
+    test_ai_provider "OpenRouter" "$OPENROUTER_TEST_URL" "$OPENROUTER_TEST_MODEL" "$openrouter_key" || failures=$((failures + 1))
+    test_ai_provider "ChatAnywhere" "$CHATANYWHERE_TEST_URL" "$CHATANYWHERE_TEST_MODEL" "$chatanywhere_key" || failures=$((failures + 1))
+
+    if [ "$failures" -gt 0 ]; then
+        echo ""
+        log_warn "One or more AI provider tests failed."
+        return 1
+    fi
+
+    echo ""
+    log_success "Both AI provider tests passed."
+    return 0
 }
 
 configure_api_keys_interactive() {
@@ -392,7 +588,13 @@ print_success() {
 }
 
 main() {
+    parse_args "$@"
     print_banner
+    if [ "$TEST_ONLY" -eq 1 ]; then
+        run_ai_provider_tests
+        return $?
+    fi
+
     local shell_name
     shell_name="$(detect_real_shell_name)"
     RC_FILE="$(resolve_shell_rc_file "$shell_name" 2>/dev/null || true)"

@@ -16,6 +16,21 @@ The installer:
 - asks once whether you want to store AI-summary API keys
 - optionally writes AI-summary API key exports to your shell rc file
 
+## Test Provider Access
+
+After setup, you can test both AI providers with:
+
+```bash
+./install.sh --test
+```
+
+`--test` checks:
+
+- OpenRouter using `OPENROUTER_API_KEY`
+- ChatAnywhere using `CHATANYWHERE_API_KEY`
+
+It reads keys from the current environment first, then falls back to the managed shell-rc block written by the installer.
+
 ## AI Summary Providers
 
 RedSploit uses this provider order for supported post-run summaries:
@@ -34,8 +49,8 @@ These keys are read from the environment only. They are not stored in `config.ya
 
 If you answer `y` when `install.sh` asks whether to configure API keys, it will:
 
-- prompt silently for `OPENROUTER_API_KEY`
-- prompt silently for `CHATANYWHERE_API_KEY`
+- prompt for `OPENROUTER_API_KEY`
+- prompt for `CHATANYWHERE_API_KEY`
 - detect whether your login shell is `zsh` or `bash`
 - write an idempotent managed export block to `~/.zshrc` or `~/.bashrc`
 
