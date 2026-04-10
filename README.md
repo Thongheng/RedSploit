@@ -18,12 +18,12 @@ Red Team penetration testing CLI tool with interactive shell and automation capa
 ```bash
 git clone https://github.com/Thongheng/RedSploit.git
 cd RedSploit
-sudo ./install.sh
+./install.sh
 ```
 
 This will:
-- Install `red` command to `/usr/bin`
-- Setup shell completion automatically
+- Install `red` to `/usr/bin` when run with `sudo`, or to `~/.local/bin/red` when run as a normal user
+- Walk you through shell completion, PATH setup, and API key configuration
 - Optionally configure AI-summary API keys for the installing user
 - Make the tool accessible from anywhere
 

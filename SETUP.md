@@ -5,13 +5,13 @@
 ```bash
 git clone https://github.com/Thongheng/RedSploit.git
 cd RedSploit
-sudo ./install.sh
+./install.sh
 ```
 
 The installer:
 
-- installs `red` to `/usr/bin`
-- sets up shell completion
+- installs `red` to `/usr/bin` when run with `sudo`, or to `~/.local/bin/red` when run as a normal user
+- walks through install location, shell completion, PATH setup, and API key storage
 - optionally writes AI-summary API key exports to your shell rc file
 
 ## AI Summary Providers

@@ -46,6 +46,22 @@ def test_write_api_key_block_removes_managed_block_when_keys_are_blank(tmp_path)
     assert "CHATANYWHERE_API_KEY" not in stdout
 
 
+def test_write_path_block_is_idempotent(tmp_path):
+    rc_file = tmp_path / ".zshrc"
+    install_script = "/Users/thonghengheu/Coding/Cyber/RedSploit/install.sh"
+
+    stdout = _run_shell(
+        f'''
+        source "{install_script}"
+        write_path_block "{rc_file}" "/tmp/redsploit-bin"
+        write_path_block "{rc_file}" "/tmp/redsploit-bin"
+        cat "{rc_file}"
+        '''
+    )
+
+    assert stdout.count('export PATH=/tmp/redsploit-bin:$PATH') == 1
+
+
 def test_determine_shell_rc_file_supports_bash_and_zsh(tmp_path):
     install_script = "/Users/thonghengheu/Coding/Cyber/RedSploit/install.sh"
 
@@ -61,3 +77,43 @@ def test_determine_shell_rc_file_supports_bash_and_zsh(tmp_path):
     lines = [line.strip() for line in stdout.splitlines() if line.strip()]
     assert lines[0].endswith(".zshrc")
     assert lines[1].endswith(".bashrc")
+
+
+def test_detect_real_shell_name_prefers_passwd_lookup(tmp_path):
+    install_script = "/Users/thonghengheu/Coding/Cyber/RedSploit/install.sh"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_getent = fake_bin / "getent"
+    fake_getent.write_text('#!/usr/bin/env bash\necho "tester:x:1000:1000::/home/tester:/bin/zsh"\n')
+    fake_getent.chmod(0o755)
+
+    stdout = _run_shell(
+        f'''
+        export PATH="{fake_bin}:$PATH"
+        source "{install_script}"
+        REAL_USER="tester"
+        detect_real_shell_name
+        '''
+    )
+
+    assert stdout.strip() == "zsh"
+
+
+def test_install_redsploit_uses_user_local_bin_without_root(tmp_path):
+    install_script = "/Users/thonghengheu/Coding/Cyber/RedSploit/install.sh"
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    fake_red = tmp_path / "red.py"
+    fake_red.write_text("#!/usr/bin/env python3\n")
+
+    stdout = _run_shell(
+        f'''
+        source "{install_script}"
+        REAL_HOME="{fake_home}"
+        RED_PY="{fake_red}"
+        install_redsploit
+        test -L "{fake_home}/.local/bin/red"
+        '''
+    )
+
+    assert "Created symlink" in stdout
