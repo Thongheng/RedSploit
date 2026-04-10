@@ -5,10 +5,11 @@ import socket
 import glob
 from ..core.colors import log_info, log_success, log_error, log_warn, Colors
 from ..core.base_shell import BaseShell
-from .base import ArgumentParserNoExit, BaseModule, HelpExit
+from .base import BaseModule
 from ..core.utils import get_ip_address
 
 class FileModule(BaseModule):
+    MODULE_NAME = "file"
     TOOLS = {
         "wget": "wget http://{ip}:{port}/{filename}",
         "wget_write": "wget http://{ip}:{port}/{filename} -O {filename}",
@@ -78,16 +79,27 @@ class FileModule(BaseModule):
     }
 
     def __init__(self, session):
-        self.session = session
+        super().__init__(session)
 
     @classmethod
     def resolve_command_name(cls, raw_name):
         normalized = raw_name.lstrip("-").replace("-", "_")
         if normalized in cls.COMMANDS:
             return normalized
-        if normalized in ("http", "smb"):
-            return "server"
+        for command_name, command in cls.COMMANDS.items():
+            if normalized in command.get("aliases", []):
+                return command_name
         return None
+
+    @classmethod
+    def find_command_invocation(cls, args_list):
+        for idx, arg in enumerate(args_list):
+            if not arg.startswith("-"):
+                continue
+            resolved_name = cls.resolve_command_name(arg)
+            if resolved_name:
+                return idx, resolved_name
+        return None, None
 
     def print_command_help(self, command_name):
         command = self.COMMANDS.get(command_name)
@@ -206,18 +218,78 @@ class FileModule(BaseModule):
         except KeyboardInterrupt:
             print("\nServer stopped.")
 
+    def _run_download_command(self, args_list, command_index, cli_flags):
+        command_args = args_list[command_index + 1:]
+        if not command_args:
+            log_error("Usage: -download <filename>")
+            return
+
+        filename = command_args[0]
+        tool = command_args[1] if len(command_args) > 1 and not command_args[1].startswith("-") else "wget"
+        self.run_download(
+            filename,
+            tool,
+            copy_only=cli_flags["copy_only"],
+            edit=cli_flags["edit"],
+            preview=cli_flags["preview"],
+        )
+
+    def _run_base64_command(self, args_list, command_index, cli_flags):
+        command_args = args_list[command_index + 1:]
+        if not command_args:
+            log_error("Usage: -base64 <filename>")
+            return
+
+        self.run_base64(
+            command_args[0],
+            copy_only=cli_flags["copy_only"],
+            edit=cli_flags["edit"],
+            preview=cli_flags["preview"],
+        )
+
+    def _resolve_server_type(self, command_token, command_args):
+        command_name = command_token.lstrip("-").replace("-", "_")
+        if command_name in {"http", "smb"}:
+            return command_name
+        if command_args and command_args[0] in {"http", "smb"}:
+            return command_args[0]
+        return "http"
+
+    def _run_server_command(self, args_list, command_index, cli_flags):
+        command_token = args_list[command_index]
+        command_args = args_list[command_index + 1:]
+        server_type = self._resolve_server_type(command_token, command_args)
+        self.run_server(server_type, preview=cli_flags["preview"])
+
+    def _run_implicit_download(self, args_list, cli_flags):
+        non_flag_args = [arg for arg in args_list if not arg.startswith("-")]
+
+        if not non_flag_args:
+            log_warn("No valid tool flag found. Use interactive mode.")
+            return
+
+        potential_iface = non_flag_args[0]
+        if get_ip_address(potential_iface):
+            self.session.set("interface", potential_iface)
+            non_flag_args.pop(0)
+
+        if not non_flag_args:
+            log_warn("Interface set, but no filename provided.")
+            return
+
+        filename = non_flag_args[0]
+        tool = non_flag_args[1] if len(non_flag_args) > 1 else "wget"
+        self.run_download(
+            filename,
+            tool,
+            copy_only=cli_flags["copy_only"],
+            edit=cli_flags["edit"],
+            preview=cli_flags["preview"],
+        )
+
     def run(self, args_list):
         args_list, cli_flags = self.parse_cli_options(args_list)
-        command_index = None
-        command_name = None
-        for idx, arg in enumerate(args_list):
-            if not arg.startswith("-"):
-                continue
-            resolved_name = self.resolve_command_name(arg)
-            if resolved_name:
-                command_index = idx
-                command_name = resolved_name
-                break
+        command_index, command_name = self.find_command_invocation(args_list)
 
         if command_name and self.has_help_flag(args_list[command_index + 1:]):
             self.print_command_help(command_name)
@@ -247,73 +319,20 @@ class FileModule(BaseModule):
             print("  red -f -download -h")
             print("")
             return
-        
-        if "-download" in args_list:
-            # Need filename
-            # Simplistic parsing: find -download index, take next
-            try:
-                idx = args_list.index("-download")
-                if idx + 1 < len(args_list):
-                   filename = args_list[idx+1]
-                   tool = args_list[idx+2] if idx + 2 < len(args_list) and not args_list[idx+2].startswith("-") else "wget"
-                   self.run_download(
-                       filename,
-                       tool,
-                       copy_only=cli_flags["copy_only"],
-                       edit=cli_flags["edit"],
-                       preview=cli_flags["preview"],
-                   )
-                else:
-                    log_error("Usage: -download <filename>")
-            except ValueError:
-                pass
-        elif "-base64" in args_list:
-             try:
-                idx = args_list.index("-base64")
-                if idx + 1 < len(args_list):
-                   filename = args_list[idx+1]
-                   self.run_base64(
-                       filename,
-                       copy_only=cli_flags["copy_only"],
-                       edit=cli_flags["edit"],
-                       preview=cli_flags["preview"],
-                   )
-             except ValueError: pass
-        elif "-http" in args_list:
-            self.run_server("http", preview=cli_flags["preview"])
-        elif "-smb" in args_list:
-            self.run_server("smb", preview=cli_flags["preview"])
-        else:
-            # Heuristic Parsing for implicit commands
-            # red -f tun0 linpeas.sh -> download linpeas.sh using tun0
-            # red -f linpeas.sh -> download linpeas.sh using default interface
-            
-            non_flag_args = [arg for arg in args_list if not arg.startswith("-")]
-            
-            if not non_flag_args:
-                log_warn("No valid tool flag found. Use interactive mode.")
-                return
 
-            # Check if first arg is an interface
-            potential_iface = non_flag_args[0]
-            if get_ip_address(potential_iface):
-                self.session.set("interface", potential_iface)
-                non_flag_args.pop(0)
-            
-            if not non_flag_args:
-                 log_warn("Interface set, but no filename provided.")
-                 return
+        if command_name == "download":
+            self._run_download_command(args_list, command_index, cli_flags)
+            return
 
-            filename = non_flag_args[0]
-            tool = non_flag_args[1] if len(non_flag_args) > 1 else "wget"
-            
-            self.run_download(
-                filename,
-                tool,
-                copy_only=cli_flags["copy_only"],
-                edit=cli_flags["edit"],
-                preview=cli_flags["preview"],
-            )
+        if command_name == "base64":
+            self._run_base64_command(args_list, command_index, cli_flags)
+            return
+
+        if command_name == "server":
+            self._run_server_command(args_list, command_index, cli_flags)
+            return
+
+        self._run_implicit_download(args_list, cli_flags)
 
 
 class FileShell(BaseShell):

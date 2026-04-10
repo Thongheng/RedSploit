@@ -90,6 +90,18 @@ class TestTopLevelCliHelp:
         assert "Runtime flags:" in captured.out
         assert "Web Reconnaissance Module" not in captured.out
 
+    def test_red_py_auto_detects_headerscan_help_without_module_flag(self, monkeypatch, capsys):
+        monkeypatch.setattr(sys, "argv", ["red.py", "-headerscan", "-h"])
+
+        with pytest.raises(SystemExit) as excinfo:
+            main()
+
+        assert excinfo.value.code == 0
+        captured = capsys.readouterr()
+        assert "headerscan" in captured.out
+        assert "Runtime flags:" in captured.out
+        assert "Red Team Pentest Helper" not in captured.out
+
     def test_red_py_main_help_mentions_no_summary_flag(self, monkeypatch, capsys):
         monkeypatch.setattr(sys, "argv", ["red.py", "-h"])
 

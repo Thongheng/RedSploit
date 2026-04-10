@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 # Ensure the project directory is on sys.path so imports like "from redsploit..." work
 # even when this script is run via symlink (e.g., /usr/bin/red -> /path/to/red.py)
@@ -8,11 +9,29 @@ project_dir = Path(__file__).resolve().parent
 if str(project_dir) not in sys.path:
     sys.path.insert(0, str(project_dir))
 
-import argparse
 from redsploit.core.session import Session
 from redsploit.core.shell import RedShell
 from redsploit.core.colors import Colors, log_error
 # Imports moved to inner scopes for lazy loading
+
+MODULE_FLAGS = {
+    "-i": "infra",
+    "-w": "web",
+    "-f": "file",
+}
+VALUE_FLAGS = {"-T", "-U", "-D", "-H", "-I", "-P"}
+EXECUTION_FLAGS = {
+    "-c",
+    "--copy",
+    "-e",
+    "--edit",
+    "-p",
+    "--preview",
+    "-nosummary",
+    "--no-summary",
+    "-noauth",
+    "--noauth",
+}
 
 
 def print_main_help():
@@ -59,7 +78,7 @@ def print_main_help():
 
 
 def _dispatch_help(module, raw_args):
-    tool_args = [arg for arg in raw_args if arg not in ("-i", "-w", "-f", "-h")]
+    tool_args = [arg for arg in raw_args if arg not in ("-i", "-w", "-f", "-h", "--help")]
     has_tool = False
 
     if hasattr(module, "COMMANDS") and hasattr(module, "resolve_command_name"):
@@ -70,59 +89,145 @@ def _dispatch_help(module, raw_args):
 
     module.run(tool_args + ["-h"] if has_tool else ["-h"])
 
+
+def _parse_top_level_args(raw_args):
+    parsed = {
+        "h": False,
+        "T": None,
+        "U": None,
+        "D": None,
+        "H": None,
+        "I": None,
+        "P": None,
+    }
+    unknown = []
+    module_order = []
+    i = 0
+
+    while i < len(raw_args):
+        arg = raw_args[i]
+
+        if arg in ("-h", "--help"):
+            parsed["h"] = True
+            i += 1
+            continue
+
+        module_name = MODULE_FLAGS.get(arg)
+        if module_name:
+            module_order.append(module_name)
+            i += 1
+            continue
+
+        if arg in VALUE_FLAGS and i + 1 < len(raw_args):
+            parsed[arg.lstrip("-")] = raw_args[i + 1]
+            i += 2
+            continue
+
+        attached_flag = next(
+            (
+                flag
+                for flag in VALUE_FLAGS
+                if arg.startswith(flag) and arg != flag
+            ),
+            None,
+        )
+        if attached_flag:
+            parsed[attached_flag.lstrip("-")] = arg[len(attached_flag):]
+            i += 1
+            continue
+
+        unknown.append(arg)
+        i += 1
+
+    return SimpleNamespace(**parsed), unknown, module_order
+
+
+def _make_module(module_name, session, for_help=False):
+    if module_name == "infra":
+        from redsploit.modules.infra import InfraModule
+
+        return InfraModule(session)
+    if module_name == "web":
+        from redsploit.modules.web import WebModule
+
+        return WebModule(session, validate_environment=not for_help)
+    if module_name == "file":
+        from redsploit.modules.file import FileModule
+
+        return FileModule(session)
+    raise ValueError(f"Unknown module: {module_name}")
+
+
+def _make_shell(module_name, session):
+    if module_name == "main":
+        return RedShell(session)
+    if module_name == "infra":
+        from redsploit.modules.infra import InfraShell
+
+        return InfraShell(session)
+    if module_name == "web":
+        from redsploit.modules.web import WebShell
+
+        return WebShell(session)
+    if module_name == "file":
+        from redsploit.modules.file import FileShell
+
+        return FileShell(session)
+    if module_name == "shell":
+        from redsploit.modules.system import SystemShell
+
+        return SystemShell(session)
+    raise ValueError(f"Unknown shell: {module_name}")
+
+
+def _auto_detect_module(args_list):
+    from redsploit.modules.file import FileModule
+    from redsploit.modules.infra import InfraModule
+    from redsploit.modules.web import WebModule
+
+    for arg in args_list:
+        if not arg.startswith("-") or arg in EXECUTION_FLAGS:
+            continue
+        if InfraModule.resolve_tool_name(arg):
+            return "infra"
+        if WebModule.resolve_tool_name(arg):
+            return "web"
+        if FileModule.resolve_command_name(arg):
+            return "file"
+
+    return None
+
+
+def _print_set_help():
+    print("usage: red.py -set [preset flags]")
+    print("")
+    print("Start the interactive shell after preloading session values.")
+    print("")
+    print("Supported forms:")
+    print("  red -set -T 10.10.10.10 -U admin:pass")
+    print("  red -set target 10.10.10.10")
+    print("")
+    print("Valid Variables:")
+    print("========================================")
+    session = Session()
+    for key in sorted(session.env.keys()):
+        meta = session.VAR_METADATA.get(key, {})
+        print(f"  {key:<11} {meta.get('desc', '')}")
+
 def main():
-    parser = argparse.ArgumentParser(description="Red Team Pentest Helper", add_help=False)
-    parser.add_argument("-h", action="store_true", help="Show help message and exit")
-    
-    # Global flags (short only)
-    parser.add_argument("-T", help="Set target")
-    parser.add_argument("-U", help="Set user (username or username:password - auto-splits on ':')")
-    parser.add_argument("-D", help="Set domain")
-    parser.add_argument("-H", help="Set hash")
-    parser.add_argument("-I", help="Set interface")
-    parser.add_argument("-P", help="Set LPORT")
-    parser.add_argument("-i", action="store_true", help="Infra module")
-    parser.add_argument("-w", action="store_true", help="Web module")
-    parser.add_argument("-f", action="store_true", help="File module")
-    
-    # Parse only known args to find out mode
-    args, unknown = parser.parse_known_args()
+    raw_args = sys.argv[1:]
+    args, unknown, module_order = _parse_top_level_args(raw_args)
+    selected_module = module_order[0] if module_order else _auto_detect_module(unknown)
 
     # Handle Help Manually
     if args.h:
-        raw_args = sys.argv[1:]
-        # Check for context
-        if args.i or "-i" in unknown:
-            from redsploit.modules.infra import InfraModule
-            _dispatch_help(InfraModule(Session()), raw_args)
-            sys.exit(0)
-        elif args.w or "-w" in unknown:
-            from redsploit.modules.web import WebModule
-            _dispatch_help(WebModule(Session(), validate_environment=False), raw_args)
-            sys.exit(0)
-        elif args.f or "-f" in unknown:
-            from redsploit.modules.file import FileModule
-            _dispatch_help(FileModule(Session()), raw_args)
-            sys.exit(0)
+        if selected_module:
+            _dispatch_help(_make_module(selected_module, Session(), for_help=True), raw_args)
         elif "-set" in unknown:
-            print("usage: red.py -set [preset flags]")
-            print("")
-            print("Start the interactive shell after preloading session values.")
-            print("")
-            print("Supported forms:")
-            print("  red -set -T 10.10.10.10 -U admin:pass")
-            print("  red -set target 10.10.10.10")
-            print("")
-            print("Valid Variables:")
-            print("========================================")
-            session = Session()
-            for key in sorted(session.env.keys()):
-                meta = session.VAR_METADATA.get(key, {})
-                print(f"  {key:<11} {meta.get('desc', '')}")
-            sys.exit(0)
+            _print_set_help()
         else:
             print_main_help()
-            sys.exit(0)
+        sys.exit(0)
 
     session = Session()
 
@@ -178,36 +283,9 @@ def main():
                 pass # Ignore if split fails somehow
 
     # Detect and warn on conflicting module flags
-    module_flags_set = sum([args.i, args.w, args.f])
-    if module_flags_set > 1:
+    if len(module_order) > 1:
         from redsploit.core.colors import log_warn
         log_warn("Multiple module flags detected (-i, -w, -f). Using first specified module.")
-        # Determine priority: infra > web > file
-        if args.i:
-            args.w = False
-            args.f = False
-        elif args.w:
-            args.f = False
-
-    # Auto-detect module if not specified
-    if not (args.i or args.w or args.f):
-        from redsploit.modules.infra import InfraModule
-        from redsploit.modules.web import WebModule
-
-        for arg in unknown:
-            if not arg.startswith("-") or arg in ("-c", "--copy", "-e", "--edit", "-p", "--preview", "-nosummary", "--no-summary", "-noauth", "--noauth"):
-                continue
-            if InfraModule.resolve_tool_name(arg):
-                args.i = True
-                break
-            if WebModule.resolve_tool_name(arg):
-                args.w = True
-                break
-            if arg in ("-download", "-upload", "-http", "-smb", "-base64"):
-                args.f = True
-                break
-            if args.i or args.w or args.f:
-                break
 
     # Launch interactive console if:
     # - No arguments OR -set flag OR --interactive flag
@@ -248,22 +326,9 @@ def main():
             session.next_shell = "main"
             
             while session.next_shell:
-                # Determine which shell to run
-                if session.next_shell == "main":
-                    shell = RedShell(session)
-                elif session.next_shell == "infra":
-                    from redsploit.modules.infra import InfraShell
-                    shell = InfraShell(session)
-                elif session.next_shell == "web":
-                    from redsploit.modules.web import WebShell
-                    shell = WebShell(session)
-                elif session.next_shell == "file":
-                    from redsploit.modules.file import FileShell
-                    shell = FileShell(session)
-                elif session.next_shell == "shell":
-                    from redsploit.modules.system import SystemShell
-                    shell = SystemShell(session)
-                else:
+                try:
+                    shell = _make_shell(session.next_shell, session)
+                except ValueError:
                     print(f"Unknown shell: {session.next_shell}")
                     break
                 
@@ -278,15 +343,8 @@ def main():
     else:
         # CLI Mode
         try:
-            if args.i:
-                from redsploit.modules.infra import InfraModule
-                InfraModule(session).run(unknown)
-            elif args.w:
-                from redsploit.modules.web import WebModule
-                WebModule(session).run(unknown)
-            elif args.f:
-                from redsploit.modules.file import FileModule
-                FileModule(session).run(unknown)
+            if selected_module:
+                _make_module(selected_module, session).run(unknown)
         except Exception as e:
             log_error(f"Module execution failed: {e}")
             sys.exit(1)

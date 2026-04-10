@@ -1,6 +1,0 @@
-{
-  "last_turn_at": "2026-04-10T06:47:20.291Z",
-  "turn_count": 41,
-  "last_progress_at": "2026-04-10T06:47:20.291Z",
-  "last_agent_output": "The main shell is smarter now: bare tool names and aliases auto-route to the right module, `help <to"
-}
