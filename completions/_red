@@ -10,6 +10,8 @@ _red() {
         '-H[Hash]:hash:' \
         '-I[Interface]:interface:' \
         '-P[Listener port]:port:' \
+        '-nosummary[Disable post-run summaries]' \
+        '--no-summary[Disable post-run summaries]' \
         '-i[Infra module]' \
         '-w[Web module]' \
         '-f[File module]' \

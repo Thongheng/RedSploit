@@ -9,6 +9,7 @@ Red Team penetration testing CLI tool with interactive shell and automation capa
 - 🎯 **Module System** - Infrastructure, Web, and File modules
 - ⚡ **Shell Completion** - Native bash/zsh completion support
 - 📝 **Variable Management** - Session-based environment variables
+- ✨ **Post-Run Cleanup Summaries** - Optional AI-assisted summaries appended after supported scanner output
 
 ## Quick Start
 
@@ -23,6 +24,7 @@ sudo ./install.sh
 This will:
 - Install `red` command to `/usr/bin`
 - Setup shell completion automatically
+- Optionally configure AI-summary API keys for the installing user
 - Make the tool accessible from anywhere
 
 **Manual install (no sudo):**
@@ -34,6 +36,8 @@ chmod +x red.py
 ### Configuration
 RedSploit uses a `config.yaml` file located in the project root. It is automatically created on first run if missing.
 
+For full setup instructions, including AI summary API keys and manual environment configuration, see [SETUP.md](./SETUP.md).
+
 ### Wordlists
 Configure default wordlist paths in `config.yaml` to match your system (e.g., if you are using macOS vs Kali).
 ```yaml
@@ -42,6 +46,9 @@ web:
     directory: /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
     subdomain: /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt
     vhost: /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt
+summary:
+  enabled: true
+  warn_on_unsupported: true
 ```
 
 ### Command History
@@ -92,6 +99,7 @@ When running commands, you can use these flags to modify behavior:
 | `-c` / `--copy` | Copy command to clipboard without executing | `red -T 10.10.10.10 -w -dir_ferox -c` |
 | `-p` / `--preview` | Preview the command without executing | `red -T 10.10.10.10 -i -nmap -p` |
 | `-e` / `--edit` | Edit the command before execution | `red -T 10.10.10.10 -w -nuclei -e` |
+| `-nosummary` / `--no-summary` | Disable the post-run summary section for this run | `red -T 10.10.10.10 -i -nmap --no-summary` |
 | `-noauth` | Skip credentials for this run | `red -T 10.10.10.10 -U admin:pass -i -smbclient -noauth` |
 
 **Set Variables:**
@@ -127,6 +135,20 @@ red -set -H <ntlm_hash>      # Start interactive mode with hash preset
 | `payload_format` | Output format for `msfvenom` |
 | `payload_file` | Output filename for generated payloads |
 | `workspace` | Workspace name (default: default) |
+
+## AI Summaries
+
+Supported scanner-style tools keep their original raw output and then append a `Summary` section at the end of the run. The first implementation covers:
+
+- Infra: `nmap`, `rustscan`
+- Web: `subfinder`, `dnsrecon`, `subzy`, `gobuster_dns`, `dir_ffuf`, `dir_ferox`, `dir_dirsearch`, `gobuster_dir`, `nuclei`, `waf`, `screenshots`
+
+RedSploit uses this provider order for AI cleanup summaries:
+
+1. OpenRouter (`OPENROUTER_API_KEY`)
+2. ChatAnywhere (`CHATANYWHERE_API_KEY`)
+
+If no provider is available or the request fails, the underlying tool output still succeeds and RedSploit falls back to a local summary when possible.
 
 ## Credential Handling
 

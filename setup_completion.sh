@@ -7,22 +7,24 @@ echo "RedSploit Completion Setup"
 echo "=========================="
 echo ""
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Detect shell
 SHELL_NAME=$(basename "$SHELL")
 
 if [ "$SHELL_NAME" = "zsh" ]; then
     echo "✓ Detected: zsh"
     
-    # Check if we should install system-wide or user-only
-    if [ -w "/usr/share/zsh/site-functions" ]; then
-        INSTALL_DIR="/usr/share/zsh/site-functions"
-        echo "  Installing to: $INSTALL_DIR (system-wide)"
-        sudo cp completions/_red "$INSTALL_DIR/_red"
-    else
-        INSTALL_DIR="$HOME/.zsh/completion"
-        echo "  Installing to: $INSTALL_DIR (user-only)"
-        mkdir -p "$INSTALL_DIR"
-        cp completions/_red "$INSTALL_DIR/_red"
+        # Check if we should install system-wide or user-only
+        if [ -w "/usr/share/zsh/site-functions" ]; then
+            INSTALL_DIR="/usr/share/zsh/site-functions"
+            echo "  Installing to: $INSTALL_DIR (system-wide)"
+            sudo cp "$SCRIPT_DIR/completions/_red" "$INSTALL_DIR/_red"
+        else
+            INSTALL_DIR="$HOME/.zsh/completion"
+            echo "  Installing to: $INSTALL_DIR (user-only)"
+            mkdir -p "$INSTALL_DIR"
+            cp "$SCRIPT_DIR/completions/_red" "$INSTALL_DIR/_red"
         
         # Add to fpath if not already there
         if ! grep -q "fpath=.*$INSTALL_DIR" "$HOME/.zshrc" 2>/dev/null; then
@@ -50,16 +52,16 @@ if [ "$SHELL_NAME" = "zsh" ]; then
 elif [ "$SHELL_NAME" = "bash" ]; then
     echo "✓ Detected: bash"
     
-    # Check if we can install system-wide
-    if [ -w "/etc/bash_completion.d" ]; then
-        INSTALL_DIR="/etc/bash_completion.d"
-        echo "  Installing to: $INSTALL_DIR (system-wide)"
-        sudo cp completions/red.bash "$INSTALL_DIR/red"
-    else
-        INSTALL_DIR="$HOME/.bash_completion.d"
-        echo "  Installing to: $INSTALL_DIR (user-only)"
-        mkdir -p "$INSTALL_DIR"
-        cp completions/red.bash "$INSTALL_DIR/red"
+        # Check if we can install system-wide
+        if [ -w "/etc/bash_completion.d" ]; then
+            INSTALL_DIR="/etc/bash_completion.d"
+            echo "  Installing to: $INSTALL_DIR (system-wide)"
+            sudo cp "$SCRIPT_DIR/completions/red.bash" "$INSTALL_DIR/red"
+        else
+            INSTALL_DIR="$HOME/.bash_completion.d"
+            echo "  Installing to: $INSTALL_DIR (user-only)"
+            mkdir -p "$INSTALL_DIR"
+            cp "$SCRIPT_DIR/completions/red.bash" "$INSTALL_DIR/red"
         
         # Add sourcing to .bashrc if not already there
         if ! grep -q ".bash_completion.d" "$HOME/.bashrc" 2>/dev/null; then

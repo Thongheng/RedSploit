@@ -186,11 +186,12 @@ class BaseShell(cmd.Cmd):
             self.prompt = f"{Colors.FAIL}{Colors.BOLD}redsploit{Colors.ENDC}{module_part} > "
 
     def parse_common_options(self, arg):
-        """Parse -c (copy), -e (edit), -p (preview), and -noauth flags from argument string."""
+        """Parse shared runtime flags from argument string."""
         args = arg.split()
         copy_only = False
         edit = False
         preview = False
+        no_summary = False
         no_auth = False
         
         if "-c" in args:
@@ -204,12 +205,24 @@ class BaseShell(cmd.Cmd):
         if "-p" in args:
             preview = True
             args.remove("-p")
+
+        if "-nosummary" in args:
+            no_summary = True
+            args.remove("-nosummary")
+
+        if "--no-summary" in args:
+            no_summary = True
+            args.remove("--no-summary")
             
         if "-noauth" in args:
             no_auth = True
             args.remove("-noauth")
+
+        if "--noauth" in args:
+            no_auth = True
+            args.remove("--noauth")
             
-        return " ".join(args), copy_only, edit, preview, no_auth
+        return " ".join(args), copy_only, edit, preview, no_summary, no_auth
 
     def do_back(self, arg):
         """Return to the main menu"""
@@ -589,6 +602,7 @@ class BaseShell(cmd.Cmd):
         print(f"{'-c, --copy':<16} Copy command to clipboard without running")
         print(f"{'-p, --preview':<16} Preview command without running")
         print(f"{'-e, --edit':<16} Edit command before running")
+        print(f"{'-nosummary':<16} Disable the post-run summary section")
         print(f"{'-noauth':<16} Skip credentials for this run")
         print(f"\n{'<tool> -h':<16} Show detailed help for a specific tool")
 
@@ -711,8 +725,8 @@ class ModuleShell(BaseShell):
             if arg.strip() in ("-h", "--help", "help"):
                 self._show_tool_help(tool_name)
                 return
-            _, copy_only, edit, preview, no_auth = self.parse_common_options(arg)
-            self.module.run_tool(tool_name, copy_only, edit, preview, no_auth)
+            _, copy_only, edit, preview, no_summary, no_auth = self.parse_common_options(arg)
+            self.module.run_tool(tool_name, copy_only, edit, preview, no_auth, no_summary)
         do_tool.__doc__ = f"Run {tool_name}"
         do_tool.__name__ = f"do_{tool_name}"
         return do_tool
@@ -727,7 +741,7 @@ class ModuleShell(BaseShell):
 
     def _create_complete_method(self):
         def complete_tool(text, line, begidx, endidx):
-            options = ["-c", "-e", "-p", "-noauth"]
+            options = ["-c", "-e", "-p", "-nosummary", "--no-summary", "-noauth", "--noauth"]
             if text:
                 return [o for o in options if o.startswith(text)]
             return options

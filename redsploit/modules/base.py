@@ -6,6 +6,7 @@ import shutil
 import time
 from typing import Optional
 from ..core.colors import log_info, log_success, log_warn, log_error, log_run, Colors
+from ..core.summary import SummaryService
 
 class HelpExit(Exception):
     pass
@@ -22,6 +23,45 @@ class ArgumentParserNoExit(argparse.ArgumentParser):
         # Do not exit
         return
 
+
+class SummaryCaptureBuffer:
+    def __init__(self, limit: int) -> None:
+        self.limit = max(limit, 0)
+        self.head_limit = self.limit // 2
+        self.tail_limit = self.limit - self.head_limit
+        self.total_chars = 0
+        self.truncated = False
+        self._full_chunks = []
+        self._full_chars = 0
+        self._head = ""
+        self._tail = ""
+
+    def add(self, chunk: str) -> None:
+        self.total_chars += len(chunk)
+        if self.limit <= 0:
+            return
+
+        if not self.truncated:
+            self._full_chunks.append(chunk)
+            self._full_chars += len(chunk)
+            if self._full_chars > self.limit:
+                full_text = "".join(self._full_chunks)
+                self._head = full_text[:self.head_limit]
+                self._tail = full_text[-self.tail_limit:] if self.tail_limit else ""
+                self._full_chunks = []
+                self.truncated = True
+        elif self.tail_limit:
+            self._tail = (self._tail + chunk)[-self.tail_limit:]
+
+    def text(self) -> str:
+        if self.limit <= 0:
+            return ""
+        if not self.truncated:
+            return "".join(self._full_chunks)
+        if self._tail:
+            return f"{self._head}\n...[output truncated for summary]...\n{self._tail}"
+        return self._head
+
 class BaseModule:
     HELP_FLAGS = {"-h", "--help", "help"}
     EXECUTION_FLAG_MAP = {
@@ -31,6 +71,8 @@ class BaseModule:
         "--edit": "edit",
         "-p": "preview",
         "--preview": "preview",
+        "-nosummary": "no_summary",
+        "--no-summary": "no_summary",
         "-noauth": "no_auth",
         "--noauth": "no_auth",
     }
@@ -45,6 +87,7 @@ class BaseModule:
             "copy_only": False,
             "edit": False,
             "preview": False,
+            "no_summary": False,
             "no_auth": False,
         }
         filtered = []
@@ -131,6 +174,7 @@ class BaseModule:
             print("  -c         Copy command to clipboard without running")
             print("  -p         Preview command without running")
             print("  -e         Edit command before running")
+            print("  -nosummary Disable the post-run summary section for this run")
             print("  -noauth    Skip credentials for this run")
 
         tool_configs = self.session.config.get(module_name, {}).get("configs", {}).get(tool_name, {})
@@ -197,7 +241,44 @@ class BaseModule:
             return False
         return True
 
-    def _exec(self, cmd: str, copy_only: bool = False, edit: bool = False, run: bool = True, preview: bool = False) -> None:
+    def _module_name(self) -> str:
+        return getattr(self, "MODULE_NAME", self.__class__.__name__.replace("Module", "").lower())
+
+    def _build_summary_context(self, tool_name: str, tool: dict) -> dict:
+        domain, url, port = self.session.resolve_target()
+        return {
+            "module": self._module_name(),
+            "tool_name": tool_name,
+            "description": tool.get("desc", ""),
+            "execution_mode": tool.get("execution_mode", "passthrough"),
+            "summary_profile": tool.get("summary_profile"),
+            "target_context": {
+                "target": self.session.get("target"),
+                "domain": domain or self.session.get("domain"),
+                "url": url,
+                "port": port,
+            },
+        }
+
+    def _summary_enabled(self) -> bool:
+        return bool(self.session.config.get("summary", {}).get("enabled", True))
+
+    def _warn_on_unsupported_summary(self) -> bool:
+        return bool(self.session.config.get("summary", {}).get("warn_on_unsupported", True))
+
+    def _summary_capture_limit(self) -> int:
+        return int(self.session.config.get("summary", {}).get("max_capture_chars", 12000) or 12000)
+
+    def _exec(
+        self,
+        cmd: str,
+        copy_only: bool = False,
+        edit: bool = False,
+        run: bool = True,
+        preview: bool = False,
+        no_summary: bool = False,
+        summary_context: Optional[dict] = None,
+    ) -> None:
         if preview:
             print(f"{Colors.OKCYAN}{cmd}{Colors.ENDC}")
             return
@@ -217,6 +298,7 @@ class BaseModule:
             log_run(cmd)
             log_enabled = self.session.get("log") == "on"
             log_file = None
+            capture_summary = False
             try:
                 if log_enabled:
                     log_dir = self.session.get_log_dir()
@@ -226,31 +308,31 @@ class BaseModule:
                     log_file = open(log_path, "w")
                     log_file.write(f"$ {cmd}\n\n")
                     log_success(f"Logging output to {log_path}")
-                    # Tee output to both terminal and log file
-                    process = subprocess.Popen(
-                        cmd, shell=True,
-                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+
+                capture_summary = (
+                    bool(summary_context)
+                    and self._summary_enabled()
+                    and not no_summary
+                    and summary_context.get("execution_mode") == "captured"
+                    and bool(summary_context.get("summary_profile"))
+                )
+                if (
+                    bool(summary_context)
+                    and self._summary_enabled()
+                    and not no_summary
+                    and not capture_summary
+                    and self._warn_on_unsupported_summary()
+                ):
+                    log_warn(
+                        f"Post-run summary is not supported for {summary_context.get('module')}.{summary_context.get('tool_name')}; showing raw output only."
                     )
-                    while True:
-                        try:
-                            line = process.stdout.readline()
-                            if not line and process.poll() is not None:
-                                break
-                            if line:
-                                decoded = line.decode("utf-8", errors="replace")
-                                sys.stdout.write(decoded)
-                                sys.stdout.flush()
-                                log_file.write(decoded)
-                        except KeyboardInterrupt:
-                            continue
+
+                if capture_summary:
+                    self._run_with_summary(cmd, log_file, summary_context)
+                elif log_file:
+                    self._run_and_log(cmd, log_file)
                 else:
-                    process = subprocess.Popen(cmd, shell=True)
-                    while True:
-                        try:
-                            process.wait()
-                            break
-                        except KeyboardInterrupt:
-                            continue
+                    self._run_passthrough(cmd)
             except Exception as e:
                 log_error(f"Execution failed: {e}")
             finally:
@@ -260,6 +342,76 @@ class BaseModule:
             # If not running and not copy-only (and maybe edited), just print/copy
             print(cmd)
             self._copy_to_clipboard(cmd)
+
+    def _run_passthrough(self, cmd: str) -> None:
+        process = subprocess.Popen(cmd, shell=True)
+        while True:
+            try:
+                process.wait()
+                break
+            except KeyboardInterrupt:
+                continue
+
+    def _run_and_log(self, cmd: str, log_file) -> None:
+        process = subprocess.Popen(
+            cmd,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        while True:
+            try:
+                line = process.stdout.readline()
+                if not line and process.poll() is not None:
+                    break
+                if line:
+                    decoded = line.decode("utf-8", errors="replace")
+                    sys.stdout.write(decoded)
+                    sys.stdout.flush()
+                    log_file.write(decoded)
+            except KeyboardInterrupt:
+                continue
+
+    def _run_with_summary(self, cmd: str, log_file, summary_context: dict) -> None:
+        capture_buffer = SummaryCaptureBuffer(self._summary_capture_limit())
+        process = subprocess.Popen(
+            cmd,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+
+        while True:
+            try:
+                line = process.stdout.readline()
+                if not line and process.poll() is not None:
+                    break
+                if line:
+                    decoded = line.decode("utf-8", errors="replace")
+                    sys.stdout.write(decoded)
+                    sys.stdout.flush()
+                    capture_buffer.add(decoded)
+                    if log_file:
+                        log_file.write(decoded)
+            except KeyboardInterrupt:
+                continue
+
+        exit_code = process.poll()
+        summary_result = SummaryService(self.session).summarize_execution(
+            summary_context,
+            cmd,
+            capture_buffer.text(),
+            exit_code if exit_code is not None else 0,
+        )
+
+        for warning in summary_result.warnings:
+            log_warn(warning)
+
+        if summary_result.text:
+            sys.stdout.write(summary_result.text)
+            sys.stdout.flush()
+            if log_file:
+                log_file.write(summary_result.text)
 
     def _get_input_with_prefill(self, initial_text: str) -> Optional[str]:
         """

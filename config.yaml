@@ -76,3 +76,18 @@ infra:
         ps1: "ps1"
         war: "war"
         py: "py"
+
+summary:
+  enabled: true
+  warn_on_unsupported: true
+  timeout_seconds: 12
+  max_capture_chars: 12000
+  max_prompt_chars: 6000
+  providers:
+    openrouter:
+      base_url: https://openrouter.ai/api/v1/chat/completions
+      model: openrouter/free
+    chatanywhere:
+      base_url: https://api.chatanywhere.tech/v1/chat/completions
+      alt_base_url: https://api.chatanywhere.org/v1/chat/completions
+      model: gpt-5-nano

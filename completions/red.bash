@@ -7,10 +7,10 @@ _red_completion() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
     
     # Global options
-    local global_opts="-h -T -U -D -H -I -P -i -w -f -set"
+    local global_opts="-h -T -U -D -H -I -P -i -w -f -set -nosummary --no-summary"
     
     # Common flags for all modules
-    local common_opts="-c --copy -p --preview -e --edit -noauth --noauth"
+    local common_opts="-c --copy -p --preview -e --edit -nosummary --no-summary -noauth --noauth"
     
     # Infrastructure module flags
     local infra_opts="-nmap -rustscan -smbclient -smbmap -enum4linux -nxc -bloodhound -ftp -msf -msfvenom -rdp -ssh -evil_winrm -psexec -wmiexec -secretsdump -kerbrute"

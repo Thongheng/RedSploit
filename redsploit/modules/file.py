@@ -339,7 +339,7 @@ class FileShell(BaseShell):
         if arg.strip() in ("-h", "--help", "help"):
             self.file_module.print_command_help("download")
             return
-        arg, copy_only, edit, preview, _ = self.parse_common_options(arg)
+        arg, copy_only, edit, preview, _, _ = self.parse_common_options(arg)
         parts = arg.split()
         if not parts:
             log_error("Usage: download <filename> [tool]")
@@ -364,7 +364,7 @@ class FileShell(BaseShell):
         if arg.strip() in ("-h", "--help", "help"):
             self.file_module.print_command_help("base64")
             return
-        arg, copy_only, edit, preview, _ = self.parse_common_options(arg)
+        arg, copy_only, edit, preview, _, _ = self.parse_common_options(arg)
         if not arg:
             log_error("Usage: base64 <filename>")
             return
@@ -379,7 +379,7 @@ class FileShell(BaseShell):
         if arg.strip() in ("-h", "--help", "help"):
             self.file_module.print_command_help("server")
             return
-        arg, copy_only, edit, preview, _ = self.parse_common_options(arg)
+        arg, copy_only, edit, preview, _, _ = self.parse_common_options(arg)
         if copy_only or edit:
             log_warn("server only supports -p/--preview. -c and -e were ignored.")
         server_type = arg.strip() or "http"

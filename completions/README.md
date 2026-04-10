@@ -10,6 +10,14 @@ Run the automated setup script:
 ./setup_completion.sh
 ```
 
+If you are doing a full RedSploit install, prefer:
+
+```bash
+sudo ./install.sh
+```
+
+The main installer also offers optional AI-summary API key setup for the installing user. See [../SETUP.md](../SETUP.md) for details.
+
 This will:
 - Detect your shell (bash/zsh)
 - Install completion to the appropriate location

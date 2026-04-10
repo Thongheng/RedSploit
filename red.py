@@ -42,6 +42,7 @@ def print_main_help():
     print("  -c, --copy                  Copy generated command without running")
     print("  -p, --preview               Preview generated command without running")
     print("  -e, --edit                  Edit generated command before running")
+    print("  -nosummary, --no-summary    Disable the post-run summary section")
     print("  -noauth, --noauth           Skip credentials for this run")
     print("")
     print("Examples:")
@@ -194,7 +195,7 @@ def main():
         from redsploit.modules.web import WebModule
 
         for arg in unknown:
-            if not arg.startswith("-") or arg in ("-c", "--copy", "-e", "--edit", "-p", "--preview", "-noauth", "--noauth"):
+            if not arg.startswith("-") or arg in ("-c", "--copy", "-e", "--edit", "-p", "--preview", "-nosummary", "--no-summary", "-noauth", "--noauth"):
                 continue
             if InfraModule.resolve_tool_name(arg):
                 args.i = True

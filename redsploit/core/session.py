@@ -89,13 +89,32 @@ class Session:
                     "subdomain": f"{seclists_base}/Discovery/DNS/subdomains-top1million-5000.txt",
                     "vhost": f"{seclists_base}/Discovery/DNS/subdomains-top1million-20000.txt"
                 }
-            }
+            },
+            "summary": {
+                "enabled": True,
+                "warn_on_unsupported": True,
+                "timeout_seconds": 12,
+                "max_capture_chars": 12000,
+                "max_prompt_chars": 6000,
+                "providers": {
+                    "openrouter": {
+                        "base_url": "https://openrouter.ai/api/v1/chat/completions",
+                        "model": "openrouter/free",
+                    },
+                    "chatanywhere": {
+                        "base_url": "https://api.chatanywhere.tech/v1/chat/completions",
+                        "alt_base_url": "https://api.chatanywhere.org/v1/chat/completions",
+                        "model": "gpt-5-nano",
+                    },
+                },
+            },
         }
-        
+
         if os.path.exists(self.config_path):
             try:
                 with open(self.config_path, 'r') as f:
-                    return yaml.safe_load(f) or default_config
+                    loaded = yaml.safe_load(f) or {}
+                    return self._merge_config(default_config, loaded)
             except (yaml.YAMLError, OSError) as e:
                 log_error(f"Failed to load config: {e}")
                 return default_config
@@ -108,6 +127,18 @@ class Session:
             except Exception as e:
                 log_error(f"Failed to create config: {e}")
                 return default_config
+
+    def _merge_config(self, defaults, loaded):
+        if not isinstance(defaults, dict) or not isinstance(loaded, dict):
+            return loaded if loaded is not None else defaults
+
+        merged = dict(defaults)
+        for key, value in loaded.items():
+            if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+                merged[key] = self._merge_config(merged[key], value)
+            else:
+                merged[key] = value
+        return merged
 
     def resolve_target(self):
         """

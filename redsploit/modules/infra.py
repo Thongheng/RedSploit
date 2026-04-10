@@ -6,20 +6,25 @@ from .base import ArgumentParserNoExit, BaseModule, HelpExit
 from ..core.utils import get_ip_address
 
 class InfraModule(BaseModule):
+    MODULE_NAME = "infra"
     TOOLS = {
         "nmap": {
             "cmd": "nmap -sV -sC -Pn -v {config_flags} {target}",
             "binary": "nmap",
             "desc": "Service/version scan with default scripts",
             "category": "Scanners",
-            "requires": ["target"]
+            "requires": ["target"],
+            "execution_mode": "captured",
+            "summary_profile": "nmap",
         },
         "rustscan": {
             "cmd": "rustscan -a {target} --ulimit 5000",
             "binary": "rustscan",
             "desc": "Fast port scanner",
             "category": "Scanners",
-            "requires": ["target"]
+            "requires": ["target"],
+            "execution_mode": "captured",
+            "summary_profile": "ports",
         },
         "smbclient": {
             "cmd": "smbclient -L //{target}/ {auth}",
@@ -29,6 +34,7 @@ class InfraModule(BaseModule):
             "requires": ["target"],
             "auth_mode": "flag_U",
             "aliases": ["smb-c"],
+            "execution_mode": "passthrough",
         },
         "smbmap": {
             "cmd": "smbmap -H {target} {auth} --no-banner -q",
@@ -38,6 +44,7 @@ class InfraModule(BaseModule):
             "requires": ["target"],
             "auth_mode": "u_p_flags",
             "aliases": ["smb-map"],
+            "execution_mode": "passthrough",
         },
         "enum4linux": {
             "cmd": "enum4linux-ng -A {auth} {target}",
@@ -45,7 +52,8 @@ class InfraModule(BaseModule):
             "desc": "SMB/NetBIOS enumeration",
             "category": "SMB Tools",
             "requires": ["target"],
-            "auth_mode": "u_p_flags"
+            "auth_mode": "u_p_flags",
+            "execution_mode": "passthrough",
         },
         "nxc": {
             "cmd": "nxc smb {target} {auth}",
@@ -53,7 +61,8 @@ class InfraModule(BaseModule):
             "desc": "SMB credential testing",
             "category": "SMB Tools",
             "requires": ["target", "auth_mandatory"],
-            "auth_mode": "u_p_flags"
+            "auth_mode": "u_p_flags",
+            "execution_mode": "passthrough",
         },
         "bloodhound": {
             "cmd": "bloodhound-ce-python {auth} -ns {ip} -d {domain} -c all",
@@ -61,7 +70,8 @@ class InfraModule(BaseModule):
             "desc": "Active Directory graph collection",
             "category": "Active Directory",
             "requires": ["target", "domain", "auth_mandatory"],
-            "auth_mode": "u_p_flags"
+            "auth_mode": "u_p_flags",
+            "execution_mode": "passthrough",
         },
         "ftp": {
             "cmd": "lftp -u '{user},{password}' ftp://{target}",
@@ -69,7 +79,8 @@ class InfraModule(BaseModule):
             "desc": "FTP client session",
             "category": "Remote Access",
             "requires": ["target"],
-            "auth_mode": "custom_ftp"
+            "auth_mode": "custom_ftp",
+            "execution_mode": "passthrough",
         },
         "msf": {
             "cmd": "msfconsole -q -x \"use exploit/multi/handler; set payload {payload}; set LHOST {lhost}; set LPORT {lport}; set ExitOnSession false; exploit -j\"",
@@ -78,6 +89,7 @@ class InfraModule(BaseModule):
             "category": "Exploitation",
             "requires": ["lport"],
             "aliases": ["handler", "listener", "msfconsole"],
+            "execution_mode": "passthrough",
         },
         "msfvenom": {
             "cmd": "msfvenom -p {payload} LHOST={lhost} LPORT={lport} -f {payload_format} -o {payload_file}",
@@ -86,6 +98,7 @@ class InfraModule(BaseModule):
             "category": "Exploitation",
             "requires": ["lport"],
             "aliases": ["venom"],
+            "execution_mode": "passthrough",
         },
         "rdp": {
             "cmd": "xfreerdp3 /v:{target} +clipboard /dynamic-resolution /drive:share,. {auth}",
@@ -93,7 +106,8 @@ class InfraModule(BaseModule):
             "desc": "Remote desktop connection",
             "category": "Remote Access",
             "requires": ["target"],
-            "auth_mode": "rdp_flags"
+            "auth_mode": "rdp_flags",
+            "execution_mode": "passthrough",
         },
         "ssh": {
             "cmd": "sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {user}@{target}",
@@ -101,7 +115,8 @@ class InfraModule(BaseModule):
             "desc": "SSH login with password",
             "category": "Remote Access",
             "requires": ["target", "auth_mandatory"],
-            "auth_mode": "custom"
+            "auth_mode": "custom",
+            "execution_mode": "passthrough",
         },
         "evil_winrm": {
             "cmd": "evil-winrm-py -i {target} {auth}",
@@ -111,6 +126,7 @@ class InfraModule(BaseModule):
             "requires": ["target"],
             "auth_mode": "u_p_flags",
             "aliases": ["evil-winrm"],
+            "execution_mode": "passthrough",
         },
         "psexec": {
             "cmd": "impacket-psexec {creds}@{target}",
@@ -118,7 +134,8 @@ class InfraModule(BaseModule):
             "desc": "Impacket remote execution via SMB",
             "category": "Remote Execution",
             "requires": ["target"],
-            "auth_mode": "impacket"
+            "auth_mode": "impacket",
+            "execution_mode": "passthrough",
         },
         "wmiexec": {
             "cmd": "impacket-wmiexec {creds}@{target}",
@@ -126,7 +143,8 @@ class InfraModule(BaseModule):
             "desc": "Impacket remote execution via WMI",
             "category": "Remote Execution",
             "requires": ["target"],
-            "auth_mode": "impacket"
+            "auth_mode": "impacket",
+            "execution_mode": "passthrough",
         },
         "secretsdump": {
             "cmd": "impacket-secretsdump {creds}@{target}",
@@ -134,14 +152,16 @@ class InfraModule(BaseModule):
             "desc": "Dump secrets via Impacket",
             "category": "Active Directory",
             "requires": ["target"],
-            "auth_mode": "impacket"
+            "auth_mode": "impacket",
+            "execution_mode": "passthrough",
         },
         "kerbrute": {
             "cmd": "kerbrute userenum --dc {target} -d {domain} users.txt",
             "binary": "kerbrute",
             "desc": "Kerberos username enumeration",
             "category": "Active Directory",
-            "requires": ["target", "domain"]
+            "requires": ["target", "domain"],
+            "execution_mode": "passthrough",
         }
     }
 
@@ -206,7 +226,7 @@ class InfraModule(BaseModule):
         extension = ext_map.get(payload_format, payload_format)
         return f"{payload_name}.{extension}"
 
-    def run_tool(self, tool_name, copy_only=False, edit=False, preview=False, no_auth=False):
+    def run_tool(self, tool_name, copy_only=False, edit=False, preview=False, no_auth=False, no_summary=False):
         tool = self.TOOLS.get(tool_name)
         if not tool:
             log_error(f"Tool {tool_name} not found.")
@@ -339,7 +359,14 @@ class InfraModule(BaseModule):
              # Clean up double spaces
              cmd = " ".join(cmd.split())
              
-             self._exec(cmd, copy_only, edit, preview=preview)
+             self._exec(
+                 cmd,
+                 copy_only,
+                 edit,
+                 preview=preview,
+                 no_summary=no_summary,
+                 summary_context=self._build_summary_context(tool_name, tool),
+             )
              
         except KeyError as e:
             log_error(f"Missing variable in command template: {e}")
@@ -374,6 +401,7 @@ class InfraModule(BaseModule):
                 edit=cli_flags["edit"],
                 preview=cli_flags["preview"],
                 no_auth=cli_flags["no_auth"],
+                no_summary=cli_flags["no_summary"],
             )
             return
 
@@ -396,8 +424,8 @@ class InfraShell(ModuleShell):
             if arg.strip() == "config" or arg.strip().startswith("config "):
                 self._handle_tool_config(tool_name, arg.replace("config", "").strip())
                 return
-            _, copy_only, edit, preview, no_auth = self.parse_common_options(arg)
-            self.module.run_tool(tool_name, copy_only, edit, preview, no_auth)
+            _, copy_only, edit, preview, no_summary, no_auth = self.parse_common_options(arg)
+            self.module.run_tool(tool_name, copy_only, edit, preview, no_auth, no_summary)
         do_tool.__doc__ = f"Run {tool_name} or use '{tool_name} config' to configure"
         do_tool.__name__ = f"do_{tool_name}"
         return do_tool

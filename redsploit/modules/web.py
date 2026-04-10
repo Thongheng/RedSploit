@@ -6,6 +6,7 @@ from ..core.security_headers import run_headerscan
 from .base import ArgumentParserNoExit, BaseModule, HelpExit
 
 class WebModule(BaseModule):
+    MODULE_NAME = "web"
     TOOLS = {
         "headerscan": {
             "cmd": "built-in",
@@ -19,7 +20,9 @@ class WebModule(BaseModule):
             "binary": "subfinder",
             "desc": "Passive subdomain discovery",
             "category": "Subdomain Discovery",
-            "requires": ["domain"]
+            "requires": ["domain"],
+            "execution_mode": "captured",
+            "summary_profile": "subdomains",
         },
         "gobuster_dns": {
             "cmd": "gobuster dns -d {domain} -w {wordlist_subdomain}",
@@ -27,6 +30,8 @@ class WebModule(BaseModule):
             "desc": "DNS subdomain bruteforce",
             "category": "Subdomain Discovery",
             "requires": ["domain"],
+            "execution_mode": "captured",
+            "summary_profile": "subdomains",
             "aliases": ["dns", "gobuster-dns"]
         },
         "dnsrecon": {
@@ -34,21 +39,27 @@ class WebModule(BaseModule):
             "binary": "dnsrecon",
             "desc": "DNS enumeration and bruteforce",
             "category": "Subdomain Discovery",
-            "requires": ["domain"]
+            "requires": ["domain"],
+            "execution_mode": "captured",
+            "summary_profile": "subdomains",
         },
         "subzy": {
             "cmd": "subzy run --target {domain}",
             "binary": "subzy",
             "desc": "Subdomain takeover check",
             "category": "Subdomain Discovery",
-            "requires": ["domain"]
+            "requires": ["domain"],
+            "execution_mode": "captured",
+            "summary_profile": "subdomains",
         },
         "dir_ffuf": {
             "cmd": "ffuf -u {url}/FUZZ -w {wordlist_dir} -mc 200,301,302,403",
             "binary": "ffuf",
             "desc": "Directory fuzzing with ffuf",
             "category": "Directory Scanning",
-            "requires": ["url"]
+            "requires": ["url"],
+            "execution_mode": "captured",
+            "summary_profile": "directory",
         },
         "vhost": {
             "cmd": "ffuf -u {url} -H 'Host:FUZZ.{domain}' -w {wordlist_vhost} -ic",
@@ -63,7 +74,9 @@ class WebModule(BaseModule):
             "desc": "Directory fuzzing with feroxbuster",
             "category": "Directory Scanning",
             "requires": ["url"],
-            "aliases": ["feroxbuster", "ferox"]
+            "aliases": ["feroxbuster", "ferox"],
+            "execution_mode": "captured",
+            "summary_profile": "directory",
         },
         "dir_dirsearch": {
             "cmd": "dirsearch -u {url}",
@@ -71,7 +84,9 @@ class WebModule(BaseModule):
             "desc": "Directory fuzzing with dirsearch",
             "category": "Directory Scanning",
             "requires": ["url"],
-            "aliases": ["dirsearch"]
+            "aliases": ["dirsearch"],
+            "execution_mode": "captured",
+            "summary_profile": "directory",
         },
         "gobuster_dir": {
              "cmd": "gobuster dir -u {url} -w {wordlist_dir}",
@@ -79,14 +94,18 @@ class WebModule(BaseModule):
              "desc": "Directory bruteforce with gobuster",
              "category": "Directory Scanning",
              "requires": ["url"],
-             "aliases": ["dir", "gobuster"]
+             "aliases": ["dir", "gobuster"],
+             "execution_mode": "captured",
+             "summary_profile": "directory",
         },
         "nuclei": {
             "cmd": "nuclei -u {url}",
             "binary": "nuclei",
             "desc": "Template-based vulnerability scanner",
             "category": "Vulnerability Scanning",
-            "requires": ["url"]
+            "requires": ["url"],
+            "execution_mode": "captured",
+            "summary_profile": "nuclei",
         },
         "wpscan": {
             "cmd": "wpscan --url {url} --enumerate --api-token $WPSCAN_API",
@@ -100,7 +119,9 @@ class WebModule(BaseModule):
             "binary": "wafw00f",
             "desc": "Web application firewall detection",
             "category": "Vulnerability Scanning",
-            "requires": ["url"]
+            "requires": ["url"],
+            "execution_mode": "captured",
+            "summary_profile": "generic",
         },
         "screenshots": {
             "cmd": "gowitness scan --single {url}",
@@ -108,7 +129,9 @@ class WebModule(BaseModule):
             "desc": "Website screenshot capture",
             "category": "Reconnaissance",
             "requires": ["url"],
-            "aliases": ["screenshot", "gowitness"]
+            "aliases": ["screenshot", "gowitness"],
+            "execution_mode": "captured",
+            "summary_profile": "generic",
         }
     }
 
@@ -129,7 +152,7 @@ class WebModule(BaseModule):
 
     # Remove legacy _get_domain_or_target
     
-    def run_tool(self, tool_name, copy_only=False, edit=False, preview=False, scanner_args=None):
+    def run_tool(self, tool_name, copy_only=False, edit=False, preview=False, scanner_args=None, no_summary=False):
         tool = self.TOOLS.get(tool_name)
         if not tool:
             log_error(f"Tool {tool_name} not found.")
@@ -174,7 +197,14 @@ class WebModule(BaseModule):
 
         try:
             cmd = tool["cmd"].format(**format_args)
-            self._exec(cmd, copy_only, edit, preview=preview)
+            self._exec(
+                cmd,
+                copy_only,
+                edit,
+                preview=preview,
+                no_summary=no_summary,
+                summary_context=self._build_summary_context(tool_name, tool),
+            )
         except KeyError as e:
             log_error(f"Missing variable in command template: {e}")
 
@@ -188,7 +218,7 @@ class WebModule(BaseModule):
 
         if tool_name == "headerscan":
             if any(cli_flags.values()):
-                log_warn("headerscan runs directly; -c, -e, -p, and -noauth are not supported and were ignored.")
+                log_warn("headerscan runs directly; -c, -e, -p, -nosummary, and -noauth are not supported and were ignored.")
             self.run_tool("headerscan", scanner_args=args_list[tool_index + 1:])
             return
 
@@ -213,6 +243,7 @@ class WebModule(BaseModule):
                 copy_only=cli_flags["copy_only"],
                 edit=cli_flags["edit"],
                 preview=cli_flags["preview"],
+                no_summary=cli_flags["no_summary"],
             )
             return
         
@@ -230,9 +261,9 @@ class WebShell(ModuleShell):
         def do_tool(arg):
             """Run tool"""
             if tool_name == "headerscan":
-                scanner_arg, copy_only, edit, preview, no_auth = self.parse_common_options(arg)
-                if copy_only or edit or preview or no_auth:
-                    log_warn("headerscan runs directly; -c, -e, -p, and -noauth are not supported and were ignored.")
+                scanner_arg, copy_only, edit, preview, no_summary, no_auth = self.parse_common_options(arg)
+                if copy_only or edit or preview or no_summary or no_auth:
+                    log_warn("headerscan runs directly; -c, -e, -p, -nosummary, and -noauth are not supported and were ignored.")
                 try:
                     scanner_args = shlex.split(scanner_arg)
                 except ValueError as exc:
@@ -240,8 +271,8 @@ class WebShell(ModuleShell):
                     return
                 self.module.run_tool(tool_name, scanner_args=scanner_args)
                 return
-            _, copy_only, edit, preview, _ = self.parse_common_options(arg)
-            self.module.run_tool(tool_name, copy_only, edit, preview)
+            _, copy_only, edit, preview, no_summary, _ = self.parse_common_options(arg)
+            self.module.run_tool(tool_name, copy_only, edit, preview, no_summary=no_summary)
         do_tool.__doc__ = f"Run {tool_name}"
         do_tool.__name__ = f"do_{tool_name}"
         return do_tool

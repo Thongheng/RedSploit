@@ -44,6 +44,10 @@ class TestSessionSetGet:
         session.set("lhost", "10.10.14.7")
         assert session.get("lhost") == "10.10.14.7"
 
+    def test_summary_config_defaults_exist(self, session):
+        assert session.config["summary"]["enabled"] is True
+        assert "openrouter" in session.config["summary"]["providers"]
+
 
 class TestPortValidation:
     def test_valid_port(self, session):
