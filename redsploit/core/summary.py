@@ -1,30 +1,12 @@
 import json
 import os
 import re
+import shutil
+import textwrap
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
-
-
-SUMMARY_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "synopsis": {"type": "string"},
-        "key_findings": {
-            "type": "array",
-            "items": {"type": "string"},
-            "maxItems": 6,
-        },
-        "next_steps": {
-            "type": "array",
-            "items": {"type": "string"},
-            "maxItems": 5,
-        },
-    },
-    "required": ["synopsis", "key_findings", "next_steps"],
-    "additionalProperties": False,
-}
 
 
 @dataclass
@@ -47,31 +29,33 @@ class SummaryService:
         exit_code: int,
     ) -> SummaryResult:
         analysis = self._extract_analysis(summary_context, command, captured_output, exit_code)
+        local_view = self._build_local_clean_view(summary_context, analysis, exit_code)
 
         provider_warnings: List[str] = []
-        structured_summary = None
+        provider_text = None
         used_provider = None
 
-        for provider_name, payload in self._provider_payloads(summary_context, command, analysis):
+        for provider_name, payload in self._provider_payloads(summary_context, command, captured_output):
             try:
-                structured_summary = self._call_provider(provider_name, payload)
+                provider_text = self._call_provider(provider_name, payload)
                 used_provider = provider_name
                 break
             except RuntimeError as exc:
                 provider_warnings.append(str(exc))
 
-        rendered = self._render_summary_block(
-            structured_summary or self._build_local_summary(summary_context, analysis, exit_code)
-        )
+        if provider_text:
+            rendered = self._normalize_ai_clean_view(summary_context, provider_text)
+        else:
+            rendered = self._render_clean_view(local_view)
         return SummaryResult(rendered, provider_warnings, used_provider)
 
     def _provider_payloads(
         self,
         summary_context: Dict[str, Any],
         command: str,
-        analysis: Dict[str, Any],
+        captured_output: str,
     ) -> List[Tuple[str, Dict[str, Any]]]:
-        prompt_payload = self._build_prompt_payload(summary_context, command, analysis)
+        prompt_payload = self._build_prompt_payload(summary_context, command, captured_output)
 
         providers: List[Tuple[str, Dict[str, Any]]] = []
         openrouter_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
@@ -115,73 +99,62 @@ class SummaryService:
 
         return providers
 
-    def _build_request_body(self, model: str, prompt_payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_request_body(self, model: str, prompt_payload: str) -> Dict[str, Any]:
         return {
             "model": model,
             "messages": [
                 {
                     "role": "system",
                     "content": (
-                        "You summarize offensive-security scanner output for the operator. "
-                        "Be concise, factual, and avoid speculation. Do not repeat raw output. "
-                        "Return only JSON that matches the requested schema."
+                        "You rewrite offensive-security tool output into a cleaner operator view. "
+                        "Preserve the same factual result. Keep ports, services, versions, domains, "
+                        "hostnames, URLs, NSE output, certificate details, and other important facts. "
+                        "Remove noisy progress lines and duplicate boilerplate when safe. "
+                        "Return plain text only, no markdown fences."
                     ),
                 },
                 {
                     "role": "user",
-                    "content": json.dumps(prompt_payload, indent=2),
+                    "content": prompt_payload,
                 },
             ],
-            "temperature": 0.2,
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "tool_summary",
-                    "strict": True,
-                    "schema": SUMMARY_SCHEMA,
-                },
-            },
+            "temperature": 0.1,
         }
 
     def _build_prompt_payload(
         self,
         summary_context: Dict[str, Any],
         command: str,
-        analysis: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        payload = {
-            "tool": summary_context.get("tool_name"),
-            "module": summary_context.get("module"),
-            "summary_profile": summary_context.get("summary_profile"),
-            "description": summary_context.get("description"),
-            "command": command,
-            "target_context": summary_context.get("target_context", {}),
-            "analysis": analysis,
-            "instructions": {
-                "focus": [
-                    "Summarize the highest-signal findings.",
-                    "Call out notable discoveries, not every line.",
-                    "Suggest the most useful next actions for the operator.",
-                ],
-                "avoid": [
-                    "Do not repeat the full raw output.",
-                    "Do not mention missing API keys or provider failures.",
-                    "Do not invent vulnerabilities that are not supported by the evidence.",
-                ],
-            },
-        }
-
+        captured_output: str,
+    ) -> str:
         max_chars = int(self.config.get("max_prompt_chars", 6000) or 6000)
-        encoded = json.dumps(payload)
-        if len(encoded) <= max_chars:
-            return payload
+        raw_output = captured_output.strip()
+        if len(raw_output) > max_chars:
+            raw_output = raw_output[:max_chars].rstrip()
 
-        analysis_copy = dict(analysis)
-        analysis_copy["captured_output"] = (analysis_copy.get("captured_output", "")[:max_chars // 2]).strip()
-        payload["analysis"] = analysis_copy
-        return payload
+        target_context = summary_context.get("target_context", {})
+        target_value = target_context.get("target") or target_context.get("url") or target_context.get("domain") or "unknown"
 
-    def _call_provider(self, provider_name: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        return "\n".join(
+            [
+                f"Tool: {summary_context.get('tool_name')}",
+                f"Module: {summary_context.get('module')}",
+                f"Target: {target_value}",
+                f"Command: {command}",
+                "",
+                "Task:",
+                "- Clean the output for readability.",
+                "- Preserve the same findings and important details.",
+                "- Use Unicode box drawing to make the result look polished.",
+                "- Do not add advice, remediation, or next steps.",
+                "- Do not use markdown code fences.",
+                "",
+                "Raw output:",
+                raw_output,
+            ]
+        )
+
+    def _call_provider(self, provider_name: str, payload: Dict[str, Any]) -> str:
         timeout = int(self.config.get("timeout_seconds", 12) or 12)
         urls = [payload["url"]]
         if provider_name == "ChatAnywhere" and payload.get("alt_url"):
@@ -198,33 +171,22 @@ class SummaryService:
                 )
                 response.raise_for_status()
                 content = response.json()["choices"][0]["message"]["content"]
-                return self._parse_json_content(content)
+                return self._parse_text_content(content)
             except (requests.RequestException, KeyError, IndexError, ValueError, json.JSONDecodeError) as exc:
                 last_error = exc
 
         raise RuntimeError(f"{provider_name} summary failed: {last_error}")
 
-    def _parse_json_content(self, content: Any) -> Dict[str, Any]:
+    def _parse_text_content(self, content: Any) -> str:
         if isinstance(content, list):
-            combined = "".join(
-                item.get("text", "") for item in content if isinstance(item, dict)
-            )
+            combined = "".join(item.get("text", "") for item in content if isinstance(item, dict))
             content = combined or json.dumps(content)
-
-        if isinstance(content, dict):
-            return content
+        elif isinstance(content, dict):
+            content = json.dumps(content)
 
         if not isinstance(content, str):
             raise ValueError("Provider content was not JSON-compatible")
-
-        content = content.strip()
-        try:
-            return json.loads(content)
-        except json.JSONDecodeError:
-            match = re.search(r"\{.*\}", content, re.S)
-            if not match:
-                raise
-            return json.loads(match.group(0))
+        return content.strip()
 
     def _extract_analysis(
         self,
@@ -244,49 +206,98 @@ class SummaryService:
 
     def _extract_nmap(self, captured_output: str, exit_code: int) -> Dict[str, Any]:
         open_ports = []
-        script_highlights = []
         host_status = None
+        report_target = None
+        not_shown = None
+        service_info = None
+        scan_duration = None
+        in_service_table = False
+        in_host_scripts = False
+        current_port = None
+        host_script_lines = []
 
         for line in captured_output.splitlines():
-            stripped = line.strip()
-            match = re.match(
+            stripped = line.rstrip()
+            if not stripped:
+                continue
+
+            if stripped.startswith("Nmap scan report for "):
+                report_target = stripped.split("for ", 1)[1].strip()
+                continue
+
+            if stripped.startswith("Host is up"):
+                host_status = stripped
+                continue
+
+            if stripped.startswith("Not shown: "):
+                not_shown = stripped[len("Not shown: ") :].strip()
+                continue
+
+            if stripped.startswith("PORT"):
+                in_service_table = True
+                in_host_scripts = False
+                current_port = None
+                continue
+
+            if stripped.startswith("Host script results:"):
+                in_service_table = False
+                in_host_scripts = True
+                current_port = None
+                continue
+
+            if stripped.startswith("Service Info: "):
+                service_info = stripped[len("Service Info: ") :].strip()
+                continue
+
+            if stripped.startswith("Nmap done:"):
+                match = re.search(r"scanned in ([0-9.]+ seconds)", stripped)
+                if match:
+                    scan_duration = match.group(1)
+                continue
+
+            port_match = re.match(
                 r"(?P<port>\d+)/(tcp|udp)\s+(?P<state>\S+)\s+(?P<service>\S+)(?:\s+(?P<version>.+))?",
                 stripped,
             )
-            if match and match.group("state") == "open":
-                open_ports.append(
-                    {
-                        "port": match.group("port"),
-                        "service": match.group("service"),
-                        "version": (match.group("version") or "").strip(),
-                    }
-                )
+            if port_match and not in_host_scripts:
+                current_port = {
+                    "port": port_match.group("port"),
+                    "service": port_match.group("service"),
+                    "version": (port_match.group("version") or "").strip(),
+                    "raw": stripped,
+                    "details": [],
+                }
+                open_ports.append(current_port)
                 continue
 
-            if "Host is up" in stripped and not host_status:
-                host_status = stripped
-            if stripped.startswith("|") and stripped not in script_highlights:
-                script_highlights.append(stripped)
+            if stripped.startswith("|") or stripped.startswith("|_"):
+                detail_line = self._normalize_script_line(stripped)
+                if in_host_scripts:
+                    host_script_lines.append(detail_line)
+                elif current_port is not None:
+                    current_port["details"].append(detail_line)
 
         return {
+            "report_target": report_target,
             "host_status": host_status or ("exit_code=0" if exit_code == 0 else "unknown"),
-            "open_ports": open_ports[:15],
+            "not_shown": not_shown,
+            "service_info": service_info,
+            "scan_duration": scan_duration,
+            "open_ports": open_ports,
             "open_port_count": len(open_ports),
-            "script_highlights": script_highlights[:12],
+            "host_script_lines": host_script_lines,
         }
 
     def _extract_ports(self, captured_output: str, exit_code: int) -> Dict[str, Any]:
         open_ports = []
         for line in captured_output.splitlines():
             stripped = line.strip()
-            match = re.match(r"(?P<port>\d+)\s*[-/]\s*(?P<proto>tcp|udp)?", stripped)
-            if match:
-                open_ports.append(stripped)
+            if not stripped:
                 continue
             if re.search(r"\bopen\b", stripped, re.I):
                 open_ports.append(stripped)
         return {
-            "port_samples": open_ports[:15],
+            "port_lines": open_ports,
             "port_count": len(open_ports),
             "exit_code": exit_code,
         }
@@ -298,13 +309,12 @@ class SummaryService:
             stripped = line.strip()
             if not stripped or stripped.startswith(("[", "{", "#")):
                 continue
-            if re.match(r"^[A-Za-z0-9._-]+\.[A-Za-z]{2,}$", stripped):
-                if stripped not in seen:
-                    seen.add(stripped)
-                    domains.append(stripped)
+            if re.match(r"^[A-Za-z0-9._-]+\.[A-Za-z]{2,}$", stripped) and stripped not in seen:
+                seen.add(stripped)
+                domains.append(stripped)
         return {
             "subdomain_count": len(domains),
-            "subdomain_samples": domains[:20],
+            "subdomains": domains,
             "exit_code": exit_code,
         }
 
@@ -330,7 +340,7 @@ class SummaryService:
         return {
             "hit_count": len(hits),
             "status_counts": status_counts,
-            "notable_hits": hits[:15],
+            "hits": hits,
             "exit_code": exit_code,
         }
 
@@ -340,35 +350,37 @@ class SummaryService:
 
         for line in captured_output.splitlines():
             stripped = line.strip()
-            severity_match = re.search(r"\[(info|low|medium|high|critical)\]", stripped, re.I)
-            if not severity_match:
+            if not stripped:
                 continue
-            severity = severity_match.group(1).lower()
-            severities[severity] = severities.get(severity, 0) + 1
-            findings.append(stripped)
+            severity_match = re.search(r"\[(info|low|medium|high|critical)\]", stripped, re.I)
+            if severity_match:
+                severity = severity_match.group(1).lower()
+                severities[severity] = severities.get(severity, 0) + 1
+                findings.append(stripped)
 
         return {
             "finding_count": len(findings),
             "severities": severities,
-            "finding_samples": findings[:15],
+            "findings": findings,
             "exit_code": exit_code,
         }
 
     def _extract_generic(self, captured_output: str, exit_code: int) -> Dict[str, Any]:
-        lines = [line.strip() for line in captured_output.splitlines() if line.strip()]
+        lines = [line.rstrip() for line in captured_output.splitlines() if line.strip()]
         interesting = []
         for line in lines:
-            if any(token in line.lower() for token in ("open", "found", "http", "https", "warning", "error", "vuln", "host", "dns")):
+            lowered = line.lower()
+            if any(token in lowered for token in ("open", "found", "http", "https", "warning", "error", "vuln", "host", "dns")):
                 interesting.append(line)
         return {
             "line_count": len(lines),
-            "interesting_lines": interesting[:15],
-            "first_lines": lines[:8],
-            "last_lines": lines[-8:],
+            "interesting_lines": interesting[:40],
+            "first_lines": lines[:20],
+            "last_lines": lines[-20:],
             "exit_code": exit_code,
         }
 
-    def _build_local_summary(
+    def _build_local_clean_view(
         self,
         summary_context: Dict[str, Any],
         analysis: Dict[str, Any],
@@ -376,113 +388,148 @@ class SummaryService:
     ) -> Dict[str, Any]:
         tool_name = summary_context.get("tool_name", "tool")
         profile = summary_context.get("summary_profile", "generic")
+        title = f"Clean View · {tool_name}"
 
         if profile == "nmap":
-            findings = []
+            overview = []
+            target = analysis.get("report_target") or summary_context.get("target_context", {}).get("target")
+            if target:
+                overview.append(f"Target: {target}")
+            overview.append(f"Host: {analysis.get('host_status', 'unknown')}")
+            overview.append(f"Open ports: {analysis.get('open_port_count', 0)}")
+            if analysis.get("not_shown"):
+                overview.append(f"Not shown: {analysis['not_shown']}")
+            if analysis.get("service_info"):
+                overview.append(f"Service Info: {analysis['service_info']}")
+            if analysis.get("scan_duration"):
+                overview.append(f"Scan Duration: {analysis['scan_duration']}")
+
+            sections = []
+            if analysis.get("open_ports"):
+                sections.append(
+                    {
+                        "title": "Open Services",
+                        "lines": [item["raw"] for item in analysis["open_ports"]],
+                    }
+                )
+
+            port_detail_lines = []
             for item in analysis.get("open_ports", []):
-                version = f" ({item['version']})" if item.get("version") else ""
-                findings.append(f"{item['port']}/{item['service']}{version}")
-            if analysis.get("script_highlights"):
-                findings.extend(analysis["script_highlights"][:3])
-            synopsis = (
-                f"{tool_name} finished with {analysis.get('open_port_count', 0)} open ports discovered."
-            )
-            next_steps = self._nmap_next_steps(analysis)
-            return {
-                "synopsis": synopsis,
-                "key_findings": findings[:6] or ["No open ports parsed from the captured output."],
-                "next_steps": next_steps,
-            }
+                if item.get("details"):
+                    port_detail_lines.append(f"{item['port']}/{item['service']}")
+                    port_detail_lines.extend(item["details"])
+            if port_detail_lines:
+                sections.append({"title": "Port Script Details", "lines": port_detail_lines})
+
+            if analysis.get("host_script_lines"):
+                sections.append({"title": "Host Script Results", "lines": analysis["host_script_lines"]})
+
+            return {"title": title, "overview": overview, "sections": sections}
 
         if profile == "subdomains":
-            samples = analysis.get("subdomain_samples", [])
             return {
-                "synopsis": f"{tool_name} discovered {analysis.get('subdomain_count', 0)} candidate subdomains.",
-                "key_findings": samples[:6] or ["No subdomains were parsed from the captured output."],
-                "next_steps": [
-                    "Validate live hosts and resolve IPs for the discovered names.",
-                    "Feed confirmed subdomains into HTTP probing or screenshot tooling.",
-                    "Deduplicate results with previous recon runs before proceeding.",
-                ],
+                "title": title,
+                "overview": [f"Discovered subdomains: {analysis.get('subdomain_count', 0)}"],
+                "sections": [{"title": "Results", "lines": analysis.get("subdomains", []) or ["No subdomains parsed."]}],
             }
 
         if profile == "directory":
-            status_counts = analysis.get("status_counts", {})
-            findings = [f"HTTP {code}: {count} hits" for code, count in sorted(status_counts.items())]
-            findings.extend(analysis.get("notable_hits", [])[:3])
+            status_counts = [f"HTTP {code}: {count}" for code, count in sorted(analysis.get("status_counts", {}).items())]
+            overview = [f"Interesting responses: {analysis.get('hit_count', 0)}"]
+            overview.extend(status_counts[:6])
             return {
-                "synopsis": f"{tool_name} recorded {analysis.get('hit_count', 0)} notable directory or file hits.",
-                "key_findings": findings[:6] or ["No directory hits were parsed from the captured output."],
-                "next_steps": [
-                    "Review the highest-value paths and confirm access controls manually.",
-                    "Prioritize 200/301/302 responses and interesting 401/403 paths for follow-up.",
-                    "Cross-check findings against screenshots or targeted content fetching.",
-                ],
+                "title": title,
+                "overview": overview,
+                "sections": [{"title": "Hits", "lines": analysis.get("hits", []) or ["No hits parsed."]}],
             }
 
         if profile == "nuclei":
-            severity_summary = [f"{sev}: {count}" for sev, count in sorted(analysis.get("severities", {}).items())]
-            severity_summary.extend(analysis.get("finding_samples", [])[:3])
+            overview = [f"Findings: {analysis.get('finding_count', 0)}"]
+            overview.extend(
+                [f"{severity}: {count}" for severity, count in sorted(analysis.get("severities", {}).items())]
+            )
             return {
-                "synopsis": f"{tool_name} produced {analysis.get('finding_count', 0)} findings in the captured output.",
-                "key_findings": severity_summary[:6] or ["No nuclei findings were parsed from the captured output."],
-                "next_steps": [
-                    "Verify the highest-severity templates manually before escalating.",
-                    "Capture affected URLs and template IDs in operator notes or loot.",
-                    "Re-run targeted templates if additional validation is needed.",
-                ],
+                "title": title,
+                "overview": overview,
+                "sections": [{"title": "Findings", "lines": analysis.get("findings", []) or ["No findings parsed."]}],
             }
 
         if profile == "ports":
-            samples = analysis.get("port_samples", [])
             return {
-                "synopsis": f"{tool_name} highlighted {analysis.get('port_count', 0)} port-related lines.",
-                "key_findings": samples[:6] or ["No ports were parsed from the captured output."],
-                "next_steps": [
-                    "Confirm service banners with a follow-up nmap service scan.",
-                    "Prioritize open management or remote access ports for validation.",
-                    "Record confirmed open ports for later enumeration steps.",
-                ],
+                "title": title,
+                "overview": [f"Port lines: {analysis.get('port_count', 0)}"],
+                "sections": [{"title": "Observed Ports", "lines": analysis.get("port_lines", []) or ["No ports parsed."]}],
             }
 
-        generic_lines = analysis.get("interesting_lines") or analysis.get("first_lines") or ["No high-signal lines were extracted."]
+        highlights = analysis.get("interesting_lines") or analysis.get("first_lines") or ["No high-signal lines were extracted."]
         return {
-            "synopsis": f"{tool_name} exited with code {exit_code}. Review the highlighted lines below.",
-            "key_findings": generic_lines[:6],
-            "next_steps": [
-                "Use the raw output above for full detail if you need exact line-by-line context.",
-                "Pivot into a tool-specific follow-up scan based on the highest-signal items.",
-                "Re-run with narrower scope if you need cleaner validation output.",
-            ],
+            "title": title,
+            "overview": [f"Exit code: {exit_code}", f"Relevant lines: {len(highlights)}"],
+            "sections": [{"title": "Relevant Lines", "lines": highlights}],
         }
 
-    def _render_summary_block(self, summary_data: Dict[str, Any]) -> str:
-        lines = ["", "=== Summary ===", f"Synopsis: {summary_data['synopsis']}"]
+    def _render_clean_view(self, clean_view_data: Dict[str, Any]) -> str:
+        output = ["", self._render_box(clean_view_data["title"], clean_view_data.get("overview", []))]
 
-        key_findings = summary_data.get("key_findings", [])
-        if key_findings:
-            lines.append("Key Findings:")
-            for item in key_findings:
-                lines.append(f"- {item}")
+        for section in clean_view_data.get("sections", []):
+            output.append(self._render_box(section["title"], section.get("lines", [])))
 
-        next_steps = summary_data.get("next_steps", [])
-        if next_steps:
-            lines.append("Next Steps:")
-            for item in next_steps:
-                lines.append(f"- {item}")
+        return "\n".join(output) + "\n"
 
-        return "\n".join(lines) + "\n"
+    def _normalize_ai_clean_view(self, summary_context: Dict[str, Any], provider_text: str) -> str:
+        cleaned = provider_text.strip()
+        cleaned = re.sub(r"^```[^\n]*\n", "", cleaned)
+        cleaned = re.sub(r"\n```$", "", cleaned)
+        if any(char in cleaned for char in ("┌", "│", "└")):
+            return "\n" + cleaned + ("\n" if not cleaned.endswith("\n") else "")
 
-    def _nmap_next_steps(self, analysis: Dict[str, Any]) -> List[str]:
-        steps = [
-            "Prioritize manual follow-up on the highest-value open services.",
-            "Validate service versions and NSE hints against targeted tooling.",
-            "Capture confirmed ports and banners for later exploitation workflow.",
-        ]
+        title = f"Clean View · {summary_context.get('tool_name', 'tool')}"
+        return "\n" + self._render_box(title, cleaned.splitlines()) + "\n"
 
-        ports = {item["port"] for item in analysis.get("open_ports", [])}
-        if "80" in ports or "443" in ports:
-            steps.insert(0, "Feed HTTP services into web recon tooling such as headerscan, nuclei, or directory fuzzing.")
-        if "445" in ports:
-            steps.insert(0, "Follow up on SMB with smbclient, smbmap, or enum4linux if credentials are available.")
-        return steps[:5]
+    def _render_box(self, title: str, lines: List[str]) -> str:
+        inner_width = self._box_width()
+        title_text = f"─ {title} "
+        top = f"┌{title_text}{'─' * max(0, inner_width - len(title_text))}┐"
+        bottom = f"└{'─' * inner_width}┘"
+        rendered = [top]
+
+        if not lines:
+            rendered.append(f"│{'':<{inner_width}}│")
+        else:
+            for line in lines:
+                wrapped = self._wrap_box_line(line, inner_width)
+                for segment in wrapped:
+                    rendered.append(f"│{segment:<{inner_width}}│")
+
+        rendered.append(bottom)
+        return "\n".join(rendered)
+
+    def _wrap_box_line(self, line: str, width: int) -> List[str]:
+        if not line:
+            return [""]
+
+        indent = len(line) - len(line.lstrip(" "))
+        content = line.lstrip(" ")
+        wrapped = textwrap.wrap(
+            content,
+            width=width - indent,
+            initial_indent=" " * indent,
+            subsequent_indent=" " * indent,
+            replace_whitespace=False,
+            drop_whitespace=False,
+        )
+        return wrapped or [line[:width]]
+
+    def _box_width(self) -> int:
+        try:
+            cols = shutil.get_terminal_size((100, 24)).columns
+        except OSError:
+            cols = 100
+        return max(70, min(cols - 2, 110))
+
+    def _normalize_script_line(self, line: str) -> str:
+        if line.startswith("|_"):
+            return "  " + line[2:].strip()
+        if line.startswith("|"):
+            return "  " + line[1:].rstrip()
+        return line

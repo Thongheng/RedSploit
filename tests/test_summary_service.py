@@ -59,9 +59,10 @@ def test_local_nmap_summary_without_api_keys(session):
 
     result = service.summarize_execution(context, "nmap -sV 10.10.10.10", output, 0)
 
-    assert "=== Summary ===" in result.text
-    assert "2 open ports" in result.text
-    assert "SMB" in result.text or "HTTP services" in result.text
+    assert "Clean View" in result.text
+    assert "Open ports: 2" in result.text
+    assert "80/tcp open http Apache httpd 2.4.57" in result.text
+    assert "Port Script Details" in result.text
 
 
 def test_openrouter_is_preferred_when_available(session, monkeypatch):
@@ -74,8 +75,11 @@ def test_openrouter_is_preferred_when_available(session, monkeypatch):
             {
                 "message": {
                     "content": (
-                        '{"synopsis":"AI summary","key_findings":["one"],'
-                        '"next_steps":["two"]}'
+                        "┌─ Clean View · waf ─────────────┐\n"
+                        "│AI cleaned                     │\n"
+                        "│one                            │\n"
+                        "│two                            │\n"
+                        "└───────────────────────────────┘"
                     )
                 }
             }
@@ -86,17 +90,17 @@ def test_openrouter_is_preferred_when_available(session, monkeypatch):
         result = service.summarize_execution(
             {
                 "module": "web",
-                "tool_name": "nuclei",
-                "summary_profile": "nuclei",
+                "tool_name": "waf",
+                "summary_profile": "generic",
                 "description": "Templates",
                 "target_context": {},
             },
-            "nuclei -u https://example.com",
-            "[high] xss-template https://example.com",
+            "wafw00f https://example.com",
+            "WAF detected",
             0,
         )
 
-    assert "AI summary" in result.text
+    assert "AI cleaned" in result.text
     assert result.used_provider == "OpenRouter"
     assert mock_post.call_count == 1
     assert mock_post.call_args.args[0] == session.config["summary"]["providers"]["openrouter"]["base_url"]
@@ -112,8 +116,11 @@ def test_chatanywhere_fallback_runs_after_openrouter_failure(session, monkeypatc
             {
                 "message": {
                     "content": (
-                        '{"synopsis":"Fallback summary","key_findings":["hit"],'
-                        '"next_steps":["review"]}'
+                        "┌─ Clean View · waf ─────────────┐\n"
+                        "│Fallback cleaned               │\n"
+                        "│hit                            │\n"
+                        "│review                         │\n"
+                        "└───────────────────────────────┘"
                     )
                 }
             }
@@ -135,18 +142,18 @@ def test_chatanywhere_fallback_runs_after_openrouter_failure(session, monkeypatc
         result = service.summarize_execution(
             {
                 "module": "web",
-                "tool_name": "subfinder",
-                "summary_profile": "subdomains",
+                "tool_name": "waf",
+                "summary_profile": "generic",
                 "description": "Subdomain discovery",
                 "target_context": {},
             },
-            "subfinder -d example.com",
-            "api.example.com\nwww.example.com\n",
+            "wafw00f https://example.com",
+            "Some generic line\nAnother generic line\n",
             0,
         )
 
     assert result.used_provider == "ChatAnywhere"
-    assert "Fallback summary" in result.text
+    assert "Fallback cleaned" in result.text
     assert any("OpenRouter summary failed" in warning for warning in result.warnings)
 
 
@@ -158,13 +165,13 @@ def test_supported_tool_appends_summary_after_raw_output(session, capsys):
         with patch("subprocess.Popen", return_value=FakeProcess(["raw line one\n", "raw line two\n"])):
             with patch(
                 "redsploit.modules.base.SummaryService.summarize_execution",
-                return_value=SummaryResult("\n=== Summary ===\nSynopsis: appended\n", []),
+                return_value=SummaryResult("\n┌─ Clean View ─────────┐\n│appended             │\n└─────────────────────┘\n", []),
             ):
                 infra.run_tool("nmap")
 
     captured = capsys.readouterr().out
-    assert captured.index("raw line one") < captured.index("=== Summary ===")
-    assert "Synopsis: appended" in captured
+    assert captured.index("raw line one") < captured.index("Clean View")
+    assert "appended" in captured
 
 
 def test_no_summary_flag_keeps_supported_tool_on_raw_path(session):
