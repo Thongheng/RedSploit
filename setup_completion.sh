@@ -10,7 +10,7 @@ echo ""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Detect shell
-SHELL_NAME=$(basename "$SHELL")
+SHELL_NAME="${REDSPLOIT_SHELL_NAME:-$(basename "$SHELL")}"
 
 if [ "$SHELL_NAME" = "zsh" ]; then
     echo "✓ Detected: zsh"

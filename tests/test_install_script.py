@@ -78,6 +78,23 @@ def test_resolve_api_key_reads_value_from_managed_rc_block(tmp_path):
     assert stdout.strip() == "openrouter-from-rc"
 
 
+def test_ai_keys_config_status_reports_existing_keys(tmp_path):
+    rc_file = tmp_path / ".zshrc"
+    install_script = "/Users/thonghengheu/Coding/Cyber/RedSploit/install.sh"
+
+    stdout = _run_shell(
+        f'''
+        source "{install_script}"
+        write_api_key_block "{rc_file}" "openrouter-from-rc" "chatanywhere-from-rc"
+        RC_FILE="{rc_file}"
+        ai_keys_config_status
+        '''
+    )
+
+    assert "OPENROUTER=1" in stdout
+    assert "CHATANYWHERE=1" in stdout
+
+
 def test_determine_shell_rc_file_supports_bash_and_zsh(tmp_path):
     install_script = "/Users/thonghengheu/Coding/Cyber/RedSploit/install.sh"
 

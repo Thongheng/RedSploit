@@ -13,7 +13,7 @@ Run the automated setup script:
 If you are doing a full RedSploit install, prefer:
 
 ```bash
-sudo ./install.sh
+./install.sh
 ```
 
 The main installer also offers optional AI-summary API key setup for the installing user. See [../SETUP.md](../SETUP.md) for details.
@@ -74,6 +74,12 @@ source ~/.bashrc
 ```bash
 red -<TAB><TAB>
 ```
+
+If completion does not show up immediately:
+
+- reload your shell rc file
+- restart the shell
+- confirm the completion file exists in the install location shown by the setup script
 
 ### Expected Output (Zsh)
 ```

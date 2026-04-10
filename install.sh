@@ -15,6 +15,7 @@ REAL_HOME="$(eval echo "~$REAL_USER")"
 INSTALL_MODE=""
 INSTALL_TARGET=""
 RC_FILE=""
+DETECTED_SHELL=""
 CURRENT_STEP=0
 TOTAL_STEPS=4
 TEST_ONLY=0
@@ -22,6 +23,10 @@ OPENROUTER_TEST_URL="https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_TEST_MODEL="openrouter/free"
 CHATANYWHERE_TEST_URL="https://api.chatanywhere.tech/v1/chat/completions"
 CHATANYWHERE_TEST_MODEL="gpt-5-nano"
+PATH_UPDATED=0
+COMPLETION_STATUS="pending"
+AI_STATUS="pending"
+RELOAD_REQUIRED=0
 
 setup_colors() {
     if is_interactive_terminal; then
@@ -71,6 +76,30 @@ Options:
   --test    Test OpenRouter and ChatAnywhere API access using configured API keys
   --help    Show this help message
 EOF
+}
+
+preflight_check() {
+    local failures=0
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        log_warn "python3 is required but not available on PATH."
+        failures=$((failures + 1))
+    fi
+
+    if [ ! -f "$RED_PY" ]; then
+        log_warn "red.py was not found at $RED_PY."
+        failures=$((failures + 1))
+    fi
+
+    if [ "$TEST_ONLY" -eq 1 ] && ! command -v curl >/dev/null 2>&1; then
+        log_warn "curl is required for --test but is not available on PATH."
+        failures=$((failures + 1))
+    fi
+
+    if [ "$failures" -gt 0 ]; then
+        return 1
+    fi
+    return 0
 }
 
 print_banner() {
@@ -255,21 +284,36 @@ write_path_block() {
 extract_api_key_from_rc() {
     local rc_file="$1"
     local variable_name="$2"
+    local export_line
 
     if [ ! -f "$rc_file" ]; then
         return 0
     fi
 
-    awk -v start="$MANAGED_BLOCK_START" -v end="$MANAGED_BLOCK_END" '
+    export_line="$(awk -v start="$MANAGED_BLOCK_START" -v end="$MANAGED_BLOCK_END" -v target="$variable_name" '
         $0 == start { in_block=1; next }
         $0 == end { in_block=0; next }
-        in_block { print }
-    ' "$rc_file" | VARIABLE_NAME="$variable_name" bash -c '
-        while IFS= read -r line; do
-            eval "$line"
-        done
-        printf "%s" "${!VARIABLE_NAME:-}"
-    ' 2>/dev/null || true
+        in_block && $1 == "export" && index($2, target "=") == 1 {
+            print substr($0, index($0, target "="))
+        }
+    ' "$rc_file" | tail -n 1)"
+
+    if [ -z "$export_line" ]; then
+        return 0
+    fi
+
+    python3 - "$export_line" "$variable_name" <<'PY'
+import shlex
+import sys
+
+line = sys.argv[1]
+variable = sys.argv[2]
+parts = shlex.split(f"export {line}")
+for part in parts:
+    if part.startswith(f"{variable}="):
+        print(part.split("=", 1)[1], end="")
+        break
+PY
 }
 
 resolve_api_key() {
@@ -301,6 +345,25 @@ resolve_api_key() {
     fi
 
     return 0
+}
+
+ai_keys_config_status() {
+    local openrouter_key chatanywhere_key
+
+    openrouter_key="$(resolve_api_key OPENROUTER_API_KEY)"
+    chatanywhere_key="$(resolve_api_key CHATANYWHERE_API_KEY)"
+
+    if [ -n "$openrouter_key" ]; then
+        printf 'OPENROUTER=1\n'
+    else
+        printf 'OPENROUTER=0\n'
+    fi
+
+    if [ -n "$chatanywhere_key" ]; then
+        printf 'CHATANYWHERE=1\n'
+    else
+        printf 'CHATANYWHERE=0\n'
+    fi
 }
 
 choose_install_mode() {
@@ -379,7 +442,9 @@ maybe_configure_path() {
     echo "RedSploit was installed to $path_dir, which is not currently in PATH."
     write_path_block "$RC_FILE" "$path_dir"
     ensure_rc_ownership "$RC_FILE"
-    echo "✓ Added PATH export to $RC_FILE"
+    PATH_UPDATED=1
+    RELOAD_REQUIRED=1
+    log_success "Added PATH export to $RC_FILE"
 }
 
 test_ai_provider() {
@@ -492,7 +557,30 @@ configure_api_keys_interactive() {
         return 0
     fi
 
+    local existing_openrouter existing_chatanywhere openrouter_key chatanywhere_key
+    existing_openrouter="$(resolve_api_key OPENROUTER_API_KEY)"
+    existing_chatanywhere="$(resolve_api_key CHATANYWHERE_API_KEY)"
+
+    if [ -n "$existing_openrouter" ] && [ -n "$existing_chatanywhere" ]; then
+        AI_STATUS="configured"
+        log_success "AI summary keys are already configured. Skipping setup prompt."
+        return 0
+    fi
+
+    if [ -n "$existing_openrouter" ]; then
+        log_info "OpenRouter API key already configured."
+    fi
+
+    if [ -n "$existing_chatanywhere" ]; then
+        log_info "ChatAnywhere API key already configured."
+    fi
+
     if ! prompt_yes_no "Configure AI-summary API keys now?" "N"; then
+        if [ -n "$existing_openrouter" ] || [ -n "$existing_chatanywhere" ]; then
+            AI_STATUS="partial"
+        else
+            AI_STATUS="skipped"
+        fi
         echo "Skipping AI-summary API key setup."
         return 0
     fi
@@ -507,17 +595,42 @@ configure_api_keys_interactive() {
     fi
 
     echo ""
-    echo "Leave either key blank if you do not want to configure it now."
-    read -r -p "OpenRouter API key: " openrouter_key
-    echo ""
-    read -r -p "ChatAnywhere API key: " chatanywhere_key
-    echo ""
+    echo "Leave any missing key blank if you do not want to configure it now."
+
+    openrouter_key="$existing_openrouter"
+    chatanywhere_key="$existing_chatanywhere"
+
+    if [ -z "$existing_openrouter" ]; then
+        read -r -p "OpenRouter API key: " openrouter_key
+        echo ""
+    fi
+
+    if [ -z "$existing_chatanywhere" ]; then
+        read -r -p "ChatAnywhere API key: " chatanywhere_key
+        echo ""
+    fi
 
     write_api_key_block "$RC_FILE" "$openrouter_key" "$chatanywhere_key"
     ensure_rc_ownership "$RC_FILE"
+    RELOAD_REQUIRED=1
+
+    if [ -n "$openrouter_key" ] && [ -n "$chatanywhere_key" ]; then
+        AI_STATUS="configured"
+    elif [ -n "$openrouter_key" ] || [ -n "$chatanywhere_key" ]; then
+        AI_STATUS="partial"
+    else
+        AI_STATUS="skipped"
+    fi
 
     log_success "Saved API key exports to $RC_FILE"
-    log_info "Reload your shell with: source $RC_FILE"
+    if [ "$AI_STATUS" = "configured" ]; then
+        log_info "Both AI provider keys are configured."
+    elif [ "$AI_STATUS" = "partial" ]; then
+        log_warn "Only one AI provider key is configured right now."
+    else
+        log_warn "No AI provider keys were saved."
+    fi
+    log_info "Run ./install.sh --test after reloading your shell to verify both providers."
 }
 
 install_redsploit() {
@@ -565,11 +678,22 @@ setup_shell_completion() {
     if [ -f "$SCRIPT_DIR/setup_completion.sh" ]; then
         chmod +x "$SCRIPT_DIR/setup_completion.sh"
         if is_root_install && [ -n "$SUDO_USER" ]; then
-            sudo -u "$REAL_USER" "$SCRIPT_DIR/setup_completion.sh"
+            if sudo -u "$REAL_USER" env REDSPLOIT_SHELL_NAME="$DETECTED_SHELL" "$SCRIPT_DIR/setup_completion.sh"; then
+                COMPLETION_STATUS="configured"
+            else
+                COMPLETION_STATUS="manual"
+                log_warn "Completion setup failed. RedSploit is installed, but completion needs manual attention."
+            fi
         else
-            "$SCRIPT_DIR/setup_completion.sh"
+            if env REDSPLOIT_SHELL_NAME="$DETECTED_SHELL" "$SCRIPT_DIR/setup_completion.sh"; then
+                COMPLETION_STATUS="configured"
+            else
+                COMPLETION_STATUS="manual"
+                log_warn "Completion setup failed. RedSploit is installed, but completion needs manual attention."
+            fi
         fi
     else
+        COMPLETION_STATUS="missing"
         log_warn "setup_completion.sh not found, skipping completion setup"
     fi
 }
@@ -579,30 +703,44 @@ print_success() {
     printf '%s%sSetup complete%s\n' "$C_BOLD" "$C_GREEN" "$C_RESET"
     printf '%sCommand%s     %s\n' "$C_DIM" "$C_RESET" "${INSTALL_TARGET:-red}"
     printf '%sUser%s        %s\n' "$C_DIM" "$C_RESET" "$REAL_USER"
-    printf '%sShell%s       %s\n' "$C_DIM" "$C_RESET" "$(detect_real_shell_name)"
+    printf '%sShell%s       %s\n' "$C_DIM" "$C_RESET" "${DETECTED_SHELL:-$(detect_real_shell_name)}"
     if [ -n "$RC_FILE" ]; then
         printf '%sConfig%s      %s\n' "$C_DIM" "$C_RESET" "$RC_FILE"
     fi
+    printf '%sCompletion%s  %s\n' "$C_DIM" "$C_RESET" "$COMPLETION_STATUS"
+    if [ "$PATH_UPDATED" -eq 1 ]; then
+        printf '%sPATH%s        updated\n' "$C_DIM" "$C_RESET"
+    else
+        printf '%sPATH%s        unchanged\n' "$C_DIM" "$C_RESET"
+    fi
+    printf '%sAI%s          %s\n' "$C_DIM" "$C_RESET" "$AI_STATUS"
     echo ""
     log_info "Run: red -h"
+    if [ "$RELOAD_REQUIRED" -eq 1 ] && [ -n "$RC_FILE" ]; then
+        log_info "Reload your shell: source $RC_FILE"
+    fi
 }
 
 main() {
     parse_args "$@"
     print_banner
+    if ! preflight_check; then
+        log_warn "Preflight checks failed. Fix the issues above and rerun the installer."
+        return 1
+    fi
     if [ "$TEST_ONLY" -eq 1 ]; then
         run_ai_provider_tests
         return $?
     fi
 
-    local shell_name
-    shell_name="$(detect_real_shell_name)"
-    RC_FILE="$(resolve_shell_rc_file "$shell_name" 2>/dev/null || true)"
+    DETECTED_SHELL="$(detect_real_shell_name)"
+    RC_FILE="$(resolve_shell_rc_file "$DETECTED_SHELL" 2>/dev/null || true)"
     print_step "Inspect environment"
     log_info "Detected user: $REAL_USER"
-    log_info "Detected shell: $shell_name"
+    log_info "Detected shell: $DETECTED_SHELL"
     if [ -n "$RC_FILE" ]; then
         log_info "Shell rc file: $RC_FILE"
+        log_info "The installer may update this file for PATH and AI provider exports if needed."
     fi
     choose_install_mode
     if [ "$INSTALL_MODE" = "system" ]; then
