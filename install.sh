@@ -15,10 +15,53 @@ REAL_HOME="$(eval echo "~$REAL_USER")"
 INSTALL_MODE=""
 INSTALL_TARGET=""
 RC_FILE=""
+CURRENT_STEP=0
+TOTAL_STEPS=4
+
+setup_colors() {
+    if is_interactive_terminal; then
+        C_RESET=$'\033[0m'
+        C_BOLD=$'\033[1m'
+        C_DIM=$'\033[2m'
+        C_RED=$'\033[31m'
+        C_GREEN=$'\033[32m'
+        C_YELLOW=$'\033[33m'
+        C_BLUE=$'\033[34m'
+        C_CYAN=$'\033[36m'
+    else
+        C_RESET=""
+        C_BOLD=""
+        C_DIM=""
+        C_RED=""
+        C_GREEN=""
+        C_YELLOW=""
+        C_BLUE=""
+        C_CYAN=""
+    fi
+}
+
+log_info() {
+    printf '%s[*]%s %s\n' "$C_CYAN" "$C_RESET" "$1"
+}
+
+log_success() {
+    printf '%s[+]%s %s\n' "$C_GREEN" "$C_RESET" "$1"
+}
+
+log_warn() {
+    printf '%s[!]%s %s\n' "$C_YELLOW" "$C_RESET" "$1"
+}
+
+print_step() {
+    CURRENT_STEP=$((CURRENT_STEP + 1))
+    echo ""
+    printf '%s[%d/%d]%s %s%s%s\n' "$C_BLUE" "$CURRENT_STEP" "$TOTAL_STEPS" "$C_RESET" "$C_BOLD" "$1" "$C_RESET"
+}
 
 print_banner() {
-    echo "RedSploit Installer"
-    echo "==================="
+    setup_colors
+    printf '%s%sRedSploit Setup%s\n' "$C_BOLD" "$C_RED" "$C_RESET"
+    printf '%s%sQuick installer for command, completion, and AI summary config%s\n' "$C_DIM" "$C_BLUE" "$C_RESET"
     echo ""
 }
 
@@ -190,45 +233,20 @@ write_path_block() {
 }
 
 choose_install_mode() {
-    if ! is_interactive_terminal; then
-        if is_root_install; then
-            INSTALL_MODE="system"
-        else
-            INSTALL_MODE="local"
-        fi
+    if [ -n "$INSTALL_MODE" ]; then
         return 0
     fi
 
-    echo "Setup options:"
-    echo "  1) User-local install (~/.local/bin) (recommended)"
-    if is_root_install; then
-        echo "  2) System install (/usr/bin)"
+    if [ -n "$REDSPLOIT_INSTALL_MODE" ]; then
+        INSTALL_MODE="$REDSPLOIT_INSTALL_MODE"
+        return 0
     fi
 
-    local default_choice choice
-    if is_root_install; then
-        default_choice="1"
+    if is_root_install && [ -z "$SUDO_USER" ]; then
+        INSTALL_MODE="system"
     else
-        default_choice="1"
+        INSTALL_MODE="local"
     fi
-
-    while true; do
-        read -r -p "Choose install mode [$default_choice]: " choice
-        choice="${choice:-$default_choice}"
-        case "$choice" in
-            1)
-                INSTALL_MODE="local"
-                return 0
-                ;;
-            2)
-                if is_root_install; then
-                    INSTALL_MODE="system"
-                    return 0
-                fi
-                ;;
-        esac
-        echo "Please choose a valid option."
-    done
 }
 
 ensure_rc_ownership() {
@@ -267,15 +285,9 @@ maybe_configure_path() {
 
     echo ""
     echo "RedSploit was installed to $path_dir, which is not currently in PATH."
-    if prompt_yes_no "Add $path_dir to PATH in $RC_FILE?" "Y"; then
-        write_path_block "$RC_FILE" "$path_dir"
-        ensure_rc_ownership "$RC_FILE"
-        echo "✓ Added PATH export to $RC_FILE"
-    else
-        echo "Skipping PATH update."
-        echo "You can add it later with:"
-        echo "  export PATH=\"$path_dir:\$PATH\""
-    fi
+    write_path_block "$RC_FILE" "$path_dir"
+    ensure_rc_ownership "$RC_FILE"
+    echo "✓ Added PATH export to $RC_FILE"
 }
 
 configure_api_keys_interactive() {
@@ -300,21 +312,22 @@ configure_api_keys_interactive() {
 
     echo ""
     echo "Leave either key blank if you do not want to configure it now."
-    read -r -s -p "OpenRouter API key: " openrouter_key
+    read -r -p "OpenRouter API key: " openrouter_key
     echo ""
-    read -r -s -p "ChatAnywhere API key: " chatanywhere_key
+    read -r -p "ChatAnywhere API key: " chatanywhere_key
     echo ""
 
     write_api_key_block "$RC_FILE" "$openrouter_key" "$chatanywhere_key"
     ensure_rc_ownership "$RC_FILE"
 
-    echo "✓ Saved API key exports to $RC_FILE"
-    echo "Reload your shell with: source $RC_FILE"
+    log_success "Saved API key exports to $RC_FILE"
+    log_info "Reload your shell with: source $RC_FILE"
 }
 
 install_redsploit() {
+    print_step "Install command"
     chmod +x "$RED_PY"
-    echo "✓ Made red.py executable"
+    log_success "Made red.py executable"
 
     if [ -z "$INSTALL_MODE" ]; then
         choose_install_mode
@@ -338,7 +351,7 @@ install_redsploit() {
     if [ "$INSTALL_MODE" = "local" ] && is_root_install; then
         ensure_user_ownership "$INSTALL_TARGET"
     fi
-    echo "✓ Created symlink: $INSTALL_TARGET -> $RED_PY"
+    log_success "Created symlink: $INSTALL_TARGET -> $RED_PY"
 
     if [ "$INSTALL_MODE" = "local" ]; then
         maybe_configure_path
@@ -351,13 +364,8 @@ install_redsploit() {
 }
 
 setup_shell_completion() {
-    if ! prompt_yes_no "Set up shell completion?" "Y"; then
-        echo "Skipping shell completion setup."
-        return 0
-    fi
-
-    echo ""
-    echo "Setting up shell completion..."
+    print_step "Set up shell completion"
+    log_info "Running completion installer"
     if [ -f "$SCRIPT_DIR/setup_completion.sh" ]; then
         chmod +x "$SCRIPT_DIR/setup_completion.sh"
         if is_root_install && [ -n "$SUDO_USER" ]; then
@@ -366,18 +374,21 @@ setup_shell_completion() {
             "$SCRIPT_DIR/setup_completion.sh"
         fi
     else
-        echo "⚠ setup_completion.sh not found, skipping completion setup"
+        log_warn "setup_completion.sh not found, skipping completion setup"
     fi
 }
 
 print_success() {
     echo ""
-    echo "=========================================="
-    echo "✓ Installation complete!"
+    printf '%s%sSetup complete%s\n' "$C_BOLD" "$C_GREEN" "$C_RESET"
+    printf '%sCommand%s     %s\n' "$C_DIM" "$C_RESET" "${INSTALL_TARGET:-red}"
+    printf '%sUser%s        %s\n' "$C_DIM" "$C_RESET" "$REAL_USER"
+    printf '%sShell%s       %s\n' "$C_DIM" "$C_RESET" "$(detect_real_shell_name)"
+    if [ -n "$RC_FILE" ]; then
+        printf '%sConfig%s      %s\n' "$C_DIM" "$C_RESET" "$RC_FILE"
+    fi
     echo ""
-    echo "You can now run: red"
-    echo "Try: red -h"
-    echo "=========================================="
+    log_info "Run: red -h"
 }
 
 main() {
@@ -385,14 +396,21 @@ main() {
     local shell_name
     shell_name="$(detect_real_shell_name)"
     RC_FILE="$(resolve_shell_rc_file "$shell_name" 2>/dev/null || true)"
-    echo "Detected user: $REAL_USER"
-    echo "Detected shell: $shell_name"
+    print_step "Inspect environment"
+    log_info "Detected user: $REAL_USER"
+    log_info "Detected shell: $shell_name"
     if [ -n "$RC_FILE" ]; then
-        echo "Shell rc file: $RC_FILE"
+        log_info "Shell rc file: $RC_FILE"
     fi
-    echo ""
+    choose_install_mode
+    if [ "$INSTALL_MODE" = "system" ]; then
+        log_info "Install mode: system (/usr/bin)"
+    else
+        log_info "Install mode: local (~/.local/bin)"
+    fi
     install_redsploit
     setup_shell_completion
+    print_step "Configure AI summaries"
     configure_api_keys_interactive
     print_success
 }

@@ -23,7 +23,8 @@ cd RedSploit
 
 This will:
 - Install `red` to `/usr/bin` when run with `sudo`, or to `~/.local/bin/red` when run as a normal user
-- Walk you through shell completion, PATH setup, and API key configuration
+- Automatically set up shell completion and PATH updates when needed
+- Ask once whether you want to configure AI-summary API keys
 - Optionally configure AI-summary API keys for the installing user
 - Make the tool accessible from anywhere
 

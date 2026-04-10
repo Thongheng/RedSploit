@@ -11,7 +11,9 @@ cd RedSploit
 The installer:
 
 - installs `red` to `/usr/bin` when run with `sudo`, or to `~/.local/bin/red` when run as a normal user
-- walks through install location, shell completion, PATH setup, and API key storage
+- configures shell completion automatically
+- adds `~/.local/bin` to PATH automatically when needed
+- asks once whether you want to store AI-summary API keys
 - optionally writes AI-summary API key exports to your shell rc file
 
 ## AI Summary Providers
