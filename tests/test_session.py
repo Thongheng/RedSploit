@@ -52,6 +52,15 @@ class TestSessionSetGet:
         assert session.config["summary"]["enabled"] is True
         assert "openrouter" in session.config["summary"]["providers"]
 
+    def test_show_options_hides_advanced_tuning_variables(self, session, capsys):
+        session.show_options()
+        captured = capsys.readouterr().out
+        assert "payload_format" not in captured
+        assert "payload_file" not in captured
+        assert "wordlist_dir" not in captured
+        assert "wordlist_subdomain" not in captured
+        assert "wordlist_vhost" not in captured
+
 
 class TestPortValidation:
     def test_valid_port(self, session):

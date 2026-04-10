@@ -1,6 +1,6 @@
 {
-  "last_turn_at": "2026-04-10T06:32:35.442Z",
-  "turn_count": 28,
-  "last_progress_at": "2026-04-10T06:32:35.442Z",
-  "last_agent_output": "Added a one-time session command.\n\nIn interactive mode, use:\n```bash\nset summary off\n```\n\nTo turn it"
+  "last_turn_at": "2026-04-10T06:35:20.007Z",
+  "turn_count": 30,
+  "last_progress_at": "2026-04-10T06:35:20.007Z",
+  "last_agent_output": "Done.\n\nThose variables are now hidden from the main `options` / session variable table:\n- `payload`\n"
 }

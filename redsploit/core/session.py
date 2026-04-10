@@ -8,6 +8,15 @@ import os
 import yaml
 
 class Session:
+    OPTIONS_HIDDEN_KEYS = {
+        "payload",
+        "payload_format",
+        "payload_file",
+        "wordlist_dir",
+        "wordlist_subdomain",
+        "wordlist_vhost",
+    }
+
     def __init__(self) -> None:
         self.env: Dict[str, str] = {
             "target": "",
@@ -266,6 +275,8 @@ class Session:
 
         for key, value in self.env.items():
             if key == "user":
+                continue
+            if key in self.OPTIONS_HIDDEN_KEYS:
                 continue
             meta = self.VAR_METADATA.get(key, {"required": False, "desc": "Custom Variable"})
             required = meta.get("required", False)
