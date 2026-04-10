@@ -62,7 +62,8 @@ def test_local_nmap_summary_without_api_keys(session):
     assert "Clean View" in result.text
     assert "Open ports: 2" in result.text
     assert "80    http           Apache httpd 2.4.57" in result.text
-    assert "Access & Protocol Notes" in result.text
+    assert "Interesting Services" in result.text
+    assert "Access Paths" in result.text
     assert "SMB Signing" in result.text
 
 

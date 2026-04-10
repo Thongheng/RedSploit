@@ -433,35 +433,28 @@ class SummaryService:
             if analysis.get("os_name"):
                 overview.append(f"OS: {analysis['os_name']}")
             overview.append(f"Open ports: {analysis.get('open_port_count', 0)}")
-            if analysis.get("not_shown"):
-                overview.append(f"Not shown: {analysis['not_shown']}")
-            if analysis.get("scan_duration"):
-                overview.append(f"Scan Duration: {analysis['scan_duration']}")
 
             sections = []
             if analysis.get("open_ports"):
-                service_rows = [
-                    self._format_service_row(item["port"], item["service"], item.get("version", ""))
-                    for item in analysis["open_ports"]
-                ]
+                service_rows = self._nmap_interesting_services(analysis.get("open_ports", []))
                 sections.append(
                     {
-                        "title": "Open Services",
+                        "title": "Interesting Services",
                         "lines": service_rows,
                     }
                 )
 
             identity_lines = self._nmap_identity_lines(analysis)
             if identity_lines:
-                sections.append({"title": "Identity & AD", "lines": identity_lines})
+                sections.append({"title": "AD Clues", "lines": identity_lines})
 
             access_lines = self._nmap_access_lines(analysis)
             if access_lines:
-                sections.append({"title": "Access & Protocol Notes", "lines": access_lines})
+                sections.append({"title": "Access Paths", "lines": access_lines})
 
             timing_lines = self._nmap_timing_lines(analysis)
             if timing_lines:
-                sections.append({"title": "Timing & TLS", "lines": timing_lines})
+                sections.append({"title": "Time Notes", "lines": timing_lines})
 
             return {"title": title, "overview": overview, "sections": sections}
 
@@ -687,9 +680,7 @@ class SummaryService:
             "Computer",
             "DNS Computer",
             "Domain",
-            "DNS Tree",
             "NetBIOS Domain",
-            "Site",
             "Product Version",
         ]
         for key in ordered_keys:
@@ -700,7 +691,6 @@ class SummaryService:
     def _nmap_access_lines(self, analysis: Dict[str, Any]) -> List[str]:
         lines = []
         smb = analysis.get("smb", {})
-        web = analysis.get("web", {})
         ports = {item["port"] for item in analysis.get("open_ports", [])}
 
         if "445" in ports:
@@ -711,22 +701,39 @@ class SummaryService:
             lines.append("RDP: exposed on 3389/tcp")
         if "5985" in ports:
             lines.append("WinRM/HTTP: exposed on 5985/tcp")
-        if web.get("HTTP Server"):
-            lines.append(f"HTTP Server: {web['HTTP Server']}")
-        if web.get("HTTP Title"):
-            lines.append(f"HTTP Title: {web['HTTP Title']}")
         return lines
 
     def _nmap_timing_lines(self, analysis: Dict[str, Any]) -> List[str]:
         lines = []
         timing = analysis.get("timing", {})
-        tls = analysis.get("tls", {})
 
         for key in ("Clock Skew", "RDP System Time", "SMB Time", "TLS Time"):
             if timing.get(key):
                 lines.append(f"{key}: {timing[key]}")
-
-        for key in ("Certificate CN", "Certificate Issuer", "Valid From", "Valid Until"):
-            if tls.get(key):
-                lines.append(f"{key}: {tls[key]}")
         return lines
+
+    def _nmap_interesting_services(self, open_ports: List[Dict[str, Any]]) -> List[str]:
+        priority = {
+            "53": 10,
+            "88": 20,
+            "389": 30,
+            "445": 40,
+            "464": 50,
+            "3268": 60,
+            "5985": 70,
+            "3389": 80,
+            "135": 90,
+            "139": 100,
+        }
+
+        sorted_ports = sorted(
+            open_ports,
+            key=lambda item: (priority.get(item["port"], 999), int(item["port"])),
+        )
+
+        rows = []
+        for item in sorted_ports:
+            if item["port"] in {"636", "3269", "2179", "593"}:
+                continue
+            rows.append(self._format_service_row(item["port"], item["service"], item.get("version", "")))
+        return rows[:10]
