@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RedSploit — How to Use</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --surface: #13161c;
+    --surface-2: #1a1d26;
+    --border: #2a2e38;
+    --ink: #e4e7ec;
+    --muted: #8b92a3;
+    --accent: #e05a2f;
+    --good: #3ddc84;
+    --info: #4aa8ff;
+    --warn: #f5c542;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--ink);
+    min-height: 100vh; display: flex; flex-direction: column;
+  }
+  .header {
+    height: 56px; border-bottom: 1px solid var(--border);
+    background: rgba(11,13,16,0.95); backdrop-filter: blur(12px);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; flex-shrink: 0;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-icon {
+    width: 30px; height: 30px; background: var(--accent); border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; color: #fff; font-size: 15px;
+  }
+  .brand h1 { font-size: 16px; font-weight: 700; }
+  .brand p { font-size: 12px; color: var(--muted); margin-left: 6px; }
+
+  .ctrl-group { display: flex; align-items: center; gap: 8px; }
+  .ctrl-btn {
+    width: 34px; height: 34px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--muted); font-size: 16px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all .12s;
+  }
+  .ctrl-btn:hover { color: var(--ink); border-color: var(--accent); }
+  .ctrl-label { font-size: 12px; color: var(--muted); }
+
+  .canvas-wrap {
+    flex: 1; overflow: auto; padding: 24px;
+    display: flex; justify-content: center; align-items: flex-start;
+  }
+  #flowCanvas {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+  }
+
+  .legend {
+    position: fixed; left: 20px; bottom: 20px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 18px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  }
+  .legend h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 10px; }
+  .legend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; color: var(--muted); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  .footer {
+    border-top: 1px solid var(--border); padding: 16px 24px;
+    text-align: center; color: var(--muted); font-size: 12px; flex-shrink: 0;
+  }
+
+  .tooltip {
+    position: fixed; background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; width: 380px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    opacity: 0; pointer-events: none; transform: translateY(8px);
+    transition: all .2s ease; z-index: 100;
+  }
+  .tooltip.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  .tooltip h4 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .tooltip p { font-size: 13px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
+  .tooltip code {
+    display: block; background: var(--bg); padding: 10px 14px;
+    border-radius: 8px; font-family: "SFMono-Regular", monospace;
+    font-size: 12px; border: 1px solid var(--border); margin-bottom: 6px;
+    color: var(--ink);
+  }
+  .tooltip .tag {
+    display: inline-block; font-size: 10px; font-weight: 700;
+    padding: 3px 10px; border-radius: 4px; margin-bottom: 12px;
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="brand">
+    <div class="brand-icon">R</div>
+    <h1>RedSploit</h1>
+    <p>How to Use — Flow Canvas</p>
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">Zoom</span>
+    <button class="ctrl-btn" onclick="changeZoom(-0.1)">&minus;</button>
+    <button class="ctrl-btn" onclick="changeZoom(0.1)">+</button>
+    <button class="ctrl-btn" onclick="resetZoom()" style="font-size:12px;width:auto;padding:0 12px;">100%</button>
+  </div>
+</header>
+
+<div class="canvas-wrap">
+  <canvas id="flowCanvas" width="1600" height="1800"></canvas>
+</div>
+
+<div class="legend">
+  <h4>Modules</h4>
+  <div class="legend-row"><div class="legend-dot" style="background:#e05a2f"></div> Core / Setup</div>
+  <div class="legend-row"><div class="legend-dot" style="background:#3ddc84"></div> Infrastructure</div>
+  <div class="legend-row"><div class="legend-dot" style="background:#4aa8ff"></div> Web</div>
+  <div class="legend-row"><div class="legend-dot" style="background:#f5c542"></div> Active Directory</div>
+  <div class="legend-row"><div class="legend-dot" style="background:#e05a2f;opacity:.5"></div> File Transfer</div>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tag" id="ttTag">CORE</div>
+  <h4 id="ttTitle">Title</h4>
+  <p id="ttDesc">Description</p>
+  <div id="ttCode"></div>
+</div>
+
+<footer class="footer">
+  RedSploit — Red Team Pentest Helper · MIT License
+</footer>
+
+<script>
+const canvas = document.getElementById('flowCanvas');
+const ctx = canvas.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+const tooltip = document.getElementById('tooltip');
+
+const CSS_W = 1600;
+const CSS_H = 1800;
+canvas.style.width = CSS_W + 'px';
+canvas.style.height = CSS_H + 'px';
+canvas.width = CSS_W * dpr;
+canvas.height = CSS_H * dpr;
+ctx.scale(dpr, dpr);
+
+const C = {
+  accent: '#e05a2f', good: '#3ddc84', info: '#4aa8ff', warn: '#f5c542',
+  bg: '#13161c', border: '#2a2e38', ink: '#e4e7ec', muted: '#8b92a3',
+};
+
+let zoom = 1.0;
+const CARD_W = 260;
+const PAD_X = 18;
+const PAD_Y = 16;
+const GAP_Y = 55;
+const GAP_COL = 60;
+const GAP_SECTION = 100;
+
+function makeCard(flow, color, tag, title, desc, code) {
+  return { flow, w: CARD_W, color, tag, title, desc, code, h: 0, x: 0, y: 0 };
+}
+
+// ─── ALL CARDS ───
+
+const setupCards = [
+  makeCard('core', C.accent, 'SETUP', 'Clone & Install', 'Clone the repo and run the installer. It sets up the binary, shell completion, and optional AI summary API keys.', 'git clone https://github.com/Thongheng/RedSploit.git\ncd RedSploit\n./install.sh\n./install.sh --test'),
+  makeCard('core', C.accent, 'SETUP', 'Configure', 'Edit config.yaml for wordlist paths, payload defaults, and transfer port. Set your AI provider API keys.', 'export OPENROUTER_API_KEY="..."\nexport CHATANYWHERE_API_KEY="..."\nsource ~/.zshrc'),
+];
+
+const coreCards = [
+  makeCard('core', C.accent, 'START', 'Start RedSploit', 'Launch the interactive shell or run commands directly from CLI.', 'red\nred -set -T 10.10.10.10\nred -h'),
+  makeCard('core', C.accent, 'CORE', 'Set Target', 'Define the IP, hostname, CIDR, or URL you want to test against.', 'set target 10.10.10.10\nset target https://example.com\nset target corp.local'),
+  makeCard('core', C.accent, 'CORE', 'Set Credentials', 'Set username:password. Auto-splits on colon. Supports hashes too.', 'set user admin:password\nset domain corp.local\nset hash aad3b435b51404ee...'),
+  makeCard('core', C.accent, 'CORE', 'Set Options', 'Configure listener port, network interface, and workspace name.', 'set lport 4444\nset interface tun0\nset workspace engagement-a'),
+  makeCard('core', C.accent, 'CORE', 'Choose Module', 'Switch to a module matching your engagement type.', 'use infra\nuse web\nuse ad\nuse file'),
+];
+
+const infraCards = [
+  makeCard('infra', C.good, 'INFRA', 'nmap', 'Service and version scan with default NSE scripts. The go-to first step.', 'nmap -sV -sC -Pn -v {target}'),
+  makeCard('infra', C.good, 'INFRA', 'rustscan', 'Fast async port scanner. Use before nmap for quick host discovery.', 'rustscan -a {target} --ulimit 5000'),
+  makeCard('infra', C.good, 'INFRA', 'smbmap / smbclient', 'Enumerate SMB shares and permissions. Supports NULL sessions and creds.', 'smbmap -H {target} {auth} --no-banner\nsmbclient -L //{target}/ {auth}'),
+  makeCard('infra', C.good, 'INFRA', 'enum4linux', 'SMB/NetBIOS enumeration. Good for older Windows domains.', 'enum4linux-ng -A {auth} {target}'),
+  makeCard('infra', C.good, 'INFRA', 'Remote Access', 'Connect via SSH, RDP, or FTP using session credentials.', 'ssh {user}@{target}\nrdp {target}\nftp {target}'),
+  makeCard('infra', C.good, 'INFRA', 'msfvenom + msf', 'Generate a matching payload and start a Metasploit handler.', 'msfvenom -p {payload} LHOST={lhost} LPORT={lport}\nmsfconsole -q -x "use exploit/multi/handler; ..."'),
+];
+
+const webCards = [
+  makeCard('web', C.info, 'WEB', 'headerscan', 'Scan HTTP security headers. Grades the response and flags missing protections.', 'headerscan --json\nheaderscan --detailed\nheaderscan https://example.com'),
+  makeCard('web', C.info, 'WEB', 'subfinder / gobuster', 'Discover subdomains passively or via active DNS brute-force.', 'subfinder -d {domain}\ngobuster dns -d {domain} -w {wordlist}\ndnsrecon -d {domain} -t brf'),
+  makeCard('web', C.info, 'WEB', 'dir_ferox / ffuf', 'Directory and file fuzzing with multiple engines and wordlists.', 'feroxbuster -u {url}\nffuf -u {url}/FUZZ -w {wordlist}\ndirsearch -u {url}'),
+  makeCard('web', C.info, 'WEB', 'nuclei / wpscan', 'Vulnerability scanning with templates or WordPress-specific audits.', 'nuclei -u {url}\nwpscan --url {url} --enumerate\nwafw00f {url}'),
+  makeCard('web', C.info, 'WEB', 'screenshots', 'Capture visual screenshots of discovered endpoints.', 'screenshots\ngowitness scan --single {url}'),
+];
+
+const adCards = [
+  makeCard('ad', C.warn, 'AD', 'bloodhound', 'Collect Active Directory graph data. Import ZIP into BloodHound CE for attack paths.', 'bloodhound-ce-python {auth} -ns {ip} -d {domain} -c all'),
+  makeCard('ad', C.warn, 'AD', 'nxc / kerbrute', 'Test credentials and enumerate SMB. Kerbrute for user enumeration without creds.', 'nxc smb {target} {auth}\nkerbrute userenum --dc {target} -d {domain} users.txt'),
+  makeCard('ad', C.warn, 'AD', 'secretsdump', 'Extract domain hashes via DRSUAPI or SAM. Enables Pass-the-Hash attacks.', 'impacket-secretsdump {impacket_args}'),
+  makeCard('ad', C.warn, 'AD', 'evil_winrm / psexec', 'Get interactive shell or execute commands remotely via WinRM or SMB.', 'evil-winrm-py -i {target} {auth}\nimpacket-psexec {impacket_args}\nimpacket-wmiexec {impacket_args}'),
+];
+
+const fileCards = [
+  makeCard('file', C.accent, 'FILE', 'download', 'Generate download commands for the target machine. Auto-starts HTTP server.', 'download linpeas.sh\ndownload payload.exe curl\ndownload file.ps1 iwr\ndownload beacon.bin certutil'),
+  makeCard('file', C.accent, 'FILE', 'server', 'Start HTTP or SMB file server from the current directory.', 'server http\nserver smb\npython3 -m http.server {port}'),
+  makeCard('file', C.accent, 'FILE', 'base64', 'Encode files to base64 for manual copy-paste when direct download fails.', 'base64 payload.exe\nbase64 exploit.sh > b64.txt'),
+];
+
+const bottomCards = [
+  makeCard('core', C.accent, 'CORE', 'Loot Locker', 'Store credentials and hashes found during engagement. Load them back into session variables anytime.', 'loot add admin:Secret123 smb cred\nloot show\nloot use 1\nloot rm 1'),
+  makeCard('core', C.accent, 'CORE', 'Playbooks', 'Run YAML-defined semi-automated workflows. Human-in-the-loop control.', 'playbook list\nplaybook run recon\nplaybook run web_enum\nplaybook run ad_enum'),
+  makeCard('core', C.accent, 'CORE', 'Runtime Flags', 'Modify command behavior on the fly without changing configuration.', '-p  Preview command\n-c  Copy to clipboard\n-e  Edit before run\n-nosummary  Disable AI summary\n-noauth  Skip credentials'),
+];
+
+// ── measure ──
+function wrap(text, maxW) {
+  const words = text.split(' ');
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    const test = cur ? cur + ' ' + w : w;
+    if (ctx.measureText(test).width > maxW && cur) {
+      lines.push(cur); cur = w;
+    } else { cur = test; }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+function measure(c) {
+  const innerW = c.w - PAD_X * 2;
+  let h = PAD_Y;
+
+  // tag
+  h += 18 + 6;
+
+  // title
+  ctx.font = '700 14px -apple-system, sans-serif';
+  const titleLines = wrap(c.title, innerW);
+  h += titleLines.length * 18 + 6;
+
+  // desc
+  ctx.font = '12px -apple-system, sans-serif';
+  const descLines = wrap(c.desc, innerW);
+  h += descLines.length * 17 + 4;
+
+  h += PAD_Y;
+  c.h = h;
+  c._titleLines = titleLines;
+  c._descLines = descLines;
+}
+
+[setupCards, coreCards, infraCards, webCards, adCards, fileCards, bottomCards].forEach(a => a.forEach(measure));
+
+// ── layout ──
+function stack(cards, startY) {
+  let y = startY;
+  for (const c of cards) { c.y = y; y += c.h + GAP_Y; }
+  return y - GAP_Y;
+}
+
+const coreX = (CSS_W - CARD_W) / 2;
+
+// Setup column (left of core)
+setupCards.forEach(c => c.x = coreX - CARD_W - GAP_COL);
+const setupBottom = stack(setupCards, 40);
+
+// Core spine
+coreCards.forEach(c => c.x = coreX);
+const coreBottom = stack(coreCards, 40);
+
+const branchTop = Math.max(setupBottom, coreBottom) + GAP_SECTION;
+const cols = [infraCards, webCards, adCards, fileCards];
+const totalColsW = cols.length * CARD_W + (cols.length - 1) * GAP_COL;
+let startX = (CSS_W - totalColsW) / 2;
+let tallest = 0;
+
+cols.forEach(arr => {
+  arr.forEach(c => c.x = startX);
+  const b = stack(arr, branchTop);
+  if (b > tallest) tallest = b;
+  startX += CARD_W + GAP_COL;
+});
+
+const bottomTop = tallest + GAP_SECTION;
+const bottomTotal = bottomCards.length * CARD_W + (bottomCards.length - 1) * GAP_COL;
+let bx = (CSS_W - bottomTotal) / 2;
+for (const c of bottomCards) {
+  c.x = bx; c.y = bottomTop;
+  bx += CARD_W + GAP_COL;
+}
+
+const allCards = [
+  ...setupCards, ...coreCards, ...infraCards, ...webCards,
+  ...adCards, ...fileCards, ...bottomCards,
+];
+
+// edge indices must match allCards order
+// setup: 0,1
+// core: 2,3,4,5,6
+// infra: 7,8,9,10,11,12
+// web: 13,14,15,16,17
+// ad: 18,19,20,21
+// file: 22,23,24
+// bottom: 25,26,27
+const edges = [
+  // setup -> core start
+  [1, 2],
+  // core spine
+  [2,3],[3,4],[4,5],[5,6],
+  // branches from Choose Module
+  [6,7],[6,13],[6,18],[6,22],
+  // infra chain
+  [7,8],[8,9],[9,10],[10,11],[11,12],
+  // web chain
+  [13,14],[14,15],[15,16],[16,17],
+  // ad chain
+  [18,19],[19,20],[20,21],
+  // file chain
+  [22,23],[23,24],
+  // branches to loot
+  [12,25],[17,25],[21,25],[24,25],
+  // bottom
+  [25,26],[26,27],
+];
+
+// ── draw ──
+function rr(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r); ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r); ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
+}
+
+function drawCard(c) {
+  const { x, y, w, h, color } = c;
+
+  // shadow
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = 20;
+  ctx.shadowOffsetY = 8;
+  rr(x, y, w, h, 12);
+  ctx.fillStyle = '#181b22';
+  ctx.fill();
+  ctx.restore();
+
+  // bg fill
+  rr(x, y, w, h, 12);
+  ctx.fillStyle = '#181b22';
+  ctx.fill();
+
+  // border
+  rr(x, y, w, h, 12);
+  ctx.strokeStyle = color + '30';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // top accent bar
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x + 12, y);
+  ctx.lineTo(x + w - 12, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + 12);
+  ctx.lineTo(x + w, y + 4);
+  ctx.quadraticCurveTo(x + w, y, x + w - 12, y);
+  ctx.lineTo(x + 12, y);
+  ctx.quadraticCurveTo(x, y, x, y + 12);
+  ctx.lineTo(x, y + 4);
+  ctx.quadraticCurveTo(x, y, x + 12, y);
+  ctx.closePath();
+  ctx.fill();
+
+  let cy = y + PAD_Y + 4;
+  const left = x + PAD_X;
+  const innerW = w - PAD_X * 2;
+
+  // tag pill
+  ctx.font = '600 9px -apple-system, sans-serif';
+  const tagW = Math.max(40, ctx.measureText(c.tag).width + 12);
+  rr(left, cy, tagW, 18, 5);
+  ctx.fillStyle = color + '15';
+  ctx.fill();
+  ctx.strokeStyle = color + '25';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.textBaseline = 'middle';
+  ctx.fillText(c.tag, left + 6, cy + 9);
+  cy += 26;
+
+  // title
+  ctx.font = '700 14px -apple-system, sans-serif';
+  ctx.fillStyle = C.ink;
+  ctx.textBaseline = 'top';
+  c._titleLines.forEach((line, i) => {
+    ctx.fillText(line, left, cy + i * 18);
+  });
+  cy += c._titleLines.length * 18 + 6;
+
+  // desc
+  ctx.font = '12px -apple-system, sans-serif';
+  ctx.fillStyle = C.muted;
+  c._descLines.forEach((line, i) => {
+    ctx.fillText(line, left, cy + i * 17);
+  });
+}
+
+function drawEdge(e) {
+  const f = allCards[e[0]], t = allCards[e[1]];
+  const fx = f.x + f.w/2, fy = f.y + f.h;
+  const tx = t.x + t.w/2, ty = t.y;
+
+  ctx.beginPath();
+  ctx.moveTo(fx, fy);
+  const my = (fy + ty) / 2;
+  ctx.bezierCurveTo(fx, my, tx, my, tx, ty);
+
+  const grad = ctx.createLinearGradient(fx, fy, tx, ty);
+  grad.addColorStop(0, f.color + '50');
+  grad.addColorStop(1, t.color + '50');
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(tx, ty, 3.5, 0, Math.PI*2);
+  ctx.fillStyle = t.color;
+  ctx.fill();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, CSS_W, CSS_H);
+
+  // grid dots
+  ctx.fillStyle = C.border + '25';
+  for (let x = 0; x < CSS_W; x += 40) {
+    for (let y = 0; y < CSS_H; y += 40) {
+      ctx.beginPath();
+      ctx.arc(x, y, 1, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  ctx.save();
+  const cx = CSS_W/2, cy = CSS_H/2;
+  ctx.translate(cx, cy);
+  ctx.scale(zoom, zoom);
+  ctx.translate(-cx, -cy);
+
+  edges.forEach(drawEdge);
+  allCards.forEach(drawCard);
+
+  ctx.restore();
+}
+
+// ── tooltip ──
+let hovered = null;
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const sx = (e.clientX - rect.left) / zoom;
+  const sy = (e.clientY - rect.top) / zoom;
+
+  let found = null;
+  for (const c of allCards) {
+    if (sx >= c.x && sx <= c.x + c.w && sy >= c.y && sy <= c.y + c.h) {
+      found = c; break;
+    }
+  }
+
+  if (found !== hovered) {
+    hovered = found;
+    canvas.style.cursor = hovered ? 'pointer' : 'default';
+    draw();
+    if (hovered) showTooltip(hovered, e.clientX, e.clientY);
+    else hideTooltip();
+  } else if (hovered) {
+    positionTooltip(e.clientX, e.clientY);
+  }
+});
+
+canvas.addEventListener('mouseleave', () => {
+  hovered = null;
+  hideTooltip();
+  draw();
+});
+
+function showTooltip(c, mx, my) {
+  const tagColors = {
+    core: 'background:'+C.accent+'20;color:'+C.accent,
+    infra: 'background:'+C.good+'20;color:'+C.good,
+    web: 'background:'+C.info+'20;color:'+C.info,
+    ad: 'background:'+C.warn+'20;color:'+C.warn,
+    file: 'background:'+C.accent+'20;color:'+C.accent,
+  };
+  const labels = { core:'CORE / SETUP', infra:'INFRASTRUCTURE', web:'WEB', ad:'ACTIVE DIRECTORY', file:'FILE TRANSFER' };
+
+  document.getElementById('ttTag').style.cssText = tagColors[c.flow];
+  document.getElementById('ttTag').textContent = labels[c.flow];
+  document.getElementById('ttTitle').textContent = c.title;
+  document.getElementById('ttDesc').textContent = c.desc;
+
+  const codeEl = document.getElementById('ttCode');
+  codeEl.innerHTML = c.code.split('\n').map(l => `<code>${l}</code>`).join('');
+
+  tooltip.classList.add('show');
+  positionTooltip(mx, my);
+}
+
+function positionTooltip(mx, my) {
+  const rect = tooltip.getBoundingClientRect();
+  let left = mx + 24;
+  let top = my + 24;
+  if (left + rect.width > window.innerWidth - 20) left = mx - rect.width - 24;
+  if (top + rect.height > window.innerHeight - 20) top = my - rect.height - 24;
+  tooltip.style.left = left + 'px';
+  tooltip.style.top = top + 'px';
+}
+
+function hideTooltip() {
+  tooltip.classList.remove('show');
+}
+
+function changeZoom(d) {
+  zoom = Math.max(0.5, Math.min(1.5, zoom + d));
+  draw();
+}
+function resetZoom() {
+  zoom = 1.0;
+  draw();
+}
+
+draw();
+</script>
+</body>
+</html>

@@ -13,6 +13,8 @@ Red Team penetration testing CLI tool with interactive shell and automation capa
 
 ## Quick Start
 
+Want to explore commands interactively? Open [`index.html`](index.html) in your browser for a visual command builder and scenario walkthroughs.
+
 ### Installation
 
 ```bash
