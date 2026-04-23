@@ -3,6 +3,7 @@ from unittest.mock import Mock, patch
 import requests
 
 from redsploit.core.summary import SummaryResult, SummaryService
+from redsploit.modules.ad import AdModule
 from redsploit.modules.infra import InfraModule
 
 
@@ -177,14 +178,14 @@ def test_supported_tool_appends_summary_after_raw_output(session, capsys):
 
 
 def test_nxc_uses_captured_clean_view_path(session):
-    infra = InfraModule(session)
+    ad = AdModule(session)
     session.set("target", "10.10.10.10")
     session.set("user", "admin:pass123")
 
     with patch("shutil.which", return_value="/usr/bin/nxc"):
-        with patch.object(infra, "_run_with_summary") as run_with_summary:
-            with patch.object(infra, "_run_passthrough") as run_passthrough:
-                infra.run_tool("nxc")
+        with patch.object(ad, "_run_with_summary") as run_with_summary:
+            with patch.object(ad, "_run_passthrough") as run_passthrough:
+                ad.run_tool("nxc")
 
     assert run_with_summary.called
     assert not run_passthrough.called
@@ -192,23 +193,34 @@ def test_nxc_uses_captured_clean_view_path(session):
 
 def test_other_noninteractive_recon_tools_use_captured_clean_view_path(session):
     infra = InfraModule(session)
+    ad = AdModule(session)
     session.set("target", "10.10.10.10")
     session.set("domain", "example.local")
     session.set("user", "admin:pass123")
 
-    cases = [
+    infra_cases = [
         ("smbclient", "/usr/bin/smbclient"),
         ("smbmap", "/usr/bin/smbmap"),
         ("enum4linux", "/usr/bin/enum4linux-ng"),
+    ]
+    ad_cases = [
         ("bloodhound", "/usr/bin/bloodhound-ce-python"),
         ("kerbrute", "/usr/bin/kerbrute"),
     ]
 
-    for tool_name, binary_path in cases:
+    for tool_name, binary_path in infra_cases:
         with patch("shutil.which", return_value=binary_path):
             with patch.object(infra, "_run_with_summary") as run_with_summary:
                 with patch.object(infra, "_run_passthrough") as run_passthrough:
                     infra.run_tool(tool_name)
+        assert run_with_summary.called, tool_name
+        assert not run_passthrough.called, tool_name
+
+    for tool_name, binary_path in ad_cases:
+        with patch("shutil.which", return_value=binary_path):
+            with patch.object(ad, "_run_with_summary") as run_with_summary:
+                with patch.object(ad, "_run_passthrough") as run_passthrough:
+                    ad.run_tool(tool_name)
         assert run_with_summary.called, tool_name
         assert not run_passthrough.called, tool_name
 

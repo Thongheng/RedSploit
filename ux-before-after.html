@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RedSploit Before / After</title>
+  <style>
+    :root {
+      --bg: #efe9df;
+      --panel: #faf6ef;
+      --ink: #172126;
+      --muted: #677176;
+      --line: rgba(23, 33, 38, 0.14);
+      --term: #101719;
+      --term-ink: #e5efe8;
+      --accent: #cb522d;
+      --good: #19644a;
+      --good-soft: #dbeee5;
+      --bad: #7d2323;
+      --bad-soft: #f5dede;
+      --shadow: 0 24px 60px rgba(23, 33, 38, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(203, 82, 45, 0.13), transparent 22rem),
+        radial-gradient(circle at bottom right, rgba(25, 100, 74, 0.1), transparent 26rem),
+        var(--bg);
+    }
+
+    .page {
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 28px 20px 56px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .hero-copy,
+    .hero-side,
+    .notes {
+      background: rgba(250, 246, 239, 0.78);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+
+    .hero-copy {
+      padding: 26px;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.36);
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 14px 0 10px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(34px, 6vw, 66px);
+      line-height: 0.96;
+      font-weight: 600;
+    }
+
+    .hero-copy p,
+    .hero-side p,
+    .notes p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 16px;
+    }
+
+    .hero-side {
+      padding: 24px;
+      background: rgba(23, 33, 38, 0.92);
+      color: #f7f3ec;
+    }
+
+    .hero-side h2 {
+      margin: 0 0 10px;
+      font-size: 20px;
+    }
+
+    .hero-side ul {
+      margin: 0;
+      padding-left: 18px;
+      line-height: 1.75;
+      color: rgba(247, 243, 236, 0.86);
+    }
+
+    .row {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .row.commands {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .row.scenarios {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.52);
+      color: var(--ink);
+      padding: 14px 16px;
+      font: inherit;
+      cursor: pointer;
+      transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      border-color: rgba(23, 33, 38, 0.3);
+    }
+
+    button.active {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: #faf6ef;
+    }
+
+    button.scenario.active {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .terminal-card {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .terminal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .terminal-head h3 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    .tag {
+      display: inline-flex;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .tag.bad {
+      background: var(--bad-soft);
+      color: var(--bad);
+    }
+
+    .tag.good {
+      background: var(--good-soft);
+      color: var(--good);
+    }
+
+    .terminal {
+      background: var(--term);
+      color: var(--term-ink);
+      min-height: 530px;
+      padding: 18px;
+      font-family: "SFMono-Regular", "Menlo", monospace;
+      font-size: 13px;
+      line-height: 1.58;
+      white-space: pre-wrap;
+      margin: 0;
+      overflow: auto;
+    }
+
+    .notes {
+      margin-top: 18px;
+      padding: 22px 24px;
+    }
+
+    .notes h4 {
+      margin: 0 0 12px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .notes ul {
+      margin: 0;
+      padding-left: 18px;
+      line-height: 1.75;
+    }
+
+    .notes strong {
+      color: var(--ink);
+    }
+
+    @media (max-width: 1020px) {
+      .hero,
+      .compare,
+      .row.commands,
+      .row.scenarios {
+        grid-template-columns: 1fr;
+      }
+
+      .terminal {
+        min-height: 380px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow">Interactive Mockup</span>
+        <h1>Compare the actual output, not just the idea.</h1>
+        <p>
+          Pick a scenario, then pick a command like <code>help</code> or <code>next</code>.
+          The left side shows what RedSploit feels like now. The right side shows what the
+          same command could look like after the UX changes.
+        </p>
+      </div>
+      <div class="hero-side">
+        <h2>What this version focuses on</h2>
+        <ul>
+          <li>Real-looking terminal output on both sides</li>
+          <li>The same command compared directly</li>
+          <li>Short notes below explaining the change</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="row scenarios" id="scenarioControls">
+      <button class="scenario active" data-scenario="host">Host Recon</button>
+      <button class="scenario" data-scenario="web">Web App</button>
+      <button class="scenario" data-scenario="creds">Creds Ready</button>
+      <button class="scenario" data-scenario="ad">AD / Domain</button>
+      <button class="scenario" data-scenario="transfer">Transfer / Utility</button>
+    </div>
+
+    <div class="row commands" id="commandControls">
+      <button class="active" data-command="home">home</button>
+      <button data-command="help">help</button>
+      <button data-command="next">next</button>
+      <button data-command="options">options</button>
+    </div>
+
+    <section class="compare">
+      <article class="terminal-card">
+        <div class="terminal-head">
+          <h3>Before</h3>
+          <span class="tag bad" id="beforeLabel">Before: home</span>
+        </div>
+        <pre class="terminal" id="beforeTerminal"></pre>
+      </article>
+
+      <article class="terminal-card">
+        <div class="terminal-head">
+          <h3>After</h3>
+          <span class="tag good" id="afterLabel">After: home</span>
+        </div>
+        <pre class="terminal" id="afterTerminal"></pre>
+      </article>
+    </section>
+
+    <section class="notes">
+      <h4>What Changed</h4>
+      <p id="scenarioLead" style="margin-bottom: 10px;"></p>
+      <ul id="notesList"></ul>
+    </section>
+  </div>
+
+  <script>
+    const beforeTerminal = document.getElementById("beforeTerminal");
+    const afterTerminal = document.getElementById("afterTerminal");
+    const notesList = document.getElementById("notesList");
+    const scenarioLead = document.getElementById("scenarioLead");
+    const beforeLabel = document.getElementById("beforeLabel");
+    const afterLabel = document.getElementById("afterLabel");
+
+    let currentScenario = "host";
+    let currentCommand = "home";
+
+    const scenarios = {
+      host: {
+        lead: "Host recon should feel guided, not like a memory test.",
+        notes: {
+          home: [
+            "The shell opens with <strong>useful context</strong> instead of a blank prompt.",
+            "It shows <strong>top next actions</strong> for a host target.",
+            "You no longer need to remember to type <code>use infra</code> before you can think."
+          ],
+          help: [
+            "Help starts with the <strong>most relevant commands</strong> first.",
+            "It groups the output by <strong>workflow</strong>, not by raw tool inventory.",
+            "Less important commands are still available through a deeper help view."
+          ],
+          next: [
+            "This adds a new command: <strong><code>next</code></strong>.",
+            "It answers the real question: <strong>what should I run now?</strong>",
+            "That removes the need to remember the sequence manually."
+          ],
+          options: [
+            "The first options view shows only the <strong>daily-use variables</strong>.",
+            "Advanced tuning stays available with something like <code>options all</code>.",
+            "That makes the current state much easier to scan."
+          ]
+        },
+        commands: {
+          home: {
+            before: `redsploit >
+
+No guided home screen.
+You need to remember what to do next:
+  set target ...
+  help
+  use infra
+  nmap`,
+            after: `redsploit >
+
+Session
+  target      10.10.10.10
+  workspace   engagement-a
+  interface   tun0
+
+Do next
+  1. nmap        Host discovery
+  2. rustscan    Fast port sweep
+  3. smbmap      If SMB is open
+
+Shortcuts
+  help   next   options   run`
+          },
+          help: {
+            before: `redsploit > help
+
+Infrastructure Module
+
+Scanners
+  -nmap
+  -rustscan
+
+SMB Tools
+  -smbclient
+  -smbmap
+  -enum4linux
+  -nxc
+
+Remote Access
+  -ftp  -rdp  -ssh
+
+Remote Execution
+  -evil_winrm  -psexec  -wmiexec`,
+            after: `redsploit > help
+
+Recommended for current target
+  nmap        First host discovery step
+  rustscan    Fast port sweep
+  smbmap      SMB visibility
+  nxc         Better once creds exist
+
+Workflow
+  Recon       nmap, rustscan
+  Enumerate   smbmap, nxc
+  Access      evil_winrm, rdp, ssh
+
+More
+  help all`
+          },
+          next: {
+            before: `redsploit > next
+
+Unknown command: next`,
+            after: `redsploit > next
+
+Context
+  target     10.10.10.10
+  workspace  engagement-a
+
+Recommended now
+  1. nmap       First host discovery step
+  2. rustscan   Fast port sweep
+  3. smbmap     Run if SMB appears
+  4. nxc        Better once creds exist`
+          },
+          options: {
+            before: `redsploit > options
+
+target  10.10.10.10
+user
+username
+password
+domain
+hash
+interface  tun0
+lhost
+lport  4444
+fileport 8000
+payload
+payload_format
+payload_file
+wordlist_dir
+wordlist_subdomain
+wordlist_vhost
+workspace engagement-a
+log
+summary on`,
+            after: `redsploit > options
+
+Visible now
+  target      10.10.10.10
+  domain
+  user
+  hash
+  interface   tun0
+  workspace   engagement-a
+  summary     on
+
+More
+  options all`
+          }
+        }
+      },
+      web: {
+        lead: "A web target should immediately feel like a web workflow.",
+        notes: {
+          home: [
+            "The shell recognizes a URL and changes the default suggestions.",
+            "You get a <strong>clear web path</strong>: inspect, content discovery, then scan.",
+            "No module switch is required just to get oriented."
+          ],
+          help: [
+            "Help stops showing every web tool with equal weight.",
+            "The likely defaults come first, so choosing is easier.",
+            "Alternatives are still reachable without dominating the first screen."
+          ],
+          next: [
+            "<code>next</code> is especially useful when you forget which web command comes first.",
+            "It gives a short sequence instead of forcing you to scan a large help menu.",
+            "That reduces overlap confusion between similar web tools."
+          ],
+          options: [
+            "Wordlists and tuning fields move out of the first view.",
+            "The visible state stays focused on what matters right now.",
+            "That makes the interface feel lighter."
+          ]
+        },
+        commands: {
+          home: {
+            before: `redsploit >
+
+No web-specific home view.
+You still decide manually:
+  headerscan?
+  dir_ferox?
+  nuclei?`,
+            after: `redsploit >
+
+Session
+  target      https://app.internal
+  workspace   portal-test
+
+Do next
+  1. headerscan   Fast sanity check
+  2. dir_ferox    Default content discovery
+  3. nuclei       Run after reachability
+
+Shortcuts
+  help   next   options   run`
+          },
+          help: {
+            before: `redsploit > use web
+redsploit (web) > help
+
+Subdomain Discovery
+  subfinder, gobuster_dns, dnsrecon, subzy, vhost
+
+Directory Scanning
+  dir_ffuf, dir_ferox, dir_dirsearch, gobuster_dir
+
+Vulnerability Scanning
+  nuclei, wpscan, waf`,
+            after: `redsploit > help
+
+Recommended for current target
+  headerscan   Fast web sanity check
+  dir_ferox    Default content discovery
+  nuclei       Main vulnerability scan
+  screenshots  Visual confirmation
+
+Workflow
+  Inspect    headerscan, screenshots
+  Discover   subfinder, gobuster_dns, dnsrecon
+  Content    dir_ferox, dir_ffuf, gobuster_dir
+
+More
+  help all`
+          },
+          next: {
+            before: `redsploit > next
+
+Unknown command: next`,
+            after: `redsploit > next
+
+Context
+  target  https://app.internal
+
+Recommended now
+  1. headerscan  Fast web sanity check
+  2. dir_ferox   Default content discovery
+  3. nuclei      Run after initial reachability check
+  4. screenshots Capture app state quickly`
+          },
+          options: {
+            before: `redsploit > options
+
+target  https://app.internal
+wordlist_dir
+wordlist_subdomain
+wordlist_vhost
+summary on
+workspace portal-test
+interface tun0
+fileport 8000`,
+            after: `redsploit > options
+
+Visible now
+  target      https://app.internal
+  workspace   portal-test
+  interface   tun0
+  summary     on
+
+More
+  options all`
+          }
+        }
+      },
+      creds: {
+        lead: "When creds exist, the shell should feel access-aware automatically.",
+        notes: {
+          home: [
+            "The home view changes when credentials are present.",
+            "Auth-aware tools rise to the top automatically.",
+            "That makes the shell feel responsive to the actual session state."
+          ],
+          help: [
+            "Help is no longer static.",
+            "The relevant authenticated tools move up because the shell knows your context changed.",
+            "That removes a lot of manual recall."
+          ],
+          next: [
+            "This is one of the strongest uses of <code>next</code>.",
+            "It converts credential state into an action sequence.",
+            "That is much easier than remembering the SMB or WinRM path yourself."
+          ],
+          options: [
+            "Credential state remains visible, but the view is cleaner.",
+            "Derived fields no longer dominate the page.",
+            "That makes options easier to audit quickly."
+          ]
+        },
+        commands: {
+          home: {
+            before: `redsploit >
+
+Credentials are set,
+but the home view does not really change.`,
+            after: `redsploit >
+
+Session
+  target      10.10.10.10
+  user        admin:********
+
+Do next
+  1. nxc         Auth-aware enumeration
+  2. smbmap      Check shares with creds
+  3. evil_winrm  Try shell access
+  4. psexec      Stronger action later`
+          },
+          help: {
+            before: `redsploit > help
+
+Same overall tool list.
+Nothing rises just because creds are set.`,
+            after: `redsploit > help
+
+Recommended for current target + creds
+  nxc         Auth-aware enumeration
+  smbmap      Share visibility with creds
+  evil_winrm  Try shell access
+  psexec      Stronger action
+
+Also relevant
+  secretsdump, wmiexec, rdp, ssh`
+          },
+          next: {
+            before: `redsploit > next
+
+Unknown command: next`,
+            after: `redsploit > next
+
+Context
+  target  10.10.10.10
+  user    admin:********
+
+Recommended now
+  1. nxc         Auth-aware enumeration
+  2. smbmap      Check shares with creds
+  3. evil_winrm  Try shell access if applicable
+  4. psexec      Stronger action later`
+          },
+          options: {
+            before: `redsploit > options
+
+user
+username  admin
+password  ********
+hash
+target 10.10.10.10`,
+            after: `redsploit > options
+
+Visible now
+  target      10.10.10.10
+  user        admin:********
+  hash
+  workspace   corp-lab
+
+More
+  options all`
+          }
+        }
+      },
+      ad: {
+        lead: "Domain context should unlock an AD-focused workflow instead of a generic one.",
+        notes: {
+          home: [
+            "The shell recognizes that this looks like an AD engagement.",
+            "AD actions become the default path instead of generic infra actions.",
+            "That makes the product feel more like an assistant."
+          ],
+          help: [
+            "The AD path becomes visible without you needing to reconstruct it mentally.",
+            "The most likely AD tools rise automatically.",
+            "That reduces overwhelm during common internal workflows."
+          ],
+          next: [
+            "Here <code>next</code> becomes a lightweight AD guide.",
+            "It turns domain + creds into a practical sequence.",
+            "That is much easier than remembering BloodHound, enum, and extract order yourself."
+          ],
+          options: [
+            "Domain state is easy to read.",
+            "The current context stays visible without advanced noise.",
+            "That makes the state feel calmer and clearer."
+          ]
+        },
+        commands: {
+          home: {
+            before: `redsploit >
+
+Domain is set,
+but the shell still feels generic.`,
+            after: `redsploit >
+
+Session
+  target      10.10.10.10
+  domain      corp.local
+  user        admin:********
+
+Do next
+  1. bloodhound  Domain graph collection
+  2. nxc         AD enumeration
+  3. secretsdump Extraction`
+          },
+          help: {
+            before: `redsploit > help
+
+The AD path is present,
+but not strongly surfaced.`,
+            after: `redsploit > help
+
+Recommended for current AD context
+  bloodhound  Domain graph collection
+  nxc         Authenticated AD enumeration
+  secretsdump Extraction step
+  kerbrute    Secondary if creds are weak or absent
+
+Workflow
+  Enumerate  bloodhound, nxc
+  Extract    secretsdump`
+          },
+          next: {
+            before: `redsploit > next
+
+Unknown command: next`,
+            after: `redsploit > next
+
+Context
+  target  10.10.10.10
+  domain  corp.local
+  user    admin:********
+
+Recommended now
+  1. bloodhound  Domain graph collection
+  2. nxc         Authenticated AD enumeration
+  3. secretsdump Extraction step
+  4. kerbrute    Lower because creds already exist`
+          },
+          options: {
+            before: `redsploit > options
+
+target   10.10.10.10
+domain   corp.local
+user
+username admin
+password ********`,
+            after: `redsploit > options
+
+Visible now
+  target      10.10.10.10
+  domain      corp.local
+  user        admin:********
+  workspace   ad-lab
+
+More
+  options all`
+          }
+        }
+      },
+      transfer: {
+        lead: "Utility work should feel immediate, not like another subsystem to learn.",
+        notes: {
+          home: [
+            "Utility actions become obvious from the start.",
+            "The shell shows the default transfer path immediately.",
+            "That helps when you want speed instead of exploration."
+          ],
+          help: [
+            "Help becomes shorter and more action-focused.",
+            "The default transfer path is clear.",
+            "That makes quick utility work easier."
+          ],
+          next: [
+            "`next` also works well for small utility tasks.",
+            "It converts current interface and fileport into concrete actions.",
+            "That keeps small jobs fast."
+          ],
+          options: [
+            "Transfer tuning moves out of the first view.",
+            "The important state remains visible.",
+            "That makes the options output easier to scan."
+          ]
+        },
+        commands: {
+          home: {
+            before: `redsploit >
+
+No quick utility dashboard.`,
+            after: `redsploit >
+
+Session
+  interface   tun0
+  fileport    8000
+
+Do next
+  1. download      Main transfer action
+  2. server http   Fast local file hosting
+  3. server smb    Use only if SMB is needed`
+          },
+          help: {
+            before: `redsploit > help
+
+download
+base64
+server
+http
+smb`,
+            after: `redsploit > help
+
+Recommended utilities
+  download      Main transfer action
+  server http   Default quick host
+  server smb    Secondary path
+  base64        Fallback utility
+
+Quick actions
+  preview, copy, edit`
+          },
+          next: {
+            before: `redsploit > next
+
+Unknown command: next`,
+            after: `redsploit > next
+
+Context
+  interface  tun0
+  fileport   8000
+
+Recommended now
+  1. download      Main transfer action
+  2. server http   Fast local file hosting
+  3. server smb    Use only if SMB is needed
+  4. base64        Fallback utility`
+          },
+          options: {
+            before: `redsploit > options
+
+interface  tun0
+fileport   8000
+workspace  default
+summary    on
+lhost
+lport      4444`,
+            after: `redsploit > options
+
+Visible now
+  interface   tun0
+  workspace   default
+  summary     on
+
+More
+  options all`
+          }
+        }
+      }
+    };
+
+    function render() {
+      const scenario = scenarios[currentScenario];
+      const view = scenario.commands[currentCommand];
+
+      beforeTerminal.textContent = view.before;
+      afterTerminal.textContent = view.after;
+      beforeLabel.textContent = `Before: ${currentCommand}`;
+      afterLabel.textContent = `After: ${currentCommand}`;
+      scenarioLead.textContent = scenario.lead;
+      notesList.innerHTML = scenario.notes[currentCommand]
+        .map(item => `<li>${item}</li>`)
+        .join("");
+    }
+
+    document.getElementById("scenarioControls").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-scenario]");
+      if (!button) return;
+      currentScenario = button.dataset.scenario;
+      document.querySelectorAll("#scenarioControls button").forEach(btn => btn.classList.remove("active"));
+      button.classList.add("active");
+      render();
+    });
+
+    document.getElementById("commandControls").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-command]");
+      if (!button) return;
+      currentCommand = button.dataset.command;
+      document.querySelectorAll("#commandControls button").forEach(btn => btn.classList.remove("active"));
+      button.classList.add("active");
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>

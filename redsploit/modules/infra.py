@@ -58,26 +58,6 @@ class InfraModule(BaseModule):
             "execution_mode": "captured",
             "summary_profile": "generic",
         },
-        "nxc": {
-            "cmd": "nxc smb {target} {auth}",
-            "binary": "nxc",
-            "desc": "SMB credential testing",
-            "category": "SMB Tools",
-            "requires": ["target", "auth_mandatory"],
-            "auth_mode": "u_p_flags",
-            "execution_mode": "captured",
-            "summary_profile": "generic",
-        },
-        "bloodhound": {
-            "cmd": "bloodhound-ce-python {auth} -ns {ip} -d {domain} -c all",
-            "binary": "bloodhound-ce-python",
-            "desc": "Active Directory graph collection",
-            "category": "Active Directory",
-            "requires": ["target", "domain", "auth_mandatory"],
-            "auth_mode": "u_p_flags",
-            "execution_mode": "captured",
-            "summary_profile": "generic",
-        },
         "ftp": {
             "cmd": "lftp -u '{user},{password}' ftp://{target}",
             "binary": "lftp",
@@ -123,52 +103,6 @@ class InfraModule(BaseModule):
             "auth_mode": "custom",
             "execution_mode": "passthrough",
         },
-        "evil_winrm": {
-            "cmd": "evil-winrm-py -i {target} {auth}",
-            "binary": "evil-winrm-py",
-            "desc": "WinRM shell access",
-            "category": "Remote Execution",
-            "requires": ["target"],
-            "auth_mode": "u_p_flags",
-            "aliases": ["evil-winrm"],
-            "execution_mode": "passthrough",
-        },
-        "psexec": {
-            "cmd": "impacket-psexec {creds}@{target}",
-            "binary": "impacket-psexec",
-            "desc": "Impacket remote execution via SMB",
-            "category": "Remote Execution",
-            "requires": ["target"],
-            "auth_mode": "impacket",
-            "execution_mode": "passthrough",
-        },
-        "wmiexec": {
-            "cmd": "impacket-wmiexec {creds}@{target}",
-            "binary": "impacket-wmiexec",
-            "desc": "Impacket remote execution via WMI",
-            "category": "Remote Execution",
-            "requires": ["target"],
-            "auth_mode": "impacket",
-            "execution_mode": "passthrough",
-        },
-        "secretsdump": {
-            "cmd": "impacket-secretsdump {creds}@{target}",
-            "binary": "impacket-secretsdump",
-            "desc": "Dump secrets via Impacket",
-            "category": "Active Directory",
-            "requires": ["target"],
-            "auth_mode": "impacket",
-            "execution_mode": "passthrough",
-        },
-        "kerbrute": {
-            "cmd": "kerbrute userenum --dc {target} -d {domain} users.txt",
-            "binary": "kerbrute",
-            "desc": "Kerberos username enumeration",
-            "category": "Active Directory",
-            "requires": ["target", "domain"],
-            "execution_mode": "captured",
-            "summary_profile": "generic",
-        }
     }
 
     def __init__(self, session):
@@ -182,15 +116,17 @@ class InfraModule(BaseModule):
         return get_ip_address(interface) or "0.0.0.0"
 
     def _resolve_payload(self):
+        payload_defaults = self.session.config.get("infra", {}).get("defaults", {})
         return (
-            self.session.get("payload")
+            payload_defaults.get("payload")
             or self.session.get_config_flags("infra", "msf", "payload")
             or "windows/meterpreter/reverse_tcp"
         )
 
     def _resolve_payload_format(self, payload):
+        payload_defaults = self.session.config.get("infra", {}).get("defaults", {})
         configured_format = (
-            self.session.get("payload_format")
+            payload_defaults.get("payload_format")
             or self.session.get_config_flags("infra", "msfvenom", "format")
         )
         if configured_format:
@@ -212,7 +148,7 @@ class InfraModule(BaseModule):
         return "raw"
 
     def _resolve_payload_file(self, payload, payload_format):
-        payload_file = self.session.get("payload_file")
+        payload_file = self.session.config.get("infra", {}).get("defaults", {}).get("payload_file")
         if payload_file:
             return payload_file
 
@@ -236,22 +172,20 @@ class InfraModule(BaseModule):
         tool = self.TOOLS.get(tool_name)
         if not tool:
             log_error(f"Tool {tool_name} not found.")
-            return
+            return 1
 
         # Check tool availability
         binary = tool.get("binary")
         if binary and not self._check_tool(binary):
-            return
+            return 127
 
-        # Use unified resolution
-        domain_resolved, url_resolved, port_resolved = self.session.resolve_target()
-        
-        # Determine target to use - prioritize domain if available, else target IP
-        target = domain_resolved if domain_resolved else self.session.get("target")
+        scan_target, _, _ = self.session.resolve_host_target()
+        domain_resolved, _, _ = self.session.resolve_domain_value()
+        target = scan_target
 
         if tool_name not in ("msf", "msfvenom") and not target:
              log_warn("Target is not set. Use 'set TARGET <ip/domain>'")
-             return
+             return 1
 
         # 1. Get Variables
         user = self.session.get("username")
@@ -272,22 +206,22 @@ class InfraModule(BaseModule):
         reqs = tool.get("requires", [])
         if "target" in reqs and not target:
             log_warn("Target is not set.")
-            return
+            return 1
         if "domain" in reqs and not domain_resolved:
             log_warn("Domain is not set. (Try 'set domain ...')")
-            return
+            return 1
         if "auth_mandatory" in reqs:
             if not (user and (password or hash_val)):
                  log_warn("Credentials required for this tool. Use 'set user <username:password>'")
-                 return
+                 return 1
 
         if tool_name in ("msf", "msfvenom") and not lhost:
             log_warn("LHOST could not be resolved. Use 'set lhost <ip>' or set a valid interface.")
-            return
+            return 1
 
         # 3. Build Auth String
         auth_str = ""
-        creds_str = "" # format user[:pass] or user@domain -hashes :hash
+        impacket_args = ""
         
         if use_auth:
              mode = tool.get("auth_mode", "")
@@ -309,13 +243,20 @@ class InfraModule(BaseModule):
                  # lftp -u 'user,pass'
                  pass # Handled in format_args
              elif mode == "impacket":
-                 if user:
-                     creds_str = shlex.quote(user)
-                     if hash_val:
-                         # Pass-the-hash
-                         creds_str += f"@{shlex.quote(domain_resolved or '.')} -hashes :{shlex.quote(hash_val)}"
-                     elif password:
-                         creds_str += f":{shlex.quote(password)}"
+                 principal = f"{domain_resolved}/{user}" if domain_resolved else user
+                 if hash_val:
+                     impacket_args = (
+                         f"-hashes {shlex.quote(':' + hash_val)} "
+                         f"{shlex.quote(f'{principal}@{target}')}"
+                     )
+                 elif password:
+                     impacket_args = shlex.quote(f"{principal}:{password}@{target}")
+                 else:
+                     impacket_args = shlex.quote(f"{principal}@{target}")
+
+        if tool.get("auth_mode") == "impacket" and not impacket_args:
+            log_warn("Credentials required for this tool. Use 'set user <username:password>' or 'set hash <ntlm_hash>'.")
+            return 1
         
         # 4. Get Tool Configuration Flags
         config_flags = ""
@@ -342,7 +283,7 @@ class InfraModule(BaseModule):
                  "auth": auth_str,
                  "user": shlex.quote(user or ""),
                  "password": shlex.quote(password or ""),
-                 "creds": creds_str,
+                 "impacket_args": impacket_args,
                  "lport": shlex.quote(lport or "4444"),
                  "lhost": shlex.quote(lhost),
                  "payload": shlex.quote(payload_name),
@@ -365,7 +306,7 @@ class InfraModule(BaseModule):
              # Clean up double spaces
              cmd = " ".join(cmd.split())
              
-             self._exec(
+             return self._exec(
                  cmd,
                  copy_only,
                  edit,
@@ -376,6 +317,7 @@ class InfraModule(BaseModule):
              
         except KeyError as e:
             log_error(f"Missing variable in command template: {e}")
+            return 1
 
     def run(self, args_list):
         args_list, cli_flags = self.parse_cli_options(args_list)
@@ -383,7 +325,7 @@ class InfraModule(BaseModule):
 
         if tool_name and self.has_help_flag(args_list[tool_index + 1:]):
             self.print_tool_help("infra", tool_name)
-            return
+            return 0
 
         if self.has_help_flag(args_list):
             self._print_help(
@@ -393,15 +335,15 @@ class InfraModule(BaseModule):
                 [
                     "red -T 10.10.10.10 -i -nmap",
                     "red -T 10.10.10.10 -U admin:pass -i -smbclient",
-                    "red -T 10.10.10.10 -U admin -H <ntlm_hash> -i -psexec",
+                    "red -T 10.10.10.10 -U admin:pass -i -ssh",
                     "red -i -P 4444 -msfvenom -p",
                     "red -i -P 4444 -msf",
                 ]
             )
-            return
+            return 0
 
         if tool_name:
-            self.run_tool(
+            return self.run_tool(
                 tool_name,
                 copy_only=cli_flags["copy_only"],
                 edit=cli_flags["edit"],
@@ -409,9 +351,9 @@ class InfraModule(BaseModule):
                 no_auth=cli_flags["no_auth"],
                 no_summary=cli_flags["no_summary"],
             )
-            return
 
         log_warn("No valid tool flag found. Use interactive mode or specify -<toolname>")
+        return 1
 
 
 class InfraShell(ModuleShell):

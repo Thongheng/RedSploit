@@ -40,7 +40,7 @@ class LootManager:
         loot_type: "cred", "hash", "file", etc.
         """
         entry = {
-            "id": len(self.loot_data) + 1,
+            "id": max((item.get("id", 0) for item in self.loot_data), default=0) + 1,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             "type": loot_type,
             "content": content,

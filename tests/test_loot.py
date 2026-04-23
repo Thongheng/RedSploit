@@ -51,3 +51,13 @@ class TestLootManager:
 
         loot.set_workspace("ws1")
         assert len(loot.loot_data) == 1
+
+    def test_ids_remain_unique_after_delete(self, loot):
+        loot.add("first", "cred")
+        loot.add("second", "cred")
+
+        assert loot.remove(1)
+
+        loot.add("third", "cred")
+
+        assert [item["id"] for item in loot.loot_data] == [2, 3]

@@ -37,10 +37,6 @@ class TestSessionSetGet:
         assert session.get("username") == "admin"
         assert session.get("password") == "pass:word"
 
-    def test_payload_variable_is_supported(self, session):
-        session.set("payload", "linux/x64/shell_reverse_tcp")
-        assert session.get("payload") == "linux/x64/shell_reverse_tcp"
-
     def test_lhost_variable_is_supported(self, session):
         session.set("lhost", "10.10.14.7")
         assert session.get("lhost") == "10.10.14.7"
@@ -53,14 +49,36 @@ class TestSessionSetGet:
         assert session.config["summary"]["enabled"] is True
         assert "openrouter" in session.config["summary"]["providers"]
 
-    def test_show_options_hides_advanced_tuning_variables(self, session, capsys):
+    def test_removed_tuning_variables_are_not_settable(self, session, capsys):
+        session.set("payload", "linux/x64/shell_reverse_tcp")
+        session.set("fileport", "9000")
+        captured = capsys.readouterr().out
+        assert "Invalid variable" in captured
+        assert session.get("payload") == ""
+        assert session.get("fileport") == ""
+
+    def test_show_options_does_not_include_removed_tuning_variables(self, session, capsys):
         session.show_options()
         captured = capsys.readouterr().out
+        assert "payload" not in captured
         assert "payload_format" not in captured
         assert "payload_file" not in captured
         assert "wordlist_dir" not in captured
         assert "wordlist_subdomain" not in captured
         assert "wordlist_vhost" not in captured
+        assert "fileport" not in captured
+        assert "log" not in captured
+
+    def test_show_options_masks_sensitive_values(self, session, capsys):
+        session.set("password", "secret123")
+        session.set("hash", "deadbeef")
+
+        session.show_options()
+        captured = capsys.readouterr().out
+
+        assert "secret123" not in captured
+        assert "deadbeef" not in captured
+        assert "********" in captured
 
 
 class TestPortValidation:
@@ -82,16 +100,6 @@ class TestPortValidation:
         old_val = session.get("lport")
         session.set("lport", "abc")
         assert session.get("lport") == old_val
-
-    def test_fileport_validation(self, session):
-        session.set("fileport", "9090")
-        assert session.get("fileport") == "9090"
-
-    def test_fileport_invalid_rejected(self, session):
-        old_val = session.get("fileport")
-        session.set("fileport", "notaport")
-        assert session.get("fileport") == old_val
-
 
 class TestResolveTarget:
     def test_basic_domain(self, session):
@@ -122,6 +130,20 @@ class TestResolveTarget:
         session.set("target", "192.168.1.1")
         domain, url, port = session.resolve_target()
         assert domain == "192.168.1.1"
+
+    def test_ipv6_target_does_not_treat_last_segment_as_port(self, session):
+        session.set("target", "2001:db8::1")
+        domain, url, port = session.resolve_target()
+        assert domain == "2001:db8::1"
+        assert url == "http://[2001:db8::1]"
+        assert port == ""
+
+    def test_bracketed_ipv6_url_with_port(self, session):
+        session.set("target", "http://[2001:db8::1]:8080")
+        domain, url, port = session.resolve_target()
+        assert domain == "2001:db8::1"
+        assert url == "http://[2001:db8::1]:8080"
+        assert port == "8080"
 
 
 class TestWorkspace:
@@ -166,6 +188,17 @@ class TestWorkspace:
 
         assert session.save_workspace("new_ws")
         assert os.path.exists(os.path.join(str(tmp_path), "new_ws.json"))
+
+    def test_load_workspace_ignores_removed_variables(self, session, tmp_path):
+        session.workspace_dir = str(tmp_path)
+        path = os.path.join(str(tmp_path), "legacy.json")
+        with open(path, "w") as handle:
+            json.dump({"target": "10.10.10.10", "payload": "legacy", "fileport": "9000"}, handle)
+
+        assert session.load_workspace("legacy")
+        assert session.get("target") == "10.10.10.10"
+        assert session.get("payload") == ""
+        assert session.get("fileport") == ""
 
     def test_workspace_command_save_without_name_updates_current_workspace(self, session, tmp_path):
         session.workspace_dir = str(tmp_path)

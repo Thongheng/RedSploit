@@ -160,7 +160,6 @@ class BaseShell(cmd.Cmd):
 
         display = domain if domain else target
 
-        # Build context segments separated by dim │
         segments = []
         if workspace and workspace != "default":
             segments.append(f"{Colors.OKCYAN}ws:{workspace}{Colors.ENDC}")
@@ -234,10 +233,10 @@ class BaseShell(cmd.Cmd):
         Select a module to use.
         Usage: use <module>
         
-        Available modules: infra, web, file, shell
+        Available modules: infra, ad, web, file, shell
         """
         module = arg.strip().lower()
-        if module in ["infra", "web", "file", "shell", "main"]:
+        if module in ["infra", "ad", "web", "file", "shell", "main"]:
             self.session.next_shell = module
             return True
         else:
@@ -245,7 +244,7 @@ class BaseShell(cmd.Cmd):
 
     def complete_use(self, text, line, begidx, endidx):
         """Autocomplete module names for 'use' command"""
-        modules = ["infra", "web", "file", "shell", "main"]
+        modules = ["infra", "ad", "web", "file", "shell", "main"]
         if text:
             return [m for m in modules if m.startswith(text)]
         return modules
@@ -285,7 +284,8 @@ class BaseShell(cmd.Cmd):
 
     def do_options(self, arg):
         """Show options (alias for 'show options')"""
-        self.session.show_options()
+        all_vars = (arg.strip().lower() == "all")
+        self.session.show_options(all_vars=all_vars)
 
     def do_workspace(self, arg):
         """
@@ -616,7 +616,7 @@ class BaseShell(cmd.Cmd):
         navigation_cmds = ["back", "use", "exit", "help", "clear"]
         config_cmds = ["set", "options"]
         advanced_cmds = ["workspace", "loot", "playbook"]
-        module_select_cmds = ["infra", "web", "file", "shell"]
+        module_select_cmds = ["infra", "ad", "web", "file", "shell"]
         
         module_cmds = []
         
@@ -780,7 +780,7 @@ class ModuleShell(BaseShell):
         )
 
     def complete_use(self, text, line, begidx, endidx):
-        modules = ["infra", "web", "file", "shell", "main"]
+        modules = ["infra", "ad", "web", "file", "shell", "main"]
         if text:
             return [m for m in modules if m.startswith(text)]
         return modules

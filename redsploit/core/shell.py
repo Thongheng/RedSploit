@@ -22,6 +22,7 @@ class RedShell(BaseShell):
             yield {"module": "core", "token": name, "canonical": name}
 
     def _iter_global_tool_candidates(self):
+        from ..modules.ad import AdModule
         from ..modules.file import FileModule
         from ..modules.infra import InfraModule
         from ..modules.web import WebModule
@@ -30,6 +31,11 @@ class RedShell(BaseShell):
             yield {"module": "infra", "token": tool_name, "canonical": tool_name}
             for alias in tool_data.get("aliases", []):
                 yield {"module": "infra", "token": alias, "canonical": tool_name}
+
+        for tool_name, tool_data in AdModule.TOOLS.items():
+            yield {"module": "ad", "token": tool_name, "canonical": tool_name}
+            for alias in tool_data.get("aliases", []):
+                yield {"module": "ad", "token": alias, "canonical": tool_name}
 
         for tool_name, tool_data in WebModule.TOOLS.items():
             yield {"module": "web", "token": tool_name, "canonical": tool_name}
@@ -102,6 +108,12 @@ class RedShell(BaseShell):
             WebModule(self.session, validate_environment=False).print_tool_help("web", match["canonical"])
             return
 
+        if match["module"] == "ad":
+            from ..modules.ad import AdModule
+
+            AdModule(self.session).print_tool_help("ad", match["canonical"])
+            return
+
         if match["module"] == "file":
             from ..modules.file import FileModule
 
@@ -118,6 +130,8 @@ class RedShell(BaseShell):
 
         if match["module"] == "infra":
             self.do_infra(routed_line)
+        elif match["module"] == "ad":
+            self.do_ad(routed_line)
         elif match["module"] == "web":
             self.do_web(routed_line)
         elif match["module"] == "file":
@@ -193,6 +207,33 @@ class RedShell(BaseShell):
         commands.extend(list(WebModule.TOOLS.keys()))
 
         # Filter out core commands
+        commands = [c for c in commands if c not in CORE_COMMANDS]
+        if text:
+            return [c for c in commands if c.startswith(text)]
+        return commands
+
+    def do_ad(self, arg):
+        """
+        Run ad commands or enter ad module.
+        Usage: ad [command]
+        Example: ad bloodhound
+                 ad help
+                 ad (enters module)
+        """
+        if not arg:
+            self.do_use("ad")
+            return
+
+        from ..modules.ad import AdShell
+        shell = AdShell(self.session)
+        shell.onecmd(arg)
+
+    def complete_ad(self, text, line, begidx, endidx):
+        """Autocomplete commands for 'ad'"""
+        from ..modules.ad import AdModule, AdShell
+
+        commands = [d[3:] for d in dir(AdShell) if d.startswith("do_")]
+        commands.extend(list(AdModule.TOOLS.keys()))
         commands = [c for c in commands if c not in CORE_COMMANDS]
         if text:
             return [c for c in commands if c.startswith(text)]

@@ -5,17 +5,12 @@ from .loot import LootManager
 from .playbook import PlaybookManager
 import json
 import os
+from urllib.parse import urlsplit
 import yaml
 
 class Session:
-    OPTIONS_HIDDEN_KEYS = {
-        "payload",
-        "payload_format",
-        "payload_file",
-        "wordlist_dir",
-        "wordlist_subdomain",
-        "wordlist_vhost",
-    }
+    OPTIONS_HIDDEN_KEYS = set()
+    SENSITIVE_KEYS = {"password", "hash"}
 
     def __init__(self) -> None:
         self.env: Dict[str, str] = {
@@ -28,15 +23,7 @@ class Session:
             "interface": get_default_interface(),
             "lhost": "",
             "lport": "4444",
-            "fileport": "8000",
-            "payload": "",
-            "payload_format": "",
-            "payload_file": "",
-            "wordlist_dir": "",
-            "wordlist_subdomain": "",
-            "wordlist_vhost": "",
             "workspace": "default",
-            "log": "",
             "summary": "",
         }
         self.next_shell: Optional[str] = None
@@ -63,15 +50,7 @@ class Session:
             "interface": {"required": True, "desc": "Network Interface"},
             "lhost": {"required": False, "desc": "Listener host (overrides interface IP)"},
             "lport": {"required": True, "desc": "Local Port (Reverse Shell)"},
-            "fileport": {"required": False, "desc": "File server port (default: 8000)"},
-            "payload": {"required": False, "desc": "Payload name (for Metasploit helpers)"},
-            "payload_format": {"required": False, "desc": "Payload output format (exe, elf, raw, ps1, ...)"},
-            "payload_file": {"required": False, "desc": "Output filename for generated payloads"},
-            "wordlist_dir": {"required": False, "desc": "Override web directory wordlist path"},
-            "wordlist_subdomain": {"required": False, "desc": "Override subdomain wordlist path"},
-            "wordlist_vhost": {"required": False, "desc": "Override vhost wordlist path"},
             "workspace": {"required": True, "desc": "Workspace name"},
-            "log": {"required": False, "desc": "Enable output logging (set to 'on' to enable)"},
             "summary": {"required": False, "desc": "Cleaner output mode (on/off)"},
         }
         
@@ -100,6 +79,19 @@ class Session:
                     "subdomain": f"{seclists_base}/Discovery/DNS/subdomains-top1million-5000.txt",
                     "vhost": f"{seclists_base}/Discovery/DNS/subdomains-top1million-20000.txt"
                 }
+            },
+            "infra": {
+                "defaults": {
+                    "payload": "",
+                    "payload_format": "",
+                    "payload_file": "",
+                },
+            },
+            "transfer": {
+                "port": 8000,
+            },
+            "logging": {
+                "enabled": False,
             },
             "summary": {
                 "enabled": True,
@@ -159,37 +151,56 @@ class Session:
         """
         domain_var = self.get("domain")
         target_var = self.get("target")
-        
-        # Prefer DOMAIN, fallback to TARGET
-        target = domain_var if domain_var else target_var
-        
+
+        return self._resolve_target_value(domain_var if domain_var else target_var)
+
+    def resolve_host_target(self):
+        """Resolve the session host target without letting DOMAIN override TARGET."""
+        return self._resolve_target_value(self.get("target") or self.get("domain"))
+
+    def resolve_domain_value(self):
+        """Resolve the DOMAIN value alone when modules need auth-domain context."""
+        return self._resolve_target_value(self.get("domain"))
+
+    def _resolve_target_value(self, target: str):
+        target = (target or "").strip()
         if not target:
             return None, None, None
-            
-        # Parse target logic
-        domain = target
+
         protocol = "http"
-        
-        if "://" in domain:
-            protocol, domain = domain.split("://", 1)
-            
-        # Extract port
         port = ""
-        if ":" in domain:
-            parts = domain.split(":")
-            if parts[-1].isdigit():
-                port = parts[-1]
-                domain = ":".join(parts[:-1])
-        
-        # Remove trailing slash
-        domain = domain.rstrip("/")
-        
-        # Reconstruct URL
-        url = f"{protocol}://{domain}"
+        host = target
+
+        if "://" in target:
+            parsed = urlsplit(target)
+            protocol = parsed.scheme or protocol
+            host = parsed.hostname or ""
+            port = str(parsed.port or "")
+        elif target.startswith("[") and "]" in target:
+            host, _, remainder = target[1:].partition("]")
+            if remainder.startswith(":") and remainder[1:].isdigit():
+                port = remainder[1:]
+        elif target.count(":") == 1:
+            candidate_host, candidate_port = target.rsplit(":", 1)
+            if candidate_port.isdigit():
+                host = candidate_host
+                port = candidate_port
+        else:
+            host = target
+
+        host = host.rstrip("/")
+        url_host = f"[{host}]" if ":" in host and not host.startswith("[") else host
+        url = f"{protocol}://{url_host}"
         if port:
             url += f":{port}"
-            
-        return domain, url, port
+
+        return host, url, port
+
+    def _format_display_value(self, key: str, value: str) -> str:
+        rendered = str(value)
+        if key in self.SENSITIVE_KEYS and rendered.strip():
+            return "*" * 8
+        return rendered
 
     def get(self, key: str) -> str:
         return self.env.get(key.lower(), "")
@@ -204,7 +215,7 @@ class Session:
             return
 
         # Basic validation for known variables
-        if key in ("lport", "fileport"):
+        if key == "lport":
             try:
                 port = int(value)
                 if not (1 <= port <= 65535):
@@ -222,7 +233,7 @@ class Session:
                 self.env["username"] = parts[0]
                 self.env["password"] = parts[1]
                 log_success(f"username => {parts[0]}")
-                log_success(f"password => {parts[1]}")
+                log_success(f"password => {self._format_display_value('password', parts[1])}")
             else:
                 # Only username provided
                 self.env["username"] = value
@@ -236,9 +247,24 @@ class Session:
             self.loot.set_workspace(value)
 
         if key != "user":  # Avoid duplicate log for user variable
-            log_success(f"{key} => {value}")
+            log_success(f"{key} => {self._format_display_value(key, value)}")
 
-    def show_options(self):
+    def show_options(self, all_vars=False):
+        if not all_vars:
+            print(f"\n{Colors.HEADER}Session Context{Colors.ENDC}")
+            key_vars = ["target", "domain", "user", "username", "workspace", "interface", "lport"]
+            found = False
+            for key in key_vars:
+                val = self.get(key)
+                if val:
+                    display_val = self._format_display_value(key, val)
+                    print(f"  {Colors.BOLD}{key}{Colors.ENDC} = {Colors.WARNING}{display_val}{Colors.ENDC}")
+                    found = True
+            if not found:
+                print(f"  {Colors.DIM}No key context set — use 'set target <ip>'{Colors.ENDC}")
+            print("")
+            return
+
         print(f"\n{Colors.HEADER}Session Variables{Colors.ENDC}")
 
         headers = ["Variable", "Value", "Req", "Description"]
@@ -286,7 +312,7 @@ class Session:
             var_col = f"{C_VAR}{key}{C_RESET}"
 
             # Value column
-            val_str = str(value)
+            val_str = self._format_display_value(key, value)
             if len(val_str) > col_widths[1]:
                 val_str = val_str[:col_widths[1] - 3] + "..."
             if required and is_unset:
@@ -342,9 +368,9 @@ class Session:
             
             with open(path, 'r') as f:
                 data = json.load(f)
-                # Update env, but respect existing structure potentially? 
-                # Ideally we just overwrite or merge. Overwrite is safer for "loading state"
-                self.env.update(data)
+                for key, value in data.items():
+                    if key in self.env:
+                        self.env[key] = value
                 
                 # Reload loot for the new workspace
                 self.loot.set_workspace(name)
@@ -407,6 +433,12 @@ class Session:
         if not os.path.exists(log_dir):
             os.makedirs(log_dir, mode=0o700, exist_ok=True)
         return log_dir
+
+    def get_transfer_port(self) -> str:
+        return str(self.config.get("transfer", {}).get("port", 8000))
+
+    def log_enabled(self) -> bool:
+        return bool(self.config.get("logging", {}).get("enabled", False))
 
     def set_tool_config(self, module: str, tool: str, key: str, value: str) -> bool:
         """Set a tool configuration preset."""

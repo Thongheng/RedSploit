@@ -51,17 +51,7 @@ class TestCommandGeneration:
             assert "not set" in captured.out
 
 
-class TestWordlistOverride:
-    @patch("shutil.which", return_value="/usr/bin/ffuf")
-    def test_dir_ffuf_uses_session_wordlist(self, mock_which, web, session):
-        session.set("domain", "https://example.com")
-        session.set("wordlist_dir", "/tmp/custom.txt")
-        with patch.object(web, "_exec") as mock_exec:
-            web.run_tool("dir_ffuf")
-            assert mock_exec.called
-            cmd = mock_exec.call_args[0][0]
-            assert "/tmp/custom.txt" in cmd
-
+class TestWordlistConfig:
     @patch("shutil.which", return_value="/usr/bin/ffuf")
     def test_dir_ffuf_uses_default_wordlist_when_unset(self, mock_which, web, session):
         session.set("domain", "https://example.com")
@@ -70,6 +60,17 @@ class TestWordlistOverride:
             assert mock_exec.called
             cmd = mock_exec.call_args[0][0]
             assert web.wordlist_dir in cmd
+
+    @patch("shutil.which", return_value="/usr/bin/ffuf")
+    def test_dir_ffuf_uses_configured_wordlist(self, mock_which, session):
+        session.config["web"]["wordlists"]["directory"] = "/tmp/custom.txt"
+        with patch("os.path.exists", return_value=True):
+            web = WebModule(session)
+        session.set("domain", "https://example.com")
+        with patch.object(web, "_exec") as mock_exec:
+            web.run_tool("dir_ffuf")
+            cmd = mock_exec.call_args[0][0]
+            assert "/tmp/custom.txt" in cmd
 
 
 class TestToolCheck:

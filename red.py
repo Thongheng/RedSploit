@@ -16,6 +16,7 @@ from redsploit.core.colors import Colors, log_error
 
 MODULE_FLAGS = {
     "-i": "infra",
+    "-a": "ad",
     "-w": "web",
     "-f": "file",
 }
@@ -35,16 +36,26 @@ EXECUTION_FLAGS = {
 
 
 def print_main_help():
-    print("usage: red.py [-h] [-set] [-T TARGET] [-U USER[:PASS]] [-D DOMAIN] [-H HASH] [-I IFACE] [-P LPORT] [-i|-w|-f] [-<tool>] [flags]")
+    print(f"usage: {Colors.BOLD}red{Colors.ENDC} [-h] [-set] [-T TARGET] [-U USER[:PASS]] [-D DOMAIN] [-H HASH] [-I IFACE] [-P LPORT] [-i|-a|-w|-f] [-<tool>] [flags]")
     print("")
-    print("Red Team Pentest Helper")
+    print(f"{Colors.HEADER}Red Team Pentest Helper{Colors.ENDC}")
     print("")
-    print("Modes:")
+    print(f"{Colors.BOLD}Modes:{Colors.ENDC}")
     print("  red                         Start the interactive shell")
     print("  red -set [preset flags]     Start the shell with session values preloaded")
     print("  red -T ... -i -nmap         Run one tool directly from the CLI")
     print("")
-    print("Session flags:")
+    print(f"{Colors.HEADER}Areas:{Colors.ENDC}")
+    print("  -i  Infrastructure           Network scanning and host analysis")
+    print(f"    {Colors.DIM}Example: red -i -nmap -sS{Colors.ENDC}")
+    print("  -a  Active Directory         Domain enumeration and auth attacks")
+    print(f"    {Colors.DIM}Example: red -a -nxc -u admin -p pass{Colors.ENDC}")
+    print("  -w  Web                      Recon, scanning and vulnerability analysis")
+    print(f"    {Colors.DIM}Example: red -w -nuclei -t https://example.com{Colors.ENDC}")
+    print("  -f  File Transfer            Moving files and utility servers")
+    print(f"    {Colors.DIM}Example: red -f -download payload.bin{Colors.ENDC}")
+    print("")
+    print(f"{Colors.HEADER}Session Setup:{Colors.ENDC}")
     print("  -T TARGET                   Set target IP, host, domain, or URL")
     print("  -U USER[:PASS]              Set username or username:password")
     print("  -D DOMAIN                   Set domain")
@@ -52,33 +63,23 @@ def print_main_help():
     print("  -I IFACE                    Set interface")
     print("  -P LPORT                    Set reverse-shell listener port")
     print("")
-    print("Modules:")
-    print("  -i                          Infrastructure tools")
-    print("  -w                          Web tools")
-    print("  -f                          File transfer and server helpers")
-    print("")
-    print("Execution flags:")
+    print(f"{Colors.HEADER}Runtime Modifiers:{Colors.ENDC}")
     print("  -c, --copy                  Copy generated command without running")
     print("  -p, --preview               Preview generated command without running")
     print("  -e, --edit                  Edit generated command before running")
     print("  -nosummary, --no-summary    Disable the post-run summary section")
     print("  -noauth, --noauth           Skip credentials for this run")
     print("")
-    print("Examples:")
+    print(f"{Colors.BOLD}Examples:{Colors.ENDC}")
     print("  red -set -T 10.10.10.10 -U admin:pass")
-    print("  red -set target 10.10.10.10")
     print("  red -T 10.10.10.10 -i -nmap -p")
-    print("  red -T 10.10.10.10 -U admin:pass -i -smb-c")
     print("  red -T https://example.com -w -gobuster --preview")
-    print("  red -w -headerscan https://example.com --detailed")
-    print("  red -i -P 4444 -msfvenom -p")
-    print("  red -i -P 4444 -msf")
     print("")
-    print("Tip: module flags are optional when the tool flag is unique, for example 'red -T 10.10.10.10 -nmap'.")
+    print(f"{Colors.DIM}Tip: module flags are optional when the tool flag is unique, e.g. 'red -T 10.10.10.10 -nmap'.{Colors.ENDC}")
 
 
 def _dispatch_help(module, raw_args):
-    tool_args = [arg for arg in raw_args if arg not in ("-i", "-w", "-f", "-h", "--help")]
+    tool_args = [arg for arg in raw_args if arg not in ("-i", "-a", "-w", "-f", "-h", "--help")]
     has_tool = False
 
     if hasattr(module, "COMMANDS") and hasattr(module, "resolve_command_name"):
@@ -147,6 +148,10 @@ def _make_module(module_name, session, for_help=False):
         from redsploit.modules.infra import InfraModule
 
         return InfraModule(session)
+    if module_name == "ad":
+        from redsploit.modules.ad import AdModule
+
+        return AdModule(session)
     if module_name == "web":
         from redsploit.modules.web import WebModule
 
@@ -165,6 +170,10 @@ def _make_shell(module_name, session):
         from redsploit.modules.infra import InfraShell
 
         return InfraShell(session)
+    if module_name == "ad":
+        from redsploit.modules.ad import AdShell
+
+        return AdShell(session)
     if module_name == "web":
         from redsploit.modules.web import WebShell
 
@@ -182,6 +191,7 @@ def _make_shell(module_name, session):
 
 def _auto_detect_module(args_list):
     from redsploit.modules.file import FileModule
+    from redsploit.modules.ad import AdModule
     from redsploit.modules.infra import InfraModule
     from redsploit.modules.web import WebModule
 
@@ -190,6 +200,8 @@ def _auto_detect_module(args_list):
             continue
         if InfraModule.resolve_tool_name(arg):
             return "infra"
+        if AdModule.resolve_tool_name(arg):
+            return "ad"
         if WebModule.resolve_tool_name(arg):
             return "web"
         if FileModule.resolve_command_name(arg):
@@ -227,7 +239,7 @@ def main():
             _print_set_help()
         else:
             print_main_help()
-        sys.exit(0)
+        raise SystemExit(0)
 
     session = Session()
 
@@ -340,14 +352,17 @@ def main():
                     
         except KeyboardInterrupt:
             print("\nExiting...")
+        return 0
     else:
         # CLI Mode
         try:
             if selected_module:
-                _make_module(selected_module, session).run(unknown)
+                return _make_module(selected_module, session).run(unknown)
+            log_error("No valid module or tool specified. Use -h for help.")
+            return 1
         except Exception as e:
             log_error(f"Module execution failed: {e}")
-            sys.exit(1)
+            return 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

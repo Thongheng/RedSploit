@@ -144,9 +144,9 @@ class WebModule(BaseModule):
 
         # Load config
         web_config = self.session.config.get("web", {}).get("wordlists", {})
-        self.wordlist_dir = self.session.get("wordlist_dir") or web_config.get("directory", "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt")
-        self.wordlist_subdomain = self.session.get("wordlist_subdomain") or web_config.get("subdomain", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt")
-        self.wordlist_vhost = self.session.get("wordlist_vhost") or web_config.get("vhost", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt")
+        self.wordlist_dir = web_config.get("directory", "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt")
+        self.wordlist_subdomain = web_config.get("subdomain", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt")
+        self.wordlist_vhost = web_config.get("vhost", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt")
 
         # Warn about missing wordlists
         if validate_environment:
@@ -160,7 +160,7 @@ class WebModule(BaseModule):
         tool = self.TOOLS.get(tool_name)
         if not tool:
             log_error(f"Tool {tool_name} not found.")
-            return
+            return 1
 
         if tool_name == "headerscan":
             if copy_only or edit or preview:
@@ -169,39 +169,37 @@ class WebModule(BaseModule):
                 run_headerscan(scanner_args or [], self.session)
             except ValueError as exc:
                 log_error(str(exc))
-            return
+                return 1
+            return 0
 
         # Check tool availability
         binary = tool.get("binary")
         if binary and not self._check_tool(binary):
-            return
+            return 127
 
         domain, url, port = self.session.resolve_target()
         
         reqs = tool.get("requires", [])
         if "domain" in reqs and not domain:
             log_warn("Target domain is not set. Use 'set TARGET <domain>'")
-            return
+            return 1
         if "url" in reqs and not url:
             log_warn("Target URL is not set. Use 'set TARGET <url>'")
-            return
+            return 1
 
         # Prepare formatting vars with QUOTING
-        wordlist_dir = self.session.get("wordlist_dir") or self.wordlist_dir
-        wordlist_subdomain = self.session.get("wordlist_subdomain") or self.wordlist_subdomain
-        wordlist_vhost = self.session.get("wordlist_vhost") or self.wordlist_vhost
         format_args = {
             "domain": shlex.quote(domain or ""),
             "url": shlex.quote(url or ""),
             "port": shlex.quote(port or ""),
-            "wordlist_dir": shlex.quote(wordlist_dir),
-            "wordlist_subdomain": shlex.quote(wordlist_subdomain),
-            "wordlist_vhost": shlex.quote(wordlist_vhost)
+            "wordlist_dir": shlex.quote(self.wordlist_dir),
+            "wordlist_subdomain": shlex.quote(self.wordlist_subdomain),
+            "wordlist_vhost": shlex.quote(self.wordlist_vhost)
         }
 
         try:
             cmd = tool["cmd"].format(**format_args)
-            self._exec(
+            return self._exec(
                 cmd,
                 copy_only,
                 edit,
@@ -211,6 +209,7 @@ class WebModule(BaseModule):
             )
         except KeyError as e:
             log_error(f"Missing variable in command template: {e}")
+            return 1
 
     def run(self, args_list):
         args_list, cli_flags = self.parse_cli_options(args_list)
@@ -218,13 +217,12 @@ class WebModule(BaseModule):
 
         if tool_name and self.has_help_flag(args_list[tool_index + 1:]):
             self.print_tool_help("web", tool_name)
-            return
+            return 0
 
         if tool_name == "headerscan":
             if any(cli_flags.values()):
                 log_warn("headerscan runs directly; -c, -e, -p, -nosummary, and -noauth are not supported and were ignored.")
-            self.run_tool("headerscan", scanner_args=args_list[tool_index + 1:])
-            return
+            return self.run_tool("headerscan", scanner_args=args_list[tool_index + 1:])
 
         if self.has_help_flag(args_list):
             self._print_help(
@@ -239,19 +237,19 @@ class WebModule(BaseModule):
                     "red -T example.com -w -dir_ffuf",
                 ]
             )
-            return
+            return 0
 
         if tool_name:
-            self.run_tool(
+            return self.run_tool(
                 tool_name,
                 copy_only=cli_flags["copy_only"],
                 edit=cli_flags["edit"],
                 preview=cli_flags["preview"],
                 no_summary=cli_flags["no_summary"],
             )
-            return
         
         log_warn("No valid tool flag found. Use interactive mode.")
+        return 1
 
 
 class WebShell(ModuleShell):

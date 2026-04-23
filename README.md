@@ -6,7 +6,7 @@ Red Team penetration testing CLI tool with interactive shell and automation capa
 
 - 🔧 **Interactive Shell** - Full-featured console with tab completion
 - 🚀 **Quick CLI Mode** - Run commands directly from terminal
-- 🎯 **Module System** - Infrastructure, Web, and File modules
+- 🎯 **Module System** - Infrastructure, Active Directory, Web, and Transfer modules
 - ⚡ **Shell Completion** - Native bash/zsh completion support
 - 📝 **Variable Management** - Session-based environment variables
 - ✨ **Post-Run Cleanup Summaries** - Optional AI-assisted summaries appended after supported scanner output
@@ -51,6 +51,12 @@ web:
     directory: /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
     subdomain: /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt
     vhost: /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt
+infra:
+  defaults:
+    payload: windows/x64/shell_reverse_tcp
+    payload_file: beacon.exe
+transfer:
+  port: 8000
 summary:
   enabled: true
   warn_on_unsupported: true
@@ -128,7 +134,7 @@ RedSploit is designed to be easily extensible.
 ### Adding New Tools
 Tools are defined in a data-driven structure within their respective module files (`infra.py`, `web.py`, `file.py`).
 
-**Example (adding a tool to `INFRA_TOOLS`):**
+**Example (adding a tool to `TOOLS`):**
 ```python
 "my_tool": {
     "cmd": "mytool -t {target} --scan",
@@ -151,6 +157,7 @@ red -set target 10.10.10.10
 **CLI Mode:**
 ```bash
 red -T 10.10.10.10 -i -nmap -p
+red -T 10.10.10.10 -D corp.local -U admin:pass -a -bloodhound -p
 red -T https://example.com -w -gobuster --preview
 red -w -headerscan https://example.com --detailed
 red -f -download linpeas.sh -c
@@ -183,8 +190,9 @@ red -set -H <ntlm_hash>      # Start interactive mode with hash preset
 | Flag | Module | Description |
 |------|--------|-------------|
 | `-i` | infra | Infrastructure enumeration (nmap, rustscan) |
+| `-a` | ad | Active Directory and authenticated Windows tooling |
 | `-w` | web | Web reconnaissance (gobuster, nuclei, etc.) |
-| `-f` | file | File operations (download, upload, servers) |
+| `-f` | file | File transfer and utility helpers |
 
 ## Variables
 
@@ -199,11 +207,10 @@ red -set -H <ntlm_hash>      # Start interactive mode with hash preset
 | `interface` | Network interface |
 | `lhost` | Listener host override (used by Metasploit helpers) |
 | `lport` | Local port for reverse shells (default: 4444) |
-| `payload` | Payload name for Metasploit helpers |
-| `payload_format` | Output format for `msfvenom` |
-| `payload_file` | Output filename for generated payloads |
 | `workspace` | Workspace name (default: default) |
 | `summary` | Cleaner output mode (`on` or `off`) |
+
+Uncommon settings like payload defaults, output filenames, transfer port, and wordlists now live in `config.yaml` instead of normal session variables.
 
 ## AI Summaries
 
@@ -317,6 +324,9 @@ Playbooks are stored in the `playbooks/` directory. You can create your own YAML
 # Quick nmap scan
 red -T 10.10.10.10 -i -nmap
 
+# Active Directory collection
+red -T 10.10.10.10 -D corp.local -U admin:pass -a -bloodhound
+
 # Web directory enumeration
 red -T example.com -w -dir_ffuf
 
@@ -334,13 +344,11 @@ red -T 10.10.10.10 -U admin:pass -i -smb-c
 red -T 10.10.10.10 -i -smb-c
 
 # Generate a payload that matches your handler
-red -set payload windows/x64/shell_reverse_tcp
+# Configure uncommon payload defaults in config.yaml, then run:
 red -set lhost 10.10.14.7
-red -set payload_file beacon.exe
 red -i -msfvenom -p
 
 # Start a matching Metasploit listener
-red -set payload windows/x64/shell_reverse_tcp
 red -set lhost 10.10.14.7
 red -i -P 4444 -msf
 
@@ -348,13 +356,9 @@ red -i -P 4444 -msf
 red
 > set target 10.10.10.10
 > set user admin:password
-> use infra
-> smbclient        # Uses credentials automatically
-> smbclient -noauth
-> set payload linux/x64/shell_reverse_tcp
-> set payload_file shell.elf
-> msfvenom -p
-> msf
+> use ad
+> bloodhound
+> nxc
 > back
 > use web
 > headerscan --json

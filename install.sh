@@ -320,18 +320,18 @@ resolve_api_key() {
     local variable_name="$1"
     local key_value shell_name fallback_rc
 
-    key_value="${!variable_name:-}"
-    if [ -n "$key_value" ]; then
-        printf '%s' "$key_value"
-        return 0
-    fi
-
     if [ -n "$RC_FILE" ]; then
         key_value="$(extract_api_key_from_rc "$RC_FILE" "$variable_name")"
         if [ -n "$key_value" ]; then
             printf '%s' "$key_value"
             return 0
         fi
+    fi
+
+    key_value="${!variable_name:-}"
+    if [ -n "$key_value" ]; then
+        printf '%s' "$key_value"
+        return 0
     fi
 
     shell_name="$(detect_real_shell_name)"

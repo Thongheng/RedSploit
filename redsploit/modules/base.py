@@ -194,12 +194,12 @@ class BaseModule:
             if tool_name == "msf":
                 return [
                     "red -i -P 4444 -msf",
-                    "set payload windows/x64/shell_reverse_tcp -> msf",
+                    "set lhost 10.10.14.7 -> msf",
                 ]
             if tool_name == "msfvenom":
                 return [
                     "red -i -P 4444 -msfvenom -p",
-                    "set payload linux/x64/shell_reverse_tcp -> set payload_file shell.elf -> msfvenom",
+                    "configure payload defaults in config.yaml -> msfvenom",
                 ]
 
             cli_parts = ["red", "-i"]
@@ -231,6 +231,24 @@ class BaseModule:
                 f"red -w -T {sample_target} -{tool_name}",
                 f"set target {sample_target} -> {tool_name}",
             ]
+
+        if module_name == "ad":
+            cli_parts = ["red", "-a"]
+            interactive_steps = []
+
+            if "target" in reqs:
+                cli_parts.extend(["-T", "10.10.10.10"])
+                interactive_steps.append("set target 10.10.10.10")
+            if "domain" in reqs:
+                cli_parts.extend(["-D", "corp.local"])
+                interactive_steps.append("set domain corp.local")
+            if "auth_mandatory" in reqs:
+                cli_parts.extend(["-U", "admin:Password123!"])
+                interactive_steps.append("set user admin:Password123!")
+
+            cli_parts.append(f"-{tool_name}")
+            interactive_steps.append(tool_name)
+            return [" ".join(cli_parts), " -> ".join(interactive_steps)]
 
         return [tool_name]
 
@@ -283,10 +301,10 @@ class BaseModule:
         preview: bool = False,
         no_summary: bool = False,
         summary_context: Optional[dict] = None,
-    ) -> None:
+    ) -> int:
         if preview:
             print(f"{Colors.OKCYAN}{cmd}{Colors.ENDC}")
-            return
+            return 0
 
         if edit:
             # Try bash read -e -i for pre-filled input (works best on macOS/Linux)
@@ -295,13 +313,14 @@ class BaseModule:
                 cmd = new_cmd
             else:
                 print("\nCancelled.")
-                return
+                return 130
 
         if copy_only:
             self._copy_to_clipboard(cmd)
+            return 0
         elif run:
             log_run(cmd)
-            log_enabled = self.session.get("log") == "on"
+            log_enabled = self.session.log_enabled()
             log_file = None
             capture_summary = False
             try:
@@ -333,13 +352,14 @@ class BaseModule:
                     )
 
                 if capture_summary:
-                    self._run_with_summary(cmd, log_file, summary_context)
+                    return self._run_with_summary(cmd, log_file, summary_context)
                 elif log_file:
-                    self._run_and_log(cmd, log_file)
+                    return self._run_and_log(cmd, log_file)
                 else:
-                    self._run_passthrough(cmd)
+                    return self._run_passthrough(cmd)
             except Exception as e:
                 log_error(f"Execution failed: {e}")
+                return 1
             finally:
                 if log_file:
                     log_file.close()
@@ -347,17 +367,17 @@ class BaseModule:
             # If not running and not copy-only (and maybe edited), just print/copy
             print(cmd)
             self._copy_to_clipboard(cmd)
+            return 0
 
-    def _run_passthrough(self, cmd: str) -> None:
+    def _run_passthrough(self, cmd: str) -> int:
         process = subprocess.Popen(cmd, shell=True)
         while True:
             try:
-                process.wait()
-                break
+                return process.wait()
             except KeyboardInterrupt:
                 continue
 
-    def _run_and_log(self, cmd: str, log_file) -> None:
+    def _run_and_log(self, cmd: str, log_file) -> int:
         process = subprocess.Popen(
             cmd,
             shell=True,
@@ -376,8 +396,9 @@ class BaseModule:
                     log_file.write(decoded)
             except KeyboardInterrupt:
                 continue
+        return process.poll() if process.poll() is not None else 0
 
-    def _run_with_summary(self, cmd: str, log_file, summary_context: dict) -> None:
+    def _run_with_summary(self, cmd: str, log_file, summary_context: dict) -> int:
         capture_buffer = SummaryCaptureBuffer(self._summary_capture_limit())
         process = subprocess.Popen(
             cmd,
@@ -417,6 +438,7 @@ class BaseModule:
             sys.stdout.flush()
             if log_file:
                 log_file.write(summary_result.text)
+        return exit_code if exit_code is not None else 0
 
     def _get_input_with_prefill(self, initial_text: str) -> Optional[str]:
         """

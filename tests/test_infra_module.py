@@ -45,6 +45,16 @@ class TestCommandGeneration:
             assert "smbclient" in cmd
             assert "admin" in cmd
 
+    @patch("shutil.which", return_value="/usr/bin/nmap")
+    def test_infra_uses_target_even_when_domain_is_set(self, mock_which, infra, session):
+        session.set("target", "10.10.10.10")
+        session.set("domain", "corp.local")
+        with patch.object(infra, "_exec") as mock_exec:
+            infra.run_tool("nmap")
+            cmd = mock_exec.call_args[0][0]
+            assert "10.10.10.10" in cmd
+            assert "corp.local" not in cmd
+
     @patch("shutil.which", return_value="/usr/bin/smbclient")
     def test_smbclient_noauth(self, mock_which, infra, session):
         session.set("target", "10.10.10.10")
@@ -74,16 +84,6 @@ class TestAuthModes:
             assert "-u" in cmd
             assert "-p" in cmd
 
-    @patch("shutil.which", return_value="/usr/bin/impacket-psexec")
-    def test_impacket_mode(self, mock_which, infra, session):
-        session.set("target", "10.10.10.10")
-        session.set("user", "admin:pass123")
-        with patch.object(infra, "_exec") as mock_exec:
-            infra.run_tool("psexec")
-            cmd = mock_exec.call_args[0][0]
-            assert "impacket-psexec" in cmd
-            assert "@" in cmd
-
     @patch("shutil.which", return_value="/usr/bin/xfreerdp3")
     def test_rdp_flags_mode(self, mock_which, infra, session):
         session.set("target", "10.10.10.10")
@@ -110,9 +110,9 @@ class TestAllToolsHaveDesc:
 
 class TestConfigurablePayload:
     @patch("shutil.which", return_value="/usr/bin/msfconsole")
-    def test_msf_uses_session_payload(self, mock_which, infra, session):
+    def test_msf_uses_configured_payload_default(self, mock_which, infra, session):
         session.set("target", "10.10.10.10")
-        session.set("payload", "linux/x64/shell_reverse_tcp")
+        session.config["infra"]["defaults"]["payload"] = "linux/x64/shell_reverse_tcp"
         with patch.object(infra, "_exec") as mock_exec:
             infra.run_tool("msf")
             assert mock_exec.called
@@ -132,11 +132,11 @@ class TestConfigurablePayload:
 
 class TestMetasploitPayloadGeneration:
     @patch("shutil.which", return_value="/usr/bin/msfvenom")
-    def test_msfvenom_uses_session_payload_settings(self, mock_which, infra, session):
+    def test_msfvenom_uses_config_defaults(self, mock_which, infra, session):
         session.set("lhost", "10.10.14.7")
         session.set("lport", "8443")
-        session.set("payload", "windows/x64/shell_reverse_tcp")
-        session.set("payload_file", "beacon.exe")
+        session.config["infra"]["defaults"]["payload"] = "windows/x64/shell_reverse_tcp"
+        session.config["infra"]["defaults"]["payload_file"] = "beacon.exe"
         with patch.object(infra, "_exec") as mock_exec:
             infra.run_tool("msfvenom", preview=True)
             assert mock_exec.called
@@ -151,7 +151,7 @@ class TestMetasploitPayloadGeneration:
     @patch("shutil.which", return_value="/usr/bin/msfconsole")
     def test_msf_handler_uses_lhost_override(self, mock_which, infra, session):
         session.set("lhost", "10.10.14.7")
-        session.set("payload", "linux/x64/shell_reverse_tcp")
+        session.config["infra"]["defaults"]["payload"] = "linux/x64/shell_reverse_tcp"
         with patch.object(infra, "_exec") as mock_exec:
             infra.run_tool("msf")
             assert mock_exec.called

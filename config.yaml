@@ -47,6 +47,10 @@ web:
       https: "https"
 
 infra:
+  defaults:
+    payload: ""
+    payload_format: ""
+    payload_file: ""
   configs:
     nmap:
       mode:
@@ -76,6 +80,12 @@ infra:
         ps1: "ps1"
         war: "war"
         py: "py"
+
+transfer:
+  port: 8000
+
+logging:
+  enabled: false
 
 summary:
   enabled: true

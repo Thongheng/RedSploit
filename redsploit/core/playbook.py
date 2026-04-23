@@ -1,4 +1,5 @@
 import os
+import shlex
 import subprocess
 import yaml
 import time
@@ -75,11 +76,14 @@ class PlaybookManager:
             # We use session.env to format the command string
             try:
                 # Add extra dynamic vars
-                context = self.session.env.copy()
+                context = {
+                    key: shlex.quote(str(value))
+                    for key, value in self.session.env.items()
+                }
                 domain, url, port = self.session.resolve_target()
-                context['url'] = url if url else ""
-                context['domain'] = domain if domain else ""
-                context['hash'] = self.session.get("hash")
+                context['url'] = shlex.quote(url) if url else ""
+                context['domain'] = shlex.quote(domain) if domain else ""
+                context['hash'] = shlex.quote(self.session.get("hash")) if self.session.get("hash") else ""
                 
                 # Check for Loot iteration? (Future scope)
                 

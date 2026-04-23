@@ -25,7 +25,7 @@ class FileModule(BaseModule):
             "desc": "Generate a file download command for the current interface and port",
             "category": "File Transfer",
             "usage": "download <filename> [tool]",
-            "session_inputs": ["interface", "fileport"],
+            "session_inputs": ["interface"],
             "examples": [
                 "download linpeas.sh",
                 "download payload.exe curl",
@@ -33,7 +33,7 @@ class FileModule(BaseModule):
             ],
             "details": [
                 "Transfer tools: wget, curl, iwr, certutil, scp",
-                "If the HTTP server is not running, RedSploit autostarts it on fileport.",
+                "If the HTTP server is not running, RedSploit autostarts it on the configured transfer port.",
             ],
             "flags": [
                 "-c         Copy command to clipboard without running",
@@ -60,7 +60,7 @@ class FileModule(BaseModule):
             "desc": "Start an HTTP or SMB file server from the current directory",
             "category": "Servers",
             "usage": "server [http|smb]",
-            "session_inputs": ["interface", "fileport"],
+            "session_inputs": ["interface"],
             "examples": [
                 "server",
                 "server smb",
@@ -68,7 +68,7 @@ class FileModule(BaseModule):
                 "red -f -smb",
             ],
             "details": [
-                "HTTP uses python3 -m http.server on the current fileport.",
+                "HTTP uses python3 -m http.server on the configured transfer port.",
                 "SMB uses impacket-smbserver and serves the current directory as 'share'.",
             ],
             "flags": [
@@ -145,14 +145,14 @@ class FileModule(BaseModule):
     def run_download(self, filename, tool="wget", write=False, copy_only=False, edit=False, preview=False):
         if not filename:
             log_error("Filename is required.")
-            return
+            return 1
 
         interface = self.session.get("interface")
         ip_addr = get_ip_address(interface)
         
         if not ip_addr:
             log_error(f"Could not find IP for interface {interface}")
-            return
+            return 1
 
         # Determine Tool Key
         tool_key = tool
@@ -162,9 +162,9 @@ class FileModule(BaseModule):
         cmd_template = self.TOOLS.get(tool_key)
         if not cmd_template:
             log_error(f"Unknown tool: {tool}")
-            return
+            return 1
 
-        fileport = self.session.get("fileport") or "8000"
+        fileport = self.session.get_transfer_port()
         cmd = cmd_template.format(
             ip=shlex.quote(ip_addr),
             port=fileport,
@@ -172,24 +172,26 @@ class FileModule(BaseModule):
         )
         
         if copy_only or edit or preview:
-            self._exec(cmd, copy_only, edit, run=False, preview=preview)
+            return self._exec(cmd, copy_only, edit, run=False, preview=preview)
         else:
             log_success(f"Download Command ({tool}):")
             self._exec(cmd, copy_only=False, edit=False, run=False, preview=preview)
             
             # Auto-start server if not running
-            port = int(self.session.get("fileport") or "8000")
+            port = int(self.session.get_transfer_port())
             if not self.is_port_in_use(port):
                 log_info(f"Autostarting HTTP server on port {port}...")
-                self.run_server("http")
+                return self.run_server("http")
+        return 0
 
     def run_base64(self, filename, copy_only=False, edit=False, preview=False):
         if os.path.isfile(filename):
             log_success(f"Base64 encoded content of {filename}:")
             cmd = self.TOOLS["base64"].format(filename=shlex.quote(filename))
-            self._exec(cmd, copy_only, edit, preview=preview)
+            return self._exec(cmd, copy_only, edit, preview=preview)
         else:
             log_error(f"File {filename} not found locally.")
+            return 1
 
     def run_server(self, server_type="http", preview=False):
         interface = self.session.get("interface")
@@ -197,9 +199,9 @@ class FileModule(BaseModule):
         
         if not ip_addr:
             log_error(f"Could not find IP for interface {interface}")
-            return
+            return 1
 
-        fileport = self.session.get("fileport") or "8000"
+        fileport = self.session.get_transfer_port()
         cmd = []
         if server_type == "http":
             cmd = ["python3", "-m", "http.server", fileport]
@@ -210,23 +212,24 @@ class FileModule(BaseModule):
         
         if preview:
             print(f"{Colors.OKCYAN}{' '.join(cmd)}{Colors.ENDC}")
-            return
+            return 0
             
         log_info(msg)
         try:
-            subprocess.run(cmd)
+            return subprocess.run(cmd).returncode
         except KeyboardInterrupt:
             print("\nServer stopped.")
+            return 130
 
     def _run_download_command(self, args_list, command_index, cli_flags):
         command_args = args_list[command_index + 1:]
         if not command_args:
             log_error("Usage: -download <filename>")
-            return
+            return 1
 
         filename = command_args[0]
         tool = command_args[1] if len(command_args) > 1 and not command_args[1].startswith("-") else "wget"
-        self.run_download(
+        return self.run_download(
             filename,
             tool,
             copy_only=cli_flags["copy_only"],
@@ -238,9 +241,9 @@ class FileModule(BaseModule):
         command_args = args_list[command_index + 1:]
         if not command_args:
             log_error("Usage: -base64 <filename>")
-            return
+            return 1
 
-        self.run_base64(
+        return self.run_base64(
             command_args[0],
             copy_only=cli_flags["copy_only"],
             edit=cli_flags["edit"],
@@ -259,14 +262,14 @@ class FileModule(BaseModule):
         command_token = args_list[command_index]
         command_args = args_list[command_index + 1:]
         server_type = self._resolve_server_type(command_token, command_args)
-        self.run_server(server_type, preview=cli_flags["preview"])
+        return self.run_server(server_type, preview=cli_flags["preview"])
 
     def _run_implicit_download(self, args_list, cli_flags):
         non_flag_args = [arg for arg in args_list if not arg.startswith("-")]
 
         if not non_flag_args:
             log_warn("No valid tool flag found. Use interactive mode.")
-            return
+            return 1
 
         potential_iface = non_flag_args[0]
         if get_ip_address(potential_iface):
@@ -275,11 +278,11 @@ class FileModule(BaseModule):
 
         if not non_flag_args:
             log_warn("Interface set, but no filename provided.")
-            return
+            return 1
 
         filename = non_flag_args[0]
         tool = non_flag_args[1] if len(non_flag_args) > 1 else "wget"
-        self.run_download(
+        return self.run_download(
             filename,
             tool,
             copy_only=cli_flags["copy_only"],
@@ -293,7 +296,7 @@ class FileModule(BaseModule):
 
         if command_name and self.has_help_flag(args_list[command_index + 1:]):
             self.print_command_help(command_name)
-            return
+            return 0
 
         # Handle help request
         if self.has_help_flag(args_list):
@@ -308,7 +311,7 @@ class FileModule(BaseModule):
             print("  -base64 <file>             Encode file to base64")
             print("")
             print(f"{Colors.BOLD}Servers{Colors.ENDC}")
-            print("  -http                      Start HTTP server (default port: 8000, set with 'set fileport')")
+            print(f"  -http                      Start HTTP server (default port: {self.session.get_transfer_port()}, set in config.yaml)")
             print("  -smb                       Start SMB server")
             print("")
             print(f"{Colors.HEADER}Examples:{Colors.ENDC}")
@@ -318,21 +321,18 @@ class FileModule(BaseModule):
             print("  red -f -base64 exploit.sh")
             print("  red -f -download -h")
             print("")
-            return
+            return 0
 
         if command_name == "download":
-            self._run_download_command(args_list, command_index, cli_flags)
-            return
+            return self._run_download_command(args_list, command_index, cli_flags)
 
         if command_name == "base64":
-            self._run_base64_command(args_list, command_index, cli_flags)
-            return
+            return self._run_base64_command(args_list, command_index, cli_flags)
 
         if command_name == "server":
-            self._run_server_command(args_list, command_index, cli_flags)
-            return
+            return self._run_server_command(args_list, command_index, cli_flags)
 
-        self._run_implicit_download(args_list, cli_flags)
+        return self._run_implicit_download(args_list, cli_flags)
 
 
 class FileShell(BaseShell):
@@ -413,7 +413,7 @@ class FileShell(BaseShell):
 
     def complete_use(self, text, line, begidx, endidx):
         """Autocomplete module names for 'use' command, excluding loot and playbook"""
-        modules = ["infra", "web", "file", "shell", "main"]
+        modules = ["infra", "ad", "web", "file", "shell", "main"]
         if text:
             return [m for m in modules if m.startswith(text)]
         return modules

@@ -21,6 +21,15 @@ def test_main_shell_routes_web_alias_to_canonical_command(session):
     mock_do_web.assert_called_once_with("gobuster_dns")
 
 
+def test_main_shell_routes_bare_ad_tool(session):
+    shell = RedShell(session)
+
+    with patch.object(shell, "do_ad") as mock_do_ad:
+        shell.onecmd("bloodhound")
+
+    mock_do_ad.assert_called_once_with("bloodhound")
+
+
 def test_main_shell_routes_file_alias_to_server_command(session):
     shell = RedShell(session)
 
