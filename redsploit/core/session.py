@@ -273,7 +273,6 @@ class Session:
 
         headers = ["Variable", "Value", "Req", "Description"]
         col_widths = [12, 24, 3, 35]
-        total_width = sum(col_widths) + 9  # spaces between columns
 
         C_VAR    = Colors.OKBLUE + Colors.BOLD
         C_VAL    = Colors.WARNING
@@ -281,22 +280,23 @@ class Session:
         C_RESET  = Colors.ENDC
         C_DIM    = Colors.DIM
 
-        def print_sep(char="="):
-            line = char * total_width
-            print(f"{C_DIM}{line}{C_RESET}")
-
-        def make_row(cells):
+        def make_row(cells, sep=" "):
             """cells: list of (visible_str, colored_str) per column"""
             parts = []
             for i, (vis, col) in enumerate(cells):
                 pad = " " * max(0, col_widths[i] - len(vis))
-                parts.append(f" {col}{pad} ")
-            return "|".join(parts)
+                parts.append(f"{col}{pad}")
+            return sep.join(parts)
 
-        print_sep("=")
-        header_cells = [(h, f"{C_HEADER}{h}{C_RESET}") for h in headers]
-        print(make_row(header_cells))
-        print_sep("=")
+        def make_sep(char="-"):
+            parts = []
+            for w in col_widths:
+                parts.append(char * w)
+            return " ".join(parts)
+
+        print(make_sep("-"))
+        print(make_row([(h, f"{C_HEADER}{h}{C_RESET}") for h in headers]))
+        print(make_sep("-"))
 
         for key, value in self.env.items():
             if key == "user":
@@ -340,7 +340,6 @@ class Session:
                 (desc,    desc),
             ]
             print(make_row(cells))
-            print_sep("-")
 
         print("")
 
