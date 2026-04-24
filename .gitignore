@@ -62,3 +62,6 @@ dmypy.json
 .omx/
 .claude/
 task.md
+
+# Project-local config (user-specific)
+config.yaml
