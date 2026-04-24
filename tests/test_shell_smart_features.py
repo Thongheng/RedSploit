@@ -12,11 +12,11 @@ def test_main_shell_routes_bare_infra_tool(session):
     mock_do_infra.assert_called_once_with("nmap -p")
 
 
-def test_main_shell_routes_web_alias_to_canonical_command(session):
+def test_main_shell_routes_bare_web_tool(session):
     shell = RedShell(session)
 
     with patch.object(shell, "do_web") as mock_do_web:
-        shell.onecmd("gobuster-dns")
+        shell.onecmd("gobuster_dns")
 
     mock_do_web.assert_called_once_with("gobuster_dns")
 
@@ -30,13 +30,13 @@ def test_main_shell_routes_bare_ad_tool(session):
     mock_do_ad.assert_called_once_with("bloodhound")
 
 
-def test_main_shell_routes_file_alias_to_server_command(session):
+def test_main_shell_routes_bare_file_tool(session):
     shell = RedShell(session)
 
     with patch.object(shell, "do_file") as mock_do_file:
-        shell.onecmd("http -p")
+        shell.onecmd("server -p")
 
-    mock_do_file.assert_called_once_with("server http -p")
+    mock_do_file.assert_called_once_with("server -p")
 
 
 def test_main_shell_preserves_quoted_args_when_forwarding(session):
@@ -59,10 +59,10 @@ def test_main_shell_help_resolves_tool_without_module_prefix(session, capsys):
     assert "Recommended usage:" in captured.out
 
 
-def test_main_shell_help_resolves_file_alias_without_module_prefix(session, capsys):
+def test_main_shell_help_resolves_file_tool_without_module_prefix(session, capsys):
     shell = RedShell(session)
 
-    shell.onecmd("help http")
+    shell.onecmd("help server")
 
     captured = capsys.readouterr()
     assert "server" in captured.out

@@ -103,18 +103,13 @@ class BaseModule:
 
     @classmethod
     def resolve_tool_name(cls, raw_name: str):
-        """Resolve canonical tool names from flags, hyphenated names, or aliases."""
+        """Resolve canonical tool names from flags or hyphenated names."""
         if not raw_name:
             return None
 
         normalized = raw_name.lstrip("-").replace("-", "_")
         if normalized in getattr(cls, "TOOLS", {}):
             return normalized
-
-        for tool_name, tool_data in getattr(cls, "TOOLS", {}).items():
-            for alias in tool_data.get("aliases", []):
-                if normalized == alias.replace("-", "_"):
-                    return tool_name
 
         return None
 
@@ -150,10 +145,6 @@ class BaseModule:
         auth_mode = tool.get("auth_mode")
         if auth_mode:
             print(f"{Colors.BOLD}Auth mode:{Colors.ENDC} {auth_mode}")
-
-        aliases = tool.get("aliases", [])
-        if aliases:
-            print(f"{Colors.BOLD}Aliases:{Colors.ENDC} {', '.join(aliases)}")
 
         print(f"\n{Colors.BOLD}Recommended usage:{Colors.ENDC}")
         for example in self._tool_examples(module_name, tool_name, tool):

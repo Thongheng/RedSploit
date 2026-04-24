@@ -58,6 +58,26 @@ class SummaryService:
         prompt_payload = self._build_prompt_payload(summary_context, command, captured_output)
 
         providers: List[Tuple[str, Dict[str, Any]]] = []
+
+        nvidia_nim_key = os.environ.get("NVIDIA_NIM_API_KEY", "").strip()
+        if nvidia_nim_key:
+            providers.append(
+                (
+                    "NVIDIA NIM",
+                    {
+                        "url": self.config["providers"]["nvidia_nim"]["base_url"],
+                        "headers": {
+                            "Authorization": f"Bearer {nvidia_nim_key}",
+                            "Content-Type": "application/json",
+                        },
+                        "json": self._build_request_body(
+                            self.config["providers"]["nvidia_nim"]["model"],
+                            prompt_payload,
+                        ),
+                    },
+                )
+            )
+
         openrouter_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
         if openrouter_key:
             providers.append(

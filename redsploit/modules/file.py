@@ -64,8 +64,8 @@ class FileModule(BaseModule):
             "examples": [
                 "server",
                 "server smb",
-                "red -f -http",
-                "red -f -smb",
+                "red -f -server http",
+                "red -f -server smb",
             ],
             "details": [
                 "HTTP uses python3 -m http.server on the configured transfer port.",
@@ -74,7 +74,6 @@ class FileModule(BaseModule):
             "flags": [
                 "-p         Preview the server command without starting it",
             ],
-            "aliases": ["http", "smb"],
         },
     }
 
@@ -86,9 +85,6 @@ class FileModule(BaseModule):
         normalized = raw_name.lstrip("-").replace("-", "_")
         if normalized in cls.COMMANDS:
             return normalized
-        for command_name, command in cls.COMMANDS.items():
-            if normalized in command.get("aliases", []):
-                return command_name
         return None
 
     @classmethod
@@ -311,13 +307,12 @@ class FileModule(BaseModule):
             print("  -base64 <file>             Encode file to base64")
             print("")
             print(f"{Colors.BOLD}Servers{Colors.ENDC}")
-            print(f"  -http                      Start HTTP server (default port: {self.session.get_transfer_port()}, set in config.yaml)")
-            print("  -smb                       Start SMB server")
+            print(f"  -server [http|smb]         Start HTTP or SMB server (default port: {self.session.get_transfer_port()}, set in config.yaml)")
             print("")
             print(f"{Colors.HEADER}Examples:{Colors.ENDC}")
             print("  red -f -download linpeas.sh")
             print("  red -f -download payload.exe curl")
-            print("  red -f -http")
+            print("  red -f -server http")
             print("  red -f -base64 exploit.sh")
             print("  red -f -download -h")
             print("")

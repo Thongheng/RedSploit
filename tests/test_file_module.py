@@ -18,11 +18,11 @@ def test_file_module_download_cli_forwards_preview_and_tool(session):
     )
 
 
-def test_file_module_http_cli_forwards_preview_to_server(session):
+def test_file_module_server_cli_forwards_preview_to_server(session):
     file_module = FileModule(session)
 
     with patch.object(file_module, "run_server") as mock_run_server:
-        file_module.run(["-http", "-p"])
+        file_module.run(["-server", "http", "-p"])
 
     mock_run_server.assert_called_once_with("http", preview=True)
 

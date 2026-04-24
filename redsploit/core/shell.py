@@ -29,23 +29,15 @@ class RedShell(BaseShell):
 
         for tool_name, tool_data in InfraModule.TOOLS.items():
             yield {"module": "infra", "token": tool_name, "canonical": tool_name}
-            for alias in tool_data.get("aliases", []):
-                yield {"module": "infra", "token": alias, "canonical": tool_name}
 
         for tool_name, tool_data in AdModule.TOOLS.items():
             yield {"module": "ad", "token": tool_name, "canonical": tool_name}
-            for alias in tool_data.get("aliases", []):
-                yield {"module": "ad", "token": alias, "canonical": tool_name}
 
         for tool_name, tool_data in WebModule.TOOLS.items():
             yield {"module": "web", "token": tool_name, "canonical": tool_name}
-            for alias in tool_data.get("aliases", []):
-                yield {"module": "web", "token": alias, "canonical": tool_name}
 
         for command_name, command_data in FileModule.COMMANDS.items():
             yield {"module": "file", "token": command_name, "canonical": command_name}
-            for alias in command_data.get("aliases", []):
-                yield {"module": "file", "token": alias, "canonical": command_name}
 
     def _resolve_global_tool(self, token):
         normalized = self._normalize_lookup_token(token)
@@ -74,6 +66,9 @@ class RedShell(BaseShell):
         indexed_candidates = {}
 
         for candidate in all_candidates:
+            # Only suggest canonical names, not aliases
+            if candidate["token"] != candidate["canonical"]:
+                continue
             indexed_candidates.setdefault(
                 self._normalize_lookup_token(candidate["token"]),
                 candidate,
@@ -122,9 +117,6 @@ class RedShell(BaseShell):
     def _dispatch_global_tool(self, match, remainder):
         routed_line = match["canonical"]
 
-        if match["module"] == "file" and match["canonical"] == "server" and match["token"] in {"http", "smb"}:
-            routed_line = f"{routed_line} {match['token']}"
-
         if remainder:
             routed_line = f"{routed_line} {remainder}"
 
@@ -144,6 +136,7 @@ class RedShell(BaseShell):
             candidate["token"]
             for candidate in self._iter_global_tool_candidates()
             if candidate["token"].lower().startswith(text_lower)
+            and candidate["token"] == candidate["canonical"]
         ]
         return sorted(dict.fromkeys(base_candidates + tool_candidates))
 

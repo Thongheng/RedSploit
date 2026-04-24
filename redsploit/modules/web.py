@@ -1,8 +1,16 @@
+import io
 import os
 import shlex
+import sys
 from ..core.colors import log_info, log_error, log_warn
 from ..core.base_shell import BaseShell, ModuleShell
-from ..core.security_headers import run_headerscan
+from ..core.security_headers import (
+    run_headerscan,
+    merge_security_header_config,
+    parse_headerscan_args,
+    collect_headerscan_urls,
+    HeaderscanHelp,
+)
 from .base import ArgumentParserNoExit, BaseModule, HelpExit
 
 class WebModule(BaseModule):
@@ -13,7 +21,6 @@ class WebModule(BaseModule):
             "binary": "",
             "desc": "Scan HTTP security headers and grade the response",
             "category": "Analysis",
-            "aliases": ["header-scan", "secheader"]
         },
         "subfinder": {
             "cmd": "subfinder -d {domain}",
@@ -32,7 +39,6 @@ class WebModule(BaseModule):
             "requires": ["domain"],
             "execution_mode": "captured",
             "summary_profile": "subdomains",
-            "aliases": ["dns", "gobuster-dns"]
         },
         "dnsrecon": {
             "cmd": "dnsrecon -d {domain} -t brf -w {wordlist_subdomain} -f -n 8.8.8.8",
@@ -76,7 +82,6 @@ class WebModule(BaseModule):
             "desc": "Directory fuzzing with feroxbuster",
             "category": "Directory Scanning",
             "requires": ["url"],
-            "aliases": ["feroxbuster", "ferox"],
             "execution_mode": "captured",
             "summary_profile": "directory",
         },
@@ -86,7 +91,6 @@ class WebModule(BaseModule):
             "desc": "Directory fuzzing with dirsearch",
             "category": "Directory Scanning",
             "requires": ["url"],
-            "aliases": ["dirsearch"],
             "execution_mode": "captured",
             "summary_profile": "directory",
         },
@@ -96,7 +100,6 @@ class WebModule(BaseModule):
              "desc": "Directory bruteforce with gobuster",
              "category": "Directory Scanning",
              "requires": ["url"],
-             "aliases": ["dir", "gobuster"],
              "execution_mode": "captured",
              "summary_profile": "directory",
         },
@@ -133,7 +136,6 @@ class WebModule(BaseModule):
             "desc": "Website screenshot capture",
             "category": "Reconnaissance",
             "requires": ["url"],
-            "aliases": ["screenshot", "gowitness"],
             "execution_mode": "captured",
             "summary_profile": "generic",
         }
@@ -156,15 +158,72 @@ class WebModule(BaseModule):
 
     # Remove legacy _get_domain_or_target
     
-    def run_tool(self, tool_name, copy_only=False, edit=False, preview=False, scanner_args=None, no_summary=False):
+    def run_tool(self, tool_name, copy_only=False, edit=False, preview=False, scanner_args=None, no_summary=False, no_auth=False):
         tool = self.TOOLS.get(tool_name)
         if not tool:
             log_error(f"Tool {tool_name} not found.")
             return 1
 
         if tool_name == "headerscan":
-            if copy_only or edit or preview:
-                log_warn("headerscan runs directly; -c, -e, and -p are not supported and were ignored.")
+            # Handle edit mode
+            if edit:
+                original = " ".join(shlex.quote(a) for a in (scanner_args or []))
+                new_cmd = self._get_input_with_prefill(original)
+                if new_cmd is None:
+                    print("\nCancelled.")
+                    return 130
+                try:
+                    scanner_args = shlex.split(new_cmd)
+                except ValueError as exc:
+                    log_error(f"Invalid arguments: {exc}")
+                    return 1
+
+            config = merge_security_header_config(self.session.config)
+            try:
+                args = parse_headerscan_args(scanner_args or [], config)
+            except HeaderscanHelp:
+                return 0
+            except ValueError as exc:
+                log_error(str(exc))
+                return 1
+
+            urls = collect_headerscan_urls(args, self.session)
+
+            # Handle preview mode
+            if preview:
+                from ..core.colors import Colors
+                print(f"{Colors.OKCYAN}Preview: headerscan would scan the following URLs:{Colors.ENDC}")
+                for url in urls:
+                    print(f"  - {url}")
+                mode = "api" if args.api else ("web" if args.web else config.get("mode_default", "web"))
+                print(f"  Mode: {mode}")
+                if args.method != "GET":
+                    print(f"  Method: {args.method}")
+                if args.headers:
+                    print(f"  Headers: {args.headers}")
+                if args.json:
+                    print(f"  Output: JSON")
+                elif args.detailed:
+                    print(f"  Output: Detailed")
+                return 0
+
+            # Handle copy mode: capture output and copy to clipboard
+            if copy_only:
+                old_stdout = sys.stdout
+                sys.stdout = buffer = io.StringIO()
+                try:
+                    run_headerscan(scanner_args or [], self.session)
+                except ValueError as exc:
+                    sys.stdout = old_stdout
+                    log_error(str(exc))
+                    return 1
+                finally:
+                    sys.stdout = old_stdout
+                output = buffer.getvalue()
+                self._copy_to_clipboard(output)
+                return 0
+
+            # Normal run
             try:
                 run_headerscan(scanner_args or [], self.session)
             except ValueError as exc:
@@ -220,9 +279,15 @@ class WebModule(BaseModule):
             return 0
 
         if tool_name == "headerscan":
-            if any(cli_flags.values()):
-                log_warn("headerscan runs directly; -c, -e, -p, -nosummary, and -noauth are not supported and were ignored.")
-            return self.run_tool("headerscan", scanner_args=args_list[tool_index + 1:])
+            return self.run_tool(
+                "headerscan",
+                copy_only=cli_flags["copy_only"],
+                edit=cli_flags["edit"],
+                preview=cli_flags["preview"],
+                scanner_args=args_list[tool_index + 1:],
+                no_summary=cli_flags["no_summary"],
+                no_auth=cli_flags["no_auth"],
+            )
 
         if self.has_help_flag(args_list):
             self._print_help(
@@ -262,19 +327,24 @@ class WebShell(ModuleShell):
     def _create_do_method(self, tool_name):
         def do_tool(arg):
             """Run tool"""
+            scanner_arg, copy_only, edit, preview, no_summary, no_auth = self.parse_common_options(arg)
             if tool_name == "headerscan":
-                scanner_arg, copy_only, edit, preview, no_summary, no_auth = self.parse_common_options(arg)
-                if copy_only or edit or preview or no_summary or no_auth:
-                    log_warn("headerscan runs directly; -c, -e, -p, -nosummary, and -noauth are not supported and were ignored.")
                 try:
                     scanner_args = shlex.split(scanner_arg)
                 except ValueError as exc:
                     log_error(f"Invalid headerscan arguments: {exc}")
                     return
-                self.module.run_tool(tool_name, scanner_args=scanner_args)
+                self.module.run_tool(
+                    tool_name,
+                    copy_only=copy_only,
+                    edit=edit,
+                    preview=preview,
+                    scanner_args=scanner_args,
+                    no_summary=no_summary,
+                    no_auth=no_auth,
+                )
                 return
-            _, copy_only, edit, preview, no_summary, _ = self.parse_common_options(arg)
-            self.module.run_tool(tool_name, copy_only, edit, preview, no_summary=no_summary)
+            self.module.run_tool(tool_name, copy_only, edit, preview, no_summary=no_summary, no_auth=no_auth)
         do_tool.__doc__ = f"Run {tool_name}"
         do_tool.__name__ = f"do_{tool_name}"
         return do_tool
@@ -292,6 +362,13 @@ class WebShell(ModuleShell):
             "-f",
             "--file",
             "--follow-redirects",
+            "-c",
+            "-e",
+            "-p",
+            "-nosummary",
+            "--no-summary",
+            "-noauth",
+            "--noauth",
         ]
         if text:
             return [opt for opt in options if opt.startswith(text)]

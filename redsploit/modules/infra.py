@@ -33,7 +33,6 @@ class InfraModule(BaseModule):
             "category": "SMB Tools",
             "requires": ["target"],
             "auth_mode": "flag_U",
-            "aliases": ["smb-c"],
             "execution_mode": "captured",
             "summary_profile": "generic",
         },
@@ -44,7 +43,6 @@ class InfraModule(BaseModule):
             "category": "SMB Tools",
             "requires": ["target"],
             "auth_mode": "u_p_flags",
-            "aliases": ["smb-map"],
             "execution_mode": "captured",
             "summary_profile": "generic",
         },
@@ -73,7 +71,6 @@ class InfraModule(BaseModule):
             "desc": "Metasploit reverse shell handler",
             "category": "Exploitation",
             "requires": ["lport"],
-            "aliases": ["handler", "listener", "msfconsole"],
             "execution_mode": "passthrough",
         },
         "msfvenom": {
@@ -82,7 +79,6 @@ class InfraModule(BaseModule):
             "desc": "Generate a Metasploit payload that matches the listener",
             "category": "Exploitation",
             "requires": ["lport"],
-            "aliases": ["venom"],
             "execution_mode": "passthrough",
         },
         "rdp": {

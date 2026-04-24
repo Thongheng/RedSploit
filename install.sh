@@ -23,6 +23,8 @@ OPENROUTER_TEST_URL="https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_TEST_MODEL="openrouter/free"
 CHATANYWHERE_TEST_URL="https://api.chatanywhere.tech/v1/chat/completions"
 CHATANYWHERE_TEST_MODEL="gpt-5-nano"
+NVIDIA_NIM_TEST_URL="https://integrate.api.nvidia.com/v1/chat/completions"
+NVIDIA_NIM_TEST_MODEL="meta/llama-4-maverick-17b-128e-instruct"
 PATH_UPDATED=0
 COMPLETION_STATUS="pending"
 AI_STATUS="pending"
@@ -73,7 +75,7 @@ print_usage() {
 Usage: ./install.sh [--test] [--help]
 
 Options:
-  --test    Test OpenRouter and ChatAnywhere API access using configured API keys
+  --test    Test OpenRouter, ChatAnywhere, and NVIDIA NIM API access using configured API keys
   --help    Show this help message
 EOF
 }
@@ -247,10 +249,11 @@ write_api_key_block() {
     local rc_file="$1"
     local openrouter_key="$2"
     local chatanywhere_key="$3"
+    local nvidia_nim_key="$4"
 
     strip_managed_block "$rc_file" "$MANAGED_BLOCK_START" "$MANAGED_BLOCK_END"
 
-    if [ -z "$openrouter_key" ] && [ -z "$chatanywhere_key" ]; then
+    if [ -z "$openrouter_key" ] && [ -z "$chatanywhere_key" ] && [ -z "$nvidia_nim_key" ]; then
         return 0
     fi
 
@@ -262,6 +265,9 @@ write_api_key_block() {
         fi
         if [ -n "$chatanywhere_key" ]; then
             printf 'export CHATANYWHERE_API_KEY=%q\n' "$chatanywhere_key"
+        fi
+        if [ -n "$nvidia_nim_key" ]; then
+            printf 'export NVIDIA_NIM_API_KEY=%q\n' "$nvidia_nim_key"
         fi
         echo "$MANAGED_BLOCK_END"
     } >> "$rc_file"
@@ -348,10 +354,11 @@ resolve_api_key() {
 }
 
 ai_keys_config_status() {
-    local openrouter_key chatanywhere_key
+    local openrouter_key chatanywhere_key nvidia_nim_key
 
     openrouter_key="$(resolve_api_key OPENROUTER_API_KEY)"
     chatanywhere_key="$(resolve_api_key CHATANYWHERE_API_KEY)"
+    nvidia_nim_key="$(resolve_api_key NVIDIA_NIM_API_KEY)"
 
     if [ -n "$openrouter_key" ]; then
         printf 'OPENROUTER=1\n'
@@ -363,6 +370,12 @@ ai_keys_config_status() {
         printf 'CHATANYWHERE=1\n'
     else
         printf 'CHATANYWHERE=0\n'
+    fi
+
+    if [ -n "$nvidia_nim_key" ]; then
+        printf 'NVIDIA_NIM=1\n'
+    else
+        printf 'NVIDIA_NIM=0\n'
     fi
 }
 
@@ -521,7 +534,7 @@ PY
 }
 
 run_ai_provider_tests() {
-    local openrouter_key chatanywhere_key failures=0
+    local openrouter_key chatanywhere_key nvidia_nim_key failures=0
 
     print_step "Inspect environment"
     local shell_name
@@ -536,9 +549,11 @@ run_ai_provider_tests() {
     print_step "Test AI providers"
     openrouter_key="$(resolve_api_key OPENROUTER_API_KEY)"
     chatanywhere_key="$(resolve_api_key CHATANYWHERE_API_KEY)"
+    nvidia_nim_key="$(resolve_api_key NVIDIA_NIM_API_KEY)"
 
     test_ai_provider "OpenRouter" "$OPENROUTER_TEST_URL" "$OPENROUTER_TEST_MODEL" "$openrouter_key" || failures=$((failures + 1))
     test_ai_provider "ChatAnywhere" "$CHATANYWHERE_TEST_URL" "$CHATANYWHERE_TEST_MODEL" "$chatanywhere_key" || failures=$((failures + 1))
+    test_ai_provider "NVIDIA NIM" "$NVIDIA_NIM_TEST_URL" "$NVIDIA_NIM_TEST_MODEL" "$nvidia_nim_key" || failures=$((failures + 1))
 
     if [ "$failures" -gt 0 ]; then
         echo ""
@@ -547,7 +562,7 @@ run_ai_provider_tests() {
     fi
 
     echo ""
-    log_success "Both AI provider tests passed."
+    log_success "All AI provider tests passed."
     return 0
 }
 
@@ -557,11 +572,12 @@ configure_api_keys_interactive() {
         return 0
     fi
 
-    local existing_openrouter existing_chatanywhere openrouter_key chatanywhere_key
+    local existing_openrouter existing_chatanywhere existing_nvidia_nim openrouter_key chatanywhere_key nvidia_nim_key
     existing_openrouter="$(resolve_api_key OPENROUTER_API_KEY)"
     existing_chatanywhere="$(resolve_api_key CHATANYWHERE_API_KEY)"
+    existing_nvidia_nim="$(resolve_api_key NVIDIA_NIM_API_KEY)"
 
-    if [ -n "$existing_openrouter" ] && [ -n "$existing_chatanywhere" ]; then
+    if [ -n "$existing_openrouter" ] && [ -n "$existing_chatanywhere" ] && [ -n "$existing_nvidia_nim" ]; then
         AI_STATUS="configured"
         log_success "AI summary keys are already configured. Skipping setup prompt."
         return 0
@@ -575,8 +591,12 @@ configure_api_keys_interactive() {
         log_info "ChatAnywhere API key already configured."
     fi
 
+    if [ -n "$existing_nvidia_nim" ]; then
+        log_info "NVIDIA NIM API key already configured."
+    fi
+
     if ! prompt_yes_no "Configure AI-summary API keys now?" "N"; then
-        if [ -n "$existing_openrouter" ] || [ -n "$existing_chatanywhere" ]; then
+        if [ -n "$existing_openrouter" ] || [ -n "$existing_chatanywhere" ] || [ -n "$existing_nvidia_nim" ]; then
             AI_STATUS="partial"
         else
             AI_STATUS="skipped"
@@ -599,6 +619,7 @@ configure_api_keys_interactive() {
 
     openrouter_key="$existing_openrouter"
     chatanywhere_key="$existing_chatanywhere"
+    nvidia_nim_key="$existing_nvidia_nim"
 
     if [ -z "$existing_openrouter" ]; then
         read -r -p "OpenRouter API key: " openrouter_key
@@ -610,13 +631,18 @@ configure_api_keys_interactive() {
         echo ""
     fi
 
-    write_api_key_block "$RC_FILE" "$openrouter_key" "$chatanywhere_key"
+    if [ -z "$existing_nvidia_nim" ]; then
+        read -r -p "NVIDIA NIM API key: " nvidia_nim_key
+        echo ""
+    fi
+
+    write_api_key_block "$RC_FILE" "$openrouter_key" "$chatanywhere_key" "$nvidia_nim_key"
     ensure_rc_ownership "$RC_FILE"
     RELOAD_REQUIRED=1
 
-    if [ -n "$openrouter_key" ] && [ -n "$chatanywhere_key" ]; then
+    if [ -n "$openrouter_key" ] && [ -n "$chatanywhere_key" ] && [ -n "$nvidia_nim_key" ]; then
         AI_STATUS="configured"
-    elif [ -n "$openrouter_key" ] || [ -n "$chatanywhere_key" ]; then
+    elif [ -n "$openrouter_key" ] || [ -n "$chatanywhere_key" ] || [ -n "$nvidia_nim_key" ]; then
         AI_STATUS="partial"
     else
         AI_STATUS="skipped"
@@ -624,13 +650,13 @@ configure_api_keys_interactive() {
 
     log_success "Saved API key exports to $RC_FILE"
     if [ "$AI_STATUS" = "configured" ]; then
-        log_info "Both AI provider keys are configured."
+        log_info "All AI provider keys are configured."
     elif [ "$AI_STATUS" = "partial" ]; then
-        log_warn "Only one AI provider key is configured right now."
+        log_warn "Only some AI provider keys are configured right now."
     else
         log_warn "No AI provider keys were saved."
     fi
-    log_info "Run ./install.sh --test after reloading your shell to verify both providers."
+    log_info "Run ./install.sh --test after reloading your shell to verify providers."
 }
 
 install_redsploit() {

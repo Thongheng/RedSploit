@@ -109,6 +109,10 @@ class Session:
                         "alt_base_url": "https://api.chatanywhere.org/v1/chat/completions",
                         "model": "gpt-5-nano",
                     },
+                    "nvidia_nim": {
+                        "base_url": "https://integrate.api.nvidia.com/v1/chat/completions",
+                        "model": "meta/llama-4-maverick-17b-128e-instruct",
+                    },
                 },
             },
         }
@@ -269,35 +273,30 @@ class Session:
 
         headers = ["Variable", "Value", "Req", "Description"]
         col_widths = [12, 24, 3, 35]
+        total_width = sum(col_widths) + 9  # spaces between columns
 
         C_VAR    = Colors.OKBLUE + Colors.BOLD
         C_VAL    = Colors.WARNING
-        C_BORDER = Colors.OKBLUE
         C_HEADER = Colors.BOLD
         C_RESET  = Colors.ENDC
+        C_DIM    = Colors.DIM
 
-        def print_sep(top=False, bottom=False):
-            if top:
-                left, mid_j, right = "┌", "┬", "┐"
-            elif bottom:
-                left, mid_j, right = "└", "┴", "┘"
-            else:
-                left, mid_j, right = "├", "┼", "┤"
-            line = left + mid_j.join(["─" * (w + 2) for w in col_widths]) + right
-            print(f"{C_BORDER}{line}{C_RESET}")
+        def print_sep(char="="):
+            line = char * total_width
+            print(f"{C_DIM}{line}{C_RESET}")
 
         def make_row(cells):
             """cells: list of (visible_str, colored_str) per column"""
             parts = []
             for i, (vis, col) in enumerate(cells):
                 pad = " " * max(0, col_widths[i] - len(vis))
-                parts.append(f"{C_BORDER}│{C_RESET} {col}{pad} ")
-            return "".join(parts) + f"{C_BORDER}│{C_RESET}"
+                parts.append(f" {col}{pad} ")
+            return "|".join(parts)
 
-        print_sep(top=True)
+        print_sep("=")
         header_cells = [(h, f"{C_HEADER}{h}{C_RESET}") for h in headers]
         print(make_row(header_cells))
-        print_sep()
+        print_sep("=")
 
         for key, value in self.env.items():
             if key == "user":
@@ -341,8 +340,8 @@ class Session:
                 (desc,    desc),
             ]
             print(make_row(cells))
+            print_sep("-")
 
-        print_sep(bottom=True)
         print("")
 
     def save_workspace(self, name: Optional[str] = None) -> bool:

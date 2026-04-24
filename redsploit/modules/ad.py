@@ -33,7 +33,6 @@ class AdModule(InfraModule):
             "category": "Access",
             "requires": ["target"],
             "auth_mode": "u_p_flags",
-            "aliases": ["evil-winrm"],
             "execution_mode": "passthrough",
         },
         "psexec": {

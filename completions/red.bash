@@ -16,7 +16,7 @@ _red_completion() {
     local infra_opts="-nmap -rustscan -smbclient -smbmap -enum4linux -nxc -bloodhound -ftp -msf -msfvenom -rdp -ssh -evil_winrm -psexec -wmiexec -secretsdump -kerbrute"
     
     # Web module flags
-    local web_opts="-headerscan -subfinder -gobuster_dns -dir_ffuf -vhost -dir_ferox -dir_dirsearch -nuclei -wpscan -dns -subzy -waf -screenshots"
+    local web_opts="-headerscan -subfinder -gobuster_dns -dir_ffuf -vhost -dir_ferox -dir_dirsearch -nuclei -wpscan -subzy -waf -screenshots"
     
     # File module flags
     local file_opts="-download -base64 -http -smb"

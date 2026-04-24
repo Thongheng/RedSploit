@@ -55,10 +55,10 @@ class TestFileHelp:
         assert "Recommended usage:" in captured.out
         assert "download <filename> [tool]" in captured.out
 
-    def test_file_cli_http_help_maps_to_server(self, session, capsys):
+    def test_file_cli_server_help_maps_to_server(self, session, capsys):
         file_module = FileModule(session)
 
-        file_module.run(["-http", "-h"])
+        file_module.run(["-server", "-h"])
 
         captured = capsys.readouterr()
         assert "server" in captured.out
