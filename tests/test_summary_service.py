@@ -42,7 +42,7 @@ class FakeProcess:
         return self.returncode
 
 
-def test_local_nmap_summary_without_api_keys(session):
+def test_no_ai_provider_returns_none_summary(session):
     service = SummaryService(session)
     context = {
         "module": "infra",
@@ -60,12 +60,8 @@ def test_local_nmap_summary_without_api_keys(session):
 
     result = service.summarize_execution(context, "nmap -sV 10.10.10.10", output, 0)
 
-    assert "Clean View" in result.text
-    assert "Open ports: 2" in result.text
-    assert "80    http           Apache httpd 2.4.57" in result.text
-    assert "Interesting Services" in result.text
-    assert "Access Paths" in result.text
-    assert "SMB Signing" in result.text
+    assert result.text is None
+    assert result.used_provider is None
 
 
 def test_openrouter_is_preferred_when_available(session, monkeypatch):
