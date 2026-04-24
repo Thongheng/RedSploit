@@ -6,9 +6,27 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.shortcuts import CompleteStyle
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.auto_suggest import AutoSuggest, Suggestion
 from prompt_toolkit.formatted_text import ANSI
 from .colors import Colors, log_warn, log_error, log_success
 from .session import Session
+from .history import CommandHistory
+
+
+class HistoryAutoSuggest(AutoSuggest):
+    """Inline ghost-text suggestions from persistent command history."""
+
+    def __init__(self, history: CommandHistory):
+        self.history = history
+
+    def get_suggestion(self, buffer, document):
+        text = document.text
+        if not text or " " not in text:
+            return None
+        for cmd in reversed(self.history.all()):
+            if cmd.startswith(text) and len(cmd) > len(text):
+                return Suggestion(cmd[len(text):])
+        return None
 
 class CmdCompleter(Completer):
     def __init__(self, shell):
@@ -17,27 +35,45 @@ class CmdCompleter(Completer):
     def get_completions(self, document, complete_event):
         text = document.text_before_cursor
         line = text
-        
+
+        # History-based suggestions (always offer if line has content)
+        history = getattr(self.shell, "command_history", None)
+        history_suggestions = []
+        if history and line.strip():
+            history_suggestions = history.suggestions(line, limit=5)
+
         # Get the full command line part
         # We need to parse it similar to how cmd does
         parts = line.split()
-        
+
         if not parts:
             # Completing the first word (command)
             candidates = self.shell.completenames(text)
+            seen = set(candidates)
             for c in candidates:
                 yield Completion(c, start_position=-len(text))
+            for h in history_suggestions:
+                first = h.split()[0]
+                if first not in seen:
+                    seen.add(first)
+                    yield Completion(first, start_position=-len(text))
             return
-            
+
         cmd_name = parts[0]
-        
+
         # If we are effectively completing the command name (e.g. "inf" -> "infra")
         # and cursor is at end of first word
         if len(parts) == 1 and not line.endswith(' '):
-             candidates = self.shell.completenames(cmd_name)
-             for c in candidates:
+            candidates = self.shell.completenames(cmd_name)
+            seen = set(candidates)
+            for c in candidates:
                 yield Completion(c, start_position=-len(cmd_name))
-             return
+            for h in history_suggestions:
+                first = h.split()[0]
+                if first not in seen:
+                    seen.add(first)
+                    yield Completion(first, start_position=-len(cmd_name))
+            return
 
         # Argument completion
         # Check if complete_<cmd> exists
@@ -46,11 +82,11 @@ class CmdCompleter(Completer):
             comp_func = getattr(self.shell, comp_func_name)
         else:
             comp_func = self.shell.completedefault
-            
+
         # Prepare arguments for complete_func(text, line, begidx, endidx)
         # prompt_toolkit provides the full line.
         # We need to figure out 'text' (the word being completed).
-        
+
         # Simple tokenization for 'text'
         if line.endswith(' '):
             text_arg = ''
@@ -58,21 +94,28 @@ class CmdCompleter(Completer):
         else:
             text_arg = parts[-1]
             begidx = len(line) - len(text_arg)
-            
+
         endidx = len(line)
-        
+
         candidates = comp_func(text_arg, line, begidx, endidx)
-        
+        yielded = False
         if candidates:
             for c in candidates:
                 yield Completion(c, start_position=-len(text_arg))
+                yielded = True
+
+        # Fallback: history suggestions for partial arguments
+        if not yielded and history_suggestions:
+            for h in history_suggestions:
+                yield Completion(h, start_position=-len(line), display=h, display_meta="history")
 
 class BaseShell(cmd.Cmd):
     def __init__(self, session=None, module_name=None):
         super().__init__()
         self.session = session if session else Session()
         self.module_name = module_name
-        
+        self.command_history = CommandHistory()
+
         # Removed readline config
         self.prompt_session = None # Lazy init to allow prompt updates
         self.update_prompt()
@@ -110,9 +153,10 @@ class BaseShell(cmd.Cmd):
                 history = None
 
             self.prompt_session = PromptSession(
-                completer=completer, 
+                completer=completer,
                 complete_style=CompleteStyle.MULTI_COLUMN,
-                history=history
+                history=history,
+                auto_suggest=HistoryAutoSuggest(self.command_history),
             )
             
             while not stop:
@@ -142,6 +186,8 @@ class BaseShell(cmd.Cmd):
                             line = line.rstrip('\r\n')
                 line = self.precmd(line)
                 stop = self.onecmd(line)
+                if line and line.strip():
+                    self.command_history.add(line)
                 stop = self.postcmd(stop, line)
             self.postloop()
         finally:
