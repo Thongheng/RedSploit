@@ -283,9 +283,9 @@ class BaseShell(cmd.Cmd):
         return options
 
     def do_options(self, arg):
-        """Show options (alias for 'show options')"""
-        all_vars = (arg.strip().lower() == "all")
-        self.session.show_options(all_vars=all_vars)
+        """Show options. Usage: options [brief]"""
+        brief = (arg.strip().lower() == "brief")
+        self.session.show_options(all_vars=not brief)
 
     def do_workspace(self, arg):
         """
