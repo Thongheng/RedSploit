@@ -10,6 +10,7 @@ Red Team penetration testing CLI tool with interactive shell and automation capa
 - ⚡ **Shell Completion** - Native bash/zsh completion support
 - 📝 **Variable Management** - Session-based environment variables
 - ✨ **Post-Run Cleanup Summaries** - Optional AI-assisted summaries appended after supported scanner output
+- 🔄 **Workflow Engine** - DAG-based scan orchestration with built-in templates, dynamic generation, and workspace-persistent run history
 
 ## Quick Start
 
@@ -20,10 +21,11 @@ Want to explore commands interactively? Open [`index.html`](index.html) in your 
 ```bash
 git clone https://github.com/Thongheng/RedSploit.git
 cd RedSploit
-./install.sh
+./setup.sh
 ```
 
 This will:
+- Install Python dependencies and the RedSploit package
 - Install `red` to `/usr/bin` when run with `sudo`, or to `~/.local/bin/red` when run as a normal user
 - Automatically set up shell completion and PATH updates when needed
 - Ask once whether you want to configure AI-summary API keys
@@ -42,7 +44,7 @@ RedSploit uses a `config.yaml` file located in the project root. It is automatic
 To verify both AI providers after setup:
 
 ```bash
-./install.sh --test
+./setup.sh --test
 ```
 
 ### Wordlists
@@ -62,6 +64,10 @@ transfer:
 summary:
   enabled: true
   warn_on_unsupported: true
+workflow_report:
+  enabled: true
+  include_llm_summary: true
+  max_step_outputs: 10
 ```
 
 ### AI Summary Setup
@@ -77,7 +83,7 @@ The installer can configure AI-summary API keys for you. It will:
 You can test provider access after setup with:
 
 ```bash
-./install.sh --test
+./setup.sh --test
 ```
 
 Manual setup also works:
@@ -102,16 +108,10 @@ Command history is automatically saved to `~/.redsploit_history`. You can recall
 
 RedSploit supports native shell completion for bash and zsh.
 
-Recommended setup:
+Recommended one-file setup:
 
 ```bash
-./install.sh
-```
-
-If you only want completion setup:
-
-```bash
-./setup_completion.sh
+./setup.sh
 ```
 
 Manual install examples:
@@ -234,6 +234,51 @@ To disable the cleaner globally for the current session:
 set summary off
 ```
 
+## Workflow Reports
+
+`workflow run` now generates a technical HTML report automatically at the end of each run.
+
+The workflow report includes:
+
+- run metadata and duration
+- dashboard overview cards
+- workflow status board grouped by step state
+- hybrid result summary
+- step results table with telemetry and artifact counts
+- findings/results table
+- expandable per-step details with outputs, artifacts, and errors
+
+When an LLM provider is available, the report uses a structured JSON summary for:
+
+- overall result
+- key outcomes
+- risks
+- next actions
+
+If no provider is available, the report still renders with a deterministic fallback summary.
+
+The CLI prints the saved report path after workflow completion:
+
+```bash
+red workflow run --workflow external-project.yaml --target example.com
+# ...
+# report: /path/to/workspace/default/workflow/reports/scan-xxxx.html
+# report-llm: OpenRouter
+```
+
+Workflow report settings live under `workflow_report` in `config.yaml`:
+
+```yaml
+workflow_report:
+  enabled: true
+  include_llm_summary: true
+  max_prompt_chars: 10000
+  max_step_outputs: 10
+  max_findings: 25
+```
+
+Artifact links inside the HTML report resolve as absolute `file://` URIs, so the report can be opened from any location without relying on relative directory layout.
+
 ## Credential Handling
 
 RedSploit supports flexible credential management with automatic splitting and mode-based authentication:
@@ -302,23 +347,108 @@ ID   Type       Target          Service    Content
 
 > **Note**: The `service` and `target` fields in `loot add` are optional metadata to help you organize your loot. They do not restrict usage.
 
-## Interactive Playbooks
+## Workflow Engine
 
-Playbooks allow you to run semi-automated workflows defined in YAML files. This ensures consistency while keeping the operator in control (Human-in-the-loop).
+RedSploit includes a native **workflow engine** that orchestrates multi-tool scans as a directed acyclic graph (DAG). Workflows are defined in YAML, persisted under the active workspace, and support both static execution and dynamic generation.
 
-**Commands:**
+### Built-in Workflow Catalog
 
-- `playbook list`: Show available playbooks
-- `playbook run <name>`: Execute a playbook
+Three catalog workflows ship with RedSploit:
 
-**Example Workflow:**
+| Workflow | Mode | Description |
+|----------|------|-------------|
+| `external-project.yaml` | project | One-time external black-box assessment (cautious profile, rate-limited) |
+| `internal-project.yaml` | project | Internal network assessment (aggressive profile) |
+| `external-continuous.yaml` | continuous | Monthly re-assessment with fixed templates for delta tracking |
+
+### Workflow Commands
 
 ```bash
-> set target 10.10.10.10
-> playbook run recon
+# List built-in workflows
+red workflow list
+
+# Show a workflow definition
+red workflow show external-project.yaml
+
+# Preview the scan plan for a target without running
+red workflow preview --workflow external-project.yaml --target example.com
+
+# Build a dynamically generated workflow
+red workflow build --workflow external-project.yaml --target example.com --tech php --depth deep
+
+# Run a workflow (static catalog or dynamically generated)
+red workflow run --workflow external-project.yaml --target example.com
+red workflow run --workflow external-project.yaml --target example.com --tech php --depth deep
+
+# View run history
+red workflow runs
+
+# Export findings from a completed scan
+red workflow findings --scan-id <id>
+
+# Compare two runs for the same target
+red workflow delta --target example.com
 ```
 
-Playbooks are stored in the `playbooks/` directory. You can create your own YAML files to define custom workflows.
+### Dynamic Builder
+
+When `--tech` and/or `--depth` are provided, RedSploit generates a tailored workflow on the fly:
+
+| Flag | Options | Effect |
+|------|---------|--------|
+| `--tech` | generic, php, wordpress, laravel, node, java_spring, aspnet, python, static, api | Sets file extensions for directory fuzzing |
+| `--depth` | normal, deep | Controls crawl depth, rate limit, wordlist size, and parallel tools |
+
+**Example:**
+```bash
+red workflow run --workflow external-project.yaml --target example.com --tech php --depth deep
+```
+
+This generates a PHP-tuned, deep-scan workflow that includes:
+- Parallel `dirsearch` + `feroxbuster` with `php,bak,old,zip,txt,inc,json,html` extensions
+- Deeper `katana` crawl (`-depth 3`)
+- Higher rate limit (`25` req/s)
+- Larger wordlist (`raft-large-directories.txt`)
+- A `merge` step that deduplicates results from both fuzzers
+
+### Run Display Modes
+
+`workflow run` has two output styles:
+
+**Normal mode** (default) — shows step transitions and streams the tool's live stdout/stderr to the terminal as it runs:
+
+```bash
+red workflow run --workflow external-project.yaml --target example.com
+```
+
+Output:
+```
+  External Project Engagement  [project/cautious]  target=example.com
+  14 steps · scan-abc123
+
+  ▶ passive_urls  gau
+  https://example.com
+  https://example.com/api
+  ✓ passive_urls  2 items · 0:03
+
+  ▶ probe_http  httpx
+  [200] https://example.com
+  ✓ probe_http  1 item · 0:02
+```
+
+**Quiet mode** (`-q` / `--quiet`) — suppresses all tool output. Only step transitions and the final summary are shown:
+
+```bash
+red workflow run --workflow external-project.yaml --target example.com --quiet
+```
+
+### Workflow Concepts
+
+- **DAG Planning** — Steps declare dependencies via `input: "{{output_key}}"`. The planner resolves a dependency graph and executes steps level-by-level.
+- **Merge Steps** — Deduplicate outputs from multiple producer steps (e.g., combine `dirsearch_paths` + `feroxbuster_paths`).
+- **Dispatch Steps** — Context-aware vulnerability checks. Each discovered endpoint is classified (query params, JSON body, file upload, auth header, numeric ID) and matched against dispatch rules to run targeted nuclei templates.
+- **Persistence** — Every run, step, finding, artifact, and snapshot is stored in a SQLite database under the active workspace (`~/.redsploit/workspaces/<workspace>/workflow/`).
+- **Delta Tracking** — Compare consecutive runs for the same target to detect new/removed subdomains and changed hosts.
 
 ## Examples
 

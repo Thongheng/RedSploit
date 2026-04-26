@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RedSploit Installation Script
+# RedSploit Setup Script
 
 set -e
 
@@ -17,7 +17,7 @@ INSTALL_TARGET=""
 RC_FILE=""
 DETECTED_SHELL=""
 CURRENT_STEP=0
-TOTAL_STEPS=4
+TOTAL_STEPS=5
 TEST_ONLY=0
 OPENROUTER_TEST_URL="https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_TEST_MODEL="openrouter/free"
@@ -72,7 +72,7 @@ print_step() {
 
 print_usage() {
     cat <<EOF
-Usage: ./install.sh [--test] [--help]
+Usage: ./setup.sh [--test] [--help]
 
 Options:
   --test    Test OpenRouter, ChatAnywhere, and NVIDIA NIM API access using configured API keys
@@ -85,6 +85,11 @@ preflight_check() {
 
     if ! command -v python3 >/dev/null 2>&1; then
         log_warn "python3 is required but not available on PATH."
+        failures=$((failures + 1))
+    fi
+
+    if ! python3 -m pip --version >/dev/null 2>&1; then
+        log_warn "python3 -m pip is required but not available."
         failures=$((failures + 1))
     fi
 
@@ -111,7 +116,7 @@ print_banner() {
         printf '%s%sQuick probe for OpenRouter and ChatAnywhere connectivity%s\n' "$C_DIM" "$C_BLUE" "$C_RESET"
     else
         printf '%s%sRedSploit Setup%s\n' "$C_BOLD" "$C_RED" "$C_RESET"
-        printf '%s%sQuick installer for command, completion, and AI summary config%s\n' "$C_DIM" "$C_BLUE" "$C_RESET"
+        printf '%s%sSingle-file setup for dependencies, command install, shell completion, workflow automation, and AI summary config%s\n' "$C_DIM" "$C_BLUE" "$C_RESET"
     fi
     echo ""
 }
@@ -656,7 +661,26 @@ configure_api_keys_interactive() {
     else
         log_warn "No AI provider keys were saved."
     fi
-    log_info "Run ./install.sh --test after reloading your shell to verify providers."
+    log_info "Run ./setup.sh --test after reloading your shell to verify providers."
+}
+
+install_python_package() {
+    print_step "Install Python package and dependencies"
+    local -a pip_cmd
+
+    if [ -z "$INSTALL_MODE" ]; then
+        choose_install_mode
+    fi
+
+    if [ "$INSTALL_MODE" = "system" ]; then
+        pip_cmd=(python3 -m pip install -e "$SCRIPT_DIR")
+    else
+        pip_cmd=(python3 -m pip install --user -e "$SCRIPT_DIR")
+    fi
+
+    log_info "Running: ${pip_cmd[*]}"
+    "${pip_cmd[@]}"
+    log_success "Installed RedSploit Python package and dependencies"
 }
 
 install_redsploit() {
@@ -700,28 +724,88 @@ install_redsploit() {
 
 setup_shell_completion() {
     print_step "Set up shell completion"
-    log_info "Running completion installer"
-    if [ -f "$SCRIPT_DIR/setup_completion.sh" ]; then
-        chmod +x "$SCRIPT_DIR/setup_completion.sh"
-        if is_root_install && [ -n "$SUDO_USER" ]; then
-            if sudo -u "$REAL_USER" env REDSPLOIT_SHELL_NAME="$DETECTED_SHELL" "$SCRIPT_DIR/setup_completion.sh"; then
-                COMPLETION_STATUS="configured"
-            else
-                COMPLETION_STATUS="manual"
-                log_warn "Completion setup failed. RedSploit is installed, but completion needs manual attention."
-            fi
-        else
-            if env REDSPLOIT_SHELL_NAME="$DETECTED_SHELL" "$SCRIPT_DIR/setup_completion.sh"; then
-                COMPLETION_STATUS="configured"
-            else
-                COMPLETION_STATUS="manual"
-                log_warn "Completion setup failed. RedSploit is installed, but completion needs manual attention."
-            fi
-        fi
-    else
-        COMPLETION_STATUS="missing"
-        log_warn "setup_completion.sh not found, skipping completion setup"
+    if [ "$DETECTED_SHELL" = "zsh" ]; then
+        install_zsh_completion
+        return 0
     fi
+    if [ "$DETECTED_SHELL" = "bash" ]; then
+        install_bash_completion
+        return 0
+    fi
+
+    COMPLETION_STATUS="manual"
+    log_warn "Unsupported shell '$DETECTED_SHELL'. Configure completion manually if needed."
+}
+
+install_zsh_completion() {
+    local install_dir target_rc
+    target_rc="${RC_FILE:-$REAL_HOME/.zshrc}"
+
+    if [ -w "/usr/share/zsh/site-functions" ]; then
+        install_dir="/usr/share/zsh/site-functions"
+        cp "$SCRIPT_DIR/completions/_red" "$install_dir/_red"
+    else
+        install_dir="$REAL_HOME/.zsh/completion"
+        mkdir -p "$install_dir"
+        cp "$SCRIPT_DIR/completions/_red" "$install_dir/_red"
+        if is_root_install; then
+            ensure_user_ownership "$install_dir"
+            ensure_user_ownership "$install_dir/_red"
+        fi
+    fi
+
+    mkdir -p "$(dirname "$target_rc")"
+    touch "$target_rc"
+    if ! grep -q "RedSploit completion" "$target_rc" 2>/dev/null; then
+        {
+            echo ""
+            echo "# RedSploit completion"
+            echo "fpath=($install_dir \$fpath)"
+            echo "autoload -U compinit && compinit"
+        } >> "$target_rc"
+    fi
+    if is_root_install; then
+        ensure_rc_ownership "$target_rc"
+    fi
+
+    COMPLETION_STATUS="configured"
+    RELOAD_REQUIRED=1
+    log_success "Installed zsh completion to $install_dir"
+}
+
+install_bash_completion() {
+    local install_dir target_rc
+    target_rc="${RC_FILE:-$REAL_HOME/.bashrc}"
+
+    if [ -w "/etc/bash_completion.d" ]; then
+        install_dir="/etc/bash_completion.d"
+        cp "$SCRIPT_DIR/completions/red.bash" "$install_dir/red"
+    else
+        install_dir="$REAL_HOME/.bash_completion.d"
+        mkdir -p "$install_dir"
+        cp "$SCRIPT_DIR/completions/red.bash" "$install_dir/red"
+        if is_root_install; then
+            ensure_user_ownership "$install_dir"
+            ensure_user_ownership "$install_dir/red"
+        fi
+    fi
+
+    mkdir -p "$(dirname "$target_rc")"
+    touch "$target_rc"
+    if ! grep -q "RedSploit completion" "$target_rc" 2>/dev/null; then
+        {
+            echo ""
+            echo "# RedSploit completion"
+            echo "for f in ~/.bash_completion.d/*; do source \$f; done"
+        } >> "$target_rc"
+    fi
+    if is_root_install; then
+        ensure_rc_ownership "$target_rc"
+    fi
+
+    COMPLETION_STATUS="configured"
+    RELOAD_REQUIRED=1
+    log_success "Installed bash completion to $install_dir"
 }
 
 print_success() {
@@ -774,6 +858,7 @@ main() {
     else
         log_info "Install mode: local (~/.local/bin)"
     fi
+    install_python_package
     install_redsploit
     setup_shell_completion
     print_step "Configure AI summaries"

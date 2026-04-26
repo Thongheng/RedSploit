@@ -171,7 +171,7 @@ function makeCard(flow, color, tag, title, desc, code) {
 // ─── ALL CARDS ───
 
 const setupCards = [
-  makeCard('core', C.accent, 'SETUP', 'Clone & Install', 'Clone the repo and run the installer. It sets up the binary, shell completion, and optional AI summary API keys.', 'git clone https://github.com/Thongheng/RedSploit.git\ncd RedSploit\n./install.sh\n./install.sh --test'),
+  makeCard('core', C.accent, 'SETUP', 'Clone & Setup', 'Clone the repo and run the single setup script. It installs dependencies, the binary, shell completion, and optional AI summary API keys.', 'git clone https://github.com/Thongheng/RedSploit.git\ncd RedSploit\n./setup.sh\n./setup.sh --test'),
   makeCard('core', C.accent, 'SETUP', 'Configure', 'Edit config.yaml for wordlist paths, payload defaults, and transfer port. Set your AI provider API keys.', 'export OPENROUTER_API_KEY="..."\nexport CHATANYWHERE_API_KEY="..."\nsource ~/.zshrc'),
 ];
 

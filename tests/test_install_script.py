@@ -2,7 +2,7 @@ import subprocess
 from pathlib import Path
 
 
-INSTALL_SCRIPT = Path(__file__).resolve().parents[1] / "install.sh"
+INSTALL_SCRIPT = Path(__file__).resolve().parents[1] / "setup.sh"
 
 
 def _run_shell(script):
