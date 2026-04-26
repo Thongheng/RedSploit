@@ -44,6 +44,7 @@ def print_main_help():
     print("  red                         Start the interactive shell")
     print("  red -set [preset flags]     Start the shell with session values preloaded")
     print("  red -T ... -i -nmap         Run one tool directly from the CLI")
+    print("  red workflow ...            Run workflow catalog, preview, or execution")
     print("")
     print(f"{Colors.HEADER}Areas:{Colors.ENDC}")
     print("  -i  Infrastructure           Network scanning and host analysis")
@@ -228,6 +229,12 @@ def _print_set_help():
 
 def main():
     raw_args = sys.argv[1:]
+    if raw_args and raw_args[0] == "workflow":
+        session = Session()
+        from redsploit.workflow.manager import WorkflowManager
+
+        return WorkflowManager(session).run_cli(raw_args[1:])
+
     args, unknown, module_order = _parse_top_level_args(raw_args)
     selected_module = module_order[0] if module_order else _auto_detect_module(unknown)
 

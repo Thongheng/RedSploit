@@ -63,5 +63,8 @@ dmypy.json
 .claude/
 task.md
 
+# Workflow temp data
+.redsploit-workflow/
+
 # Project-local config (user-specific)
 config.yaml

@@ -1,29 +1,66 @@
 # Bash completion for red command
 
+_red_workflow_completion() {
+    local cur prev opts
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    # Workflow subcommands
+    local workflow_cmds="list show preview build run runs findings delta adapters"
+
+    # Workflow files
+    local workflow_files="external-project.yaml internal-project.yaml external-continuous.yaml"
+
+    # If completing the first arg after "workflow"
+    if [[ "${COMP_WORDS[2]}" == "workflow" && "$COMP_CWORD" -eq 3 ]]; then
+        COMPREPLY=( $(compgen -W "$workflow_cmds" -- ${cur}) )
+        return 0
+    fi
+
+    # Subcommand-specific completions
+    local subcmd="${COMP_WORDS[3]}"
+    case "$subcmd" in
+        show|run|preview|build)
+            if [[ "$COMP_CWORD" -eq 4 ]]; then
+                COMPREPLY=( $(compgen -W "$workflow_files" -- ${cur}) )
+                return 0
+            fi
+            ;;
+    esac
+
+    return 0
+}
+
 _red_completion() {
     local cur prev opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    
+
+    # Delegate to workflow completion if "workflow" is the first argument
+    if [[ "${COMP_WORDS[1]}" == "workflow" ]]; then
+        _red_workflow_completion
+        return 0
+    fi
+
     # Global options
-    local global_opts="-h -T -U -D -H -I -P -i -w -f -set -nosummary --no-summary"
-    
+    local global_opts="-h -T -U -D -H -I -P -i -w -f -set -nosummary --no-summary workflow"
+
     # Common flags for all modules
     local common_opts="-c --copy -p --preview -e --edit -nosummary --no-summary -noauth --noauth"
-    
+
     # Infrastructure module flags
     local infra_opts="-nmap -rustscan -smbclient -smbmap -enum4linux -nxc -bloodhound -ftp -msf -msfvenom -rdp -ssh -evil_winrm -psexec -wmiexec -secretsdump -kerbrute"
-    
+
     # Web module flags
     local web_opts="-headerscan -subfinder -gobuster_dns -dir_ffuf -vhost -dir_ferox -dir_dirsearch -nuclei -wpscan -subzy -waf -screenshots"
-    
+
     # File module flags
     local file_opts="-download -base64 -http -smb"
-    
+
     # Start with global options
     opts="$global_opts"
-    
+
     # Check if any module flag is present in the command line
     if [[ " ${COMP_WORDS[@]} " =~ " -i " ]]; then
         # Infrastructure module active
@@ -35,7 +72,7 @@ _red_completion() {
         # File module active
         opts="$opts $file_opts $common_opts"
     fi
-    
+
     # Handle specific option values
     case "${prev}" in
         -T|-U|-D|-H)
@@ -55,13 +92,13 @@ _red_completion() {
         *)
             ;;
     esac
-    
+
     # Check if we should fallback to file completion (only for file module and when not starting a flag)
     if [[ " ${COMP_WORDS[@]} " =~ " -f " ]] && [[ ! "${cur}" =~ ^- ]]; then
          COMPREPLY=( $(compgen -f -- ${cur}) )
          return 0
     fi
-    
+
     COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
     return 0
 }

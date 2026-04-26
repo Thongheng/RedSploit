@@ -407,7 +407,7 @@ class FileShell(BaseShell):
         return types
 
     def complete_use(self, text, line, begidx, endidx):
-        """Autocomplete module names for 'use' command, excluding loot and playbook"""
+        """Autocomplete module names for 'use' command, excluding loot and workflow"""
         modules = ["infra", "ad", "web", "file", "shell", "main"]
         if text:
             return [m for m in modules if m.startswith(text)]

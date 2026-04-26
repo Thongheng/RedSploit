@@ -85,3 +85,46 @@ def test_main_shell_completion_includes_global_tool_names(session):
     completions = shell.completenames("hea")
 
     assert "headerscan" in completions
+
+
+def test_main_shell_workflow_command_delegates(session):
+    shell = RedShell(session)
+
+    with patch("redsploit.workflow.manager.WorkflowManager.handle_shell_command") as mock_handle:
+        shell.onecmd("workflow list")
+
+    mock_handle.assert_called_once_with("list")
+
+
+def test_main_shell_workflow_completion_lists_subcommands(session):
+    shell = RedShell(session)
+
+    completions = shell.complete_workflow("", "workflow ", 9, 9)
+
+    assert "list" in completions
+    assert "show" in completions
+    assert "preview" in completions
+    assert "build" in completions
+    assert "run" in completions
+    assert "adapters" in completions
+
+
+def test_main_shell_workflow_completion_filters_subcommands(session):
+    shell = RedShell(session)
+
+    completions = shell.complete_workflow("ru", "workflow ru", 9, 11)
+
+    assert "run" in completions
+    assert "runs" in completions
+    assert "adapters" not in completions
+    assert "list" not in completions
+
+
+def test_main_shell_workflow_show_completion_lists_workflow_files(session):
+    shell = RedShell(session)
+
+    completions = shell.complete_workflow("", "workflow show ", 14, 14)
+
+    assert "external-project.yaml" in completions
+    assert "internal-project.yaml" in completions
+    assert "external-continuous.yaml" in completions

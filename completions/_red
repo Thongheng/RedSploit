@@ -1,22 +1,85 @@
 #compdef red
 
-# Minimal completion - just always complete files for positional args
+#compdef red
+
+_red_workflow() {
+    local curcontext="$curcontext" state line
+    typeset -A opt_args
+
+    _arguments -C \
+        '1: :->subcmd' \
+        '*: :->args' && return 0
+
+    case "$state" in
+        subcmd)
+            local subcmds=(
+                'list:List built-in workflows'
+                'show:Show a workflow definition'
+                'preview:Preview scan plan without running'
+                'build:Build a dynamically generated workflow'
+                'run:Run a workflow'
+                'runs:View run history'
+                'findings:Export findings from a completed scan'
+                'delta:Compare two runs for the same target'
+                'adapters:List available workflow adapters'
+            )
+            _describe -t commands 'workflow subcommand' subcmds
+            ;;
+        args)
+            case "$line[1]" in
+                show|run|preview|build)
+                    local workflows=(
+                        'external-project.yaml:One-time external black-box assessment'
+                        'internal-project.yaml:Internal network assessment'
+                        'external-continuous.yaml:Monthly re-assessment'
+                    )
+                    _describe -t workflows 'workflow file' workflows
+                    ;;
+                findings)
+                    _files
+                    ;;
+            esac
+            ;;
+    esac
+}
+
 _red() {
-    _arguments \
-        '-h[Show help]' \
-        '-T[Target]:target:' \
-        '-U[User]:user:' \
-        '-D[Domain]:domain:' \
-        '-H[Hash]:hash:' \
-        '-I[Interface]:interface:' \
-        '-P[Listener port]:port:' \
-        '-nosummary[Disable post-run summaries]' \
-        '--no-summary[Disable post-run summaries]' \
-        '-i[Infra module]' \
-        '-w[Web module]' \
-        '-f[File module]' \
-        '-headerscan[HTTP security header scanner]' \
-        '*:file:_files'
+    local curcontext="$curcontext" state line
+    typeset -A opt_args
+
+    _arguments -C \
+        '1: :->command' \
+        '*: :->args' && return 0
+
+    case "$state" in
+        command)
+            local commands=(
+                'workflow:Workflow engine commands'
+            )
+            _describe -t commands 'red command' commands
+            _arguments \
+                '-h[Show help]' \
+                '-T[Target]:target:' \
+                '-U[User]:user:' \
+                '-D[Domain]:domain:' \
+                '-H[Hash]:hash:' \
+                '-I[Interface]:interface:' \
+                '-P[Listener port]:port:' \
+                '-nosummary[Disable post-run summaries]' \
+                '--no-summary[Disable post-run summaries]' \
+                '-i[Infra module]' \
+                '-w[Web module]' \
+                '-f[File module]' \
+                '-headerscan[HTTP security header scanner]'
+            ;;
+        args)
+            if [[ "$line[1]" == "workflow" ]]; then
+                _red_workflow
+            else
+                _files
+            fi
+            ;;
+    esac
 }
 
 _red "$@"

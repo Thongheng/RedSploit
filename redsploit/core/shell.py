@@ -1,7 +1,6 @@
 import difflib
 
 from .colors import Colors, log_warn
-from .session import Session
 from .base_shell import BaseShell
 
 CORE_COMMANDS = {"use", "set", "show", "exit", "back", "shell", "help", "clear", "options", "workspace"}

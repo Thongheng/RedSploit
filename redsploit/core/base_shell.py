@@ -7,10 +7,13 @@ from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.shortcuts import CompleteStyle
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggest, Suggestion
-from prompt_toolkit.formatted_text import ANSI
+# ANSI removed: prompt_toolkit handles color formatting natively
 from .colors import Colors, log_warn, log_error, log_success
 from .session import Session
 from .history import CommandHistory
+from .repl_ui.toolbar import make_toolbar_func
+from .repl_ui.keybindings import create_key_bindings
+from .repl_ui.prompt import create_prompt_style, make_prompt_tokens, make_rprompt
 
 
 class HistoryAutoSuggest(AutoSuggest):
@@ -125,7 +128,7 @@ class BaseShell(cmd.Cmd):
         return dir(self)
 
     def cmdloop(self, intro=None):
-        """Override cmdloop to use prompt_toolkit"""
+        """Override cmdloop to use prompt_toolkit with rich UI."""
         self.preloop()
         if self.use_rawinput and self.completekey:
             try:
@@ -141,39 +144,61 @@ class BaseShell(cmd.Cmd):
             if self.intro:
                 self.stdout.write(str(self.intro)+"\n")
             stop = None
-            
-            # Setup prompt_toolkit session
+
+            # ── Enhanced prompt_toolkit session ────────────────────────────
             completer = CmdCompleter(self)
-            
-            # History Persistence
+
             try:
                 history_path = os.path.expanduser("~/.redsploit_history")
                 history = FileHistory(history_path)
             except Exception:
                 history = None
 
+            current_text = [""]
+            kb = create_key_bindings(current_text)
+            toolbar = make_toolbar_func(self.session)
+            style = create_prompt_style()
+
             self.prompt_session = PromptSession(
                 completer=completer,
                 complete_style=CompleteStyle.MULTI_COLUMN,
                 history=history,
                 auto_suggest=HistoryAutoSuggest(self.command_history),
+                key_bindings=kb,
+                bottom_toolbar=toolbar,
+                style=style,
+                enable_suspend=True,
+                enable_open_in_editor=True,
+                complete_in_thread=True,
+                complete_while_typing=True,
             )
-            
+
             while not stop:
                 if self.cmdqueue:
                     line = self.cmdqueue.pop(0)
                 else:
                     if self.use_rawinput:
                         try:
-                            # Use prompt_toolkit instead of input()
-                            # Strip ANSI codes from prompt for prompt_toolkit? 
-                            # proper ANSI handling in PTK is automatic if formatted text is used, 
-                            # but self.prompt currently has raw ANSI codes. PTK handles them fine usually.
-                            line = self.prompt_session.prompt(ANSI(self.prompt))
+                            # Build styled prompt tokens instead of raw ANSI
+                            context = self._prompt_context_str()
+                            prompt_tokens = make_prompt_tokens(
+                                self.module_name, context
+                            )
+                            current_text[0] = ""
+
+                            def get_rprompt():
+                                return make_rprompt(
+                                    list(self.command_history.all()),
+                                    current_text[0],
+                                )
+
+                            line = self.prompt_session.prompt(
+                                prompt_tokens,
+                                rprompt=get_rprompt,
+                            )
                         except EOFError:
                             line = 'EOF'
                         except KeyboardInterrupt:
-                            # Clear line on Ctrl+C and continue
                             print("^C")
                             continue
                     else:
@@ -197,6 +222,22 @@ class BaseShell(cmd.Cmd):
                     readline.set_completer(self.old_completer)
                 except ImportError:
                     pass
+
+    def _prompt_context_str(self) -> str:
+        """Build a compact context string for the prompt."""
+        target = self.session.get("target")
+        domain = self.session.get("domain")
+        user = self.session.get("username")
+        workspace = self.session.get("workspace")
+        display = domain if domain else target
+        parts = []
+        if display:
+            parts.append(display)
+        if user:
+            parts.append(user)
+        if workspace and workspace != "default":
+            parts.append(f"ws:{workspace}")
+        return " ".join(parts) if parts else "none"
 
     def update_prompt(self):
         target = self.session.get("target")
@@ -474,44 +515,29 @@ class BaseShell(cmd.Cmd):
         else:
             log_error(f"Unknown loot command: {cmd}")
 
-    def do_playbook(self, arg):
-        """
-        Run interactive playbooks.
-        Usage:
-            playbook list
-            playbook run <name>
-        """
-        parts = arg.split()
-        if not parts:
-            self.session.playbook.list_playbooks()
-            return
-            
-        cmd = parts[0].lower()
-        
-        if cmd == "list":
-            self.session.playbook.list_playbooks()
-        elif cmd == "run":
-            if len(parts) < 2:
-                log_error("Usage: playbook run <name>")
-                return
-            name = parts[1]
-            self.session.playbook.run_playbook(name)
-        else:
-            log_error(f"Unknown playbook command: {cmd}")
+    def do_workflow(self, arg):
+        """Run workflow catalog, preview, execution, and reporting commands."""
+        from redsploit.workflow.manager import WorkflowManager
 
-    def complete_playbook(self, text, line, begidx, endidx):
-        """Autocomplete for playbook command"""
+        WorkflowManager(self.session).handle_shell_command(arg)
+
+    def complete_workflow(self, text, line, begidx, endidx):
+        commands = ["list", "show", "preview", "build", "run", "runs", "findings", "delta", "adapters"]
         parts = line.split()
-        if len(parts) == 1 or (len(parts) == 2 and not line.endswith(' ')):
-             cmds = ["list", "run"]
-             return [c for c in cmds if c.startswith(text)]
-        
-        if len(parts) >= 2 and parts[1] == "run":
-             # Autocomplete playbook names
-             pb_dir = self.session.playbook.playbooks_dir
-             if os.path.exists(pb_dir):
-                 files = [f for f in os.listdir(pb_dir) if f.endswith('.yaml')]
-                 return [f for f in files if f.startswith(text)]
+        # Completing the subcommand name (e.g. "workflow s" or "workflow ")
+        if len(parts) == 1 and line.endswith(" "):
+            return commands
+        if len(parts) == 2 and not line.endswith(" "):
+            return [command for command in commands if command.startswith(text)]
+        # Subcommand arguments
+        if len(parts) >= 2 and parts[1] == "show":
+            from redsploit.workflow.planner import list_workflow_files
+
+            files = [path.name for path in list_workflow_files()]
+            if len(parts) == 2 and line.endswith(" "):
+                return files
+            if len(parts) >= 3 and not line.endswith(" "):
+                return [f for f in files if f.startswith(text)]
         return []
 
     def do_config(self, arg):
@@ -644,7 +670,7 @@ class BaseShell(cmd.Cmd):
             print("  use infra                  Enter a module shell")
             print("  infra nmap                 Run one module command from the main shell")
             print("  options                    Show current session context")
-            print("  loot, workspace, playbook  Use built-in workflow helpers")
+            print("  loot, workspace, workflow  Use built-in workflow helpers")
 
         print(f"\n{Colors.HEADER}Global Flags{Colors.ENDC}")
         print(f"{'-c, --copy':<16} Copy command to clipboard without running")
@@ -661,7 +687,7 @@ class BaseShell(cmd.Cmd):
         # Categorize core commands
         navigation_cmds = ["back", "use", "exit", "help", "clear"]
         config_cmds = ["set", "options"]
-        advanced_cmds = ["workspace", "loot", "playbook"]
+        advanced_cmds = ["workspace", "loot", "workflow"]
         module_select_cmds = ["infra", "ad", "web", "file", "shell"]
         
         module_cmds = []

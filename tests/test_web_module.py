@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 import pytest
 from unittest.mock import patch
 from redsploit.modules.web import WebModule
@@ -82,68 +83,70 @@ class TestToolCheck:
         assert "not found" in captured.out
 
 
-class FakeResponse:
-    def __init__(self, status_code=200, headers=None):
-        self.status_code = status_code
-        self.headers = headers or {}
-
-
 class TestHeaderscan:
-    @patch("requests.Session.request")
-    def test_headerscan_uses_session_target_when_url_missing(self, mock_request, web, session, capsys):
+    @patch("shutil.which", return_value="/usr/bin/shcheck.py")
+    @patch("subprocess.run")
+    def test_headerscan_uses_session_target_when_url_missing(self, mock_run, mock_which, web, session, capsys):
         session.set("target", "https://example.com")
         capsys.readouterr()
-        mock_request.return_value = FakeResponse(headers={"Server": "nginx"})
+        mock_run.return_value.returncode = 0
 
         web.run_tool("headerscan", scanner_args=["--json"])
 
         captured = capsys.readouterr()
-        output = json.loads(captured.out)
-        assert output[0]["url"] == "https://example.com"
-        assert mock_request.call_args.kwargs["url"] == "https://example.com"
+        call_args = mock_run.call_args[0][0]
+        assert "shcheck.py" in call_args[0]
+        assert "https://example.com" in call_args
+        assert "-j" in call_args
 
-    @patch("requests.Session.request")
-    def test_headerscan_explicit_url_overrides_session_target(self, mock_request, web, session, capsys):
+    @patch("shutil.which", return_value="/usr/bin/shcheck.py")
+    @patch("subprocess.run")
+    def test_headerscan_explicit_url_overrides_session_target(self, mock_run, mock_which, web, session, capsys):
         session.set("target", "https://session.example")
         capsys.readouterr()
-        mock_request.return_value = FakeResponse(headers={"Server": "nginx"})
+        mock_run.return_value.returncode = 0
 
         web.run(["-headerscan", "https://explicit.example", "--json"])
 
         captured = capsys.readouterr()
-        output = json.loads(captured.out)
-        assert output[0]["url"] == "https://explicit.example"
-        assert mock_request.call_args.kwargs["url"] == "https://explicit.example"
+        call_args = mock_run.call_args[0][0]
+        assert "https://explicit.example" in call_args
+        assert "https://session.example" not in call_args
 
-    @patch("requests.Session.request")
-    def test_headerscan_file_input_takes_precedence(self, mock_request, web, session, tmp_path, capsys):
+    @patch("shutil.which", return_value="/usr/bin/shcheck.py")
+    @patch("subprocess.run")
+    def test_headerscan_file_input_takes_precedence(self, mock_run, mock_which, web, session, tmp_path, capsys):
         session.set("target", "https://session.example")
         capsys.readouterr()
         targets_file = tmp_path / "targets.txt"
         targets_file.write_text("https://one.example\n# comment\nhttps://two.example\n")
-        mock_request.return_value = FakeResponse(headers={"Server": "nginx"})
+        mock_run.return_value.returncode = 0
 
         web.run_tool("headerscan", scanner_args=["-f", str(targets_file), "--json"])
 
         captured = capsys.readouterr()
-        output = json.loads(captured.out)
-        assert [item["url"] for item in output] == ["https://one.example", "https://two.example"]
-        assert mock_request.call_count == 2
+        call_args = mock_run.call_args[0][0]
+        assert "--hfile" in call_args
+        hfile_idx = call_args.index("--hfile")
+        hfile_path = call_args[hfile_idx + 1]
+        assert Path(hfile_path).read_text().strip() == "https://one.example\nhttps://two.example"
 
-    @patch("requests.Session.request")
-    def test_headerscan_api_mode_uses_api_profile(self, mock_request, web, capsys):
-        mock_request.return_value = FakeResponse(headers={})
+    @patch("shutil.which", return_value="/usr/bin/shcheck.py")
+    @patch("subprocess.run")
+    def test_headerscan_api_mode_does_not_break(self, mock_run, mock_which, web, capsys):
+        mock_run.return_value.returncode = 0
 
         web.run_tool("headerscan", scanner_args=["https://api.example.com", "--api", "--json"])
 
         captured = capsys.readouterr()
-        output = json.loads(captured.out)
-        assert "Cache-Control" in output[0]["missing_headers"]
-        assert "X-Frame-Options" not in output[0]["missing_headers"]
+        call_args = mock_run.call_args[0][0]
+        assert "https://api.example.com" in call_args
+        assert "-j" in call_args
 
-    @patch("requests.Session.request")
-    def test_headerscan_passes_request_options(self, mock_request, web, capsys):
-        mock_request.return_value = FakeResponse(headers={"Server": "nginx"})
+    @patch("shutil.which", return_value="/usr/bin/shcheck.py")
+    @patch("subprocess.run")
+    def test_headerscan_passes_request_options(self, mock_run, mock_which, web, capsys):
+        mock_run.return_value.returncode = 0
 
         web.run_tool(
             "headerscan",
@@ -159,18 +162,25 @@ class TestHeaderscan:
         )
 
         capsys.readouterr()
-        assert mock_request.call_args.kwargs["method"] == "POST"
-        assert mock_request.call_args.kwargs["headers"]["Authorization"] == "Bearer token"
-        assert mock_request.call_args.kwargs["allow_redirects"] is True
+        call_args = mock_run.call_args[0][0]
+        assert "-m" in call_args
+        assert "POST" in call_args
+        assert "-a" in call_args
+        assert "Authorization: Bearer token" in call_args
+        assert "--no-follow" not in call_args
 
-    @patch("requests.Session.request")
-    def test_headerscan_supports_detailed_output(self, mock_request, web, capsys):
-        mock_request.return_value = FakeResponse(headers={"Server": "nginx"})
+    @patch("shutil.which", return_value="/usr/bin/shcheck.py")
+    @patch("subprocess.run")
+    def test_headerscan_supports_detailed_output(self, mock_run, mock_which, web, capsys):
+        mock_run.return_value.returncode = 0
 
         web.run_tool("headerscan", scanner_args=["https://example.com", "--detailed"])
 
         captured = capsys.readouterr()
-        assert "Detailed Security Header Analysis" in captured.out
+        call_args = mock_run.call_args[0][0]
+        assert "-i" in call_args
+        assert "-x" in call_args
+        assert "-k" in call_args
 
     @pytest.mark.parametrize(
         "scanner_args",

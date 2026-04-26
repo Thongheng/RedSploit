@@ -30,8 +30,8 @@ class TestModuleToolHelp:
 
         captured = capsys.readouterr()
         assert "headerscan" in captured.out
-        assert "Scan HTTP security headers and grade the response" in captured.out
-        assert "Runtime flags:" in captured.out
+        assert "Scan HTTP security headers using shcheck.py" in captured.out
+        assert "Flags:" in captured.out
 
 
 class TestFileHelp:
@@ -87,7 +87,7 @@ class TestTopLevelCliHelp:
         assert excinfo.value.code == 0
         captured = capsys.readouterr()
         assert "headerscan" in captured.out
-        assert "Runtime flags:" in captured.out
+        assert "Flags:" in captured.out
         assert "Web Reconnaissance Module" not in captured.out
 
     def test_red_py_auto_detects_headerscan_help_without_module_flag(self, monkeypatch, capsys):
@@ -99,7 +99,7 @@ class TestTopLevelCliHelp:
         assert excinfo.value.code == 0
         captured = capsys.readouterr()
         assert "headerscan" in captured.out
-        assert "Runtime flags:" in captured.out
+        assert "Flags:" in captured.out
         assert "Red Team Pentest Helper" not in captured.out
 
     def test_red_py_main_help_mentions_no_summary_flag(self, monkeypatch, capsys):

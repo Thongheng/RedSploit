@@ -1,8 +1,7 @@
 from typing import Dict, Optional
-from .colors import log_success, log_error, log_warn, Colors
+from .colors import log_success, log_error, Colors
 from .utils import get_default_interface
 from .loot import LootManager
-from .playbook import PlaybookManager
 import json
 import os
 from urllib.parse import urlsplit
@@ -27,11 +26,11 @@ class Session:
             "summary": "",
         }
         self.next_shell: Optional[str] = None
-        
-        # Ensure workspace directory exists with restrictive permissions
-        self.workspace_dir = os.path.expanduser("~/.redsploit/workspaces")
-        if not os.path.exists(self.workspace_dir):
-            os.makedirs(self.workspace_dir, mode=0o700, exist_ok=True)
+
+        # Ensure workspace directory exists with restrictive permissions.
+        # Fall back to a repo-local temp-safe path when the default home path
+        # is unavailable or not writable in the current environment.
+        self.workspace_dir = self._resolve_workspace_dir()
 
         # Config Loading
         # Determine project root (redsploit/core/session.py -> ../../)
@@ -57,11 +56,27 @@ class Session:
         # Initialize Loot Manager
         self.loot = LootManager(self.workspace_dir, self.env["workspace"])
         
-        # Initialize Playbook Manager
-        self.playbook = PlaybookManager(self)
-        
         # Tool configuration tracking
         self.active_configs = {}  # Stores {module.tool: {config_key: config_value}}
+
+    def _resolve_workspace_dir(self) -> str:
+        candidates = [
+            os.path.expanduser("~/.redsploit/workspaces"),
+            os.path.join("/tmp", "redsploit-workspaces"),
+        ]
+
+        for candidate in candidates:
+            try:
+                os.makedirs(candidate, mode=0o700, exist_ok=True)
+                probe = os.path.join(candidate, ".write-test")
+                with open(probe, "w", encoding="utf-8") as handle:
+                    handle.write("")
+                os.remove(probe)
+                return candidate
+            except OSError:
+                continue
+
+        raise OSError("Unable to create a writable RedSploit workspace directory.")
 
     def load_config(self):
         # Try common SecLists locations
@@ -114,6 +129,13 @@ class Session:
                         "model": "meta/llama-4-maverick-17b-128e-instruct",
                     },
                 },
+            },
+            "workflow_report": {
+                "enabled": True,
+                "include_llm_summary": True,
+                "max_prompt_chars": 10000,
+                "max_step_outputs": 10,
+                "max_findings": 25,
             },
         }
 
@@ -431,6 +453,15 @@ class Session:
         if not os.path.exists(log_dir):
             os.makedirs(log_dir, mode=0o700, exist_ok=True)
         return log_dir
+
+    def workflow_data_dir(self) -> str:
+        workspace = self.get("workspace") or "default"
+        path = os.path.join(self.workspace_dir, workspace, "workflow")
+        os.makedirs(path, mode=0o700, exist_ok=True)
+        return path
+
+    def workflow_db_path(self) -> str:
+        return os.path.join(self.workflow_data_dir(), "scan-runs.db")
 
     def get_transfer_port(self) -> str:
         return str(self.config.get("transfer", {}).get("port", 8000))

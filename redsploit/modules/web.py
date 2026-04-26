@@ -3,24 +3,25 @@ import os
 import shlex
 import sys
 from ..core.colors import log_info, log_error, log_warn
-from ..core.base_shell import BaseShell, ModuleShell
+from ..core.base_shell import ModuleShell
 from ..core.security_headers import (
-    run_headerscan,
     merge_security_header_config,
+    run_headerscan,
     parse_headerscan_args,
     collect_headerscan_urls,
     HeaderscanHelp,
 )
-from .base import ArgumentParserNoExit, BaseModule, HelpExit
+from .base import BaseModule
 
 class WebModule(BaseModule):
     MODULE_NAME = "web"
     TOOLS = {
         "headerscan": {
-            "cmd": "built-in",
-            "binary": "",
-            "desc": "Scan HTTP security headers and grade the response",
+            "cmd": "shcheck.py {url}",
+            "binary": "shcheck.py",
+            "desc": "Scan HTTP security headers using shcheck.py",
             "category": "Analysis",
+            "requires": ["url"],
         },
         "subfinder": {
             "cmd": "subfinder -d {domain}",

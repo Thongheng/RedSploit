@@ -5,7 +5,7 @@ import subprocess
 import shutil
 import time
 from typing import Optional
-from ..core.colors import log_info, log_success, log_warn, log_error, log_run, Colors
+from ..core.colors import log_success, log_warn, log_error, log_run, Colors
 from ..core.summary import SummaryService
 
 class HelpExit(Exception):
