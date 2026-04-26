@@ -657,12 +657,14 @@ configure_api_keys_interactive() {
         log_info "NVIDIA NIM API key already configured."
     fi
 
+    if [ -n "$existing_openrouter" ] || [ -n "$existing_chatanywhere" ] || [ -n "$existing_nvidia_nim" ]; then
+        AI_STATUS="partial"
+        log_info "Some keys already configured. Skipping setup prompt."
+        return 0
+    fi
+
     if ! prompt_yes_no "Configure AI-summary API keys now?" "N"; then
-        if [ -n "$existing_openrouter" ] || [ -n "$existing_chatanywhere" ] || [ -n "$existing_nvidia_nim" ]; then
-            AI_STATUS="partial"
-        else
-            AI_STATUS="skipped"
-        fi
+        AI_STATUS="skipped"
         echo "Skipping AI-summary API key setup."
         return 0
     fi
