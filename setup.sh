@@ -666,20 +666,21 @@ configure_api_keys_interactive() {
 
 install_python_package() {
     print_step "Install Python package and dependencies"
-    local -a pip_cmd
+    local -a install_cmd
 
     if [ -z "$INSTALL_MODE" ]; then
         choose_install_mode
     fi
 
     if [ "$INSTALL_MODE" = "system" ]; then
-        pip_cmd=(python3 -m pip install -e "$SCRIPT_DIR")
-    else
-        pip_cmd=(python3 -m pip install --user -e "$SCRIPT_DIR")
+        log_warn "System install with pipx is not supported. Use local install."
+        INSTALL_MODE="local"
     fi
 
-    log_info "Running: ${pip_cmd[*]}"
-    "${pip_cmd[@]}"
+    install_cmd=(pipx install --include-deps -e "$SCRIPT_DIR")
+
+    log_info "Running: ${install_cmd[*]}"
+    "${install_cmd[@]}"
     log_success "Installed RedSploit Python package and dependencies"
 }
 
