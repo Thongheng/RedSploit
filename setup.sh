@@ -9,6 +9,8 @@ MANAGED_BLOCK_START="# >>> RedSploit AI Summary Keys >>>"
 MANAGED_BLOCK_END="# <<< RedSploit AI Summary Keys <<<"
 PATH_BLOCK_START="# >>> RedSploit PATH >>>"
 PATH_BLOCK_END="# <<< RedSploit PATH <<<"
+REDSPLOIT_CONFIG_DIR="$REAL_HOME/.config/redsploit"
+REDSPLOIT_KEYS_FILE="$REDSPLOIT_CONFIG_DIR/keys.env"
 
 REAL_USER="${SUDO_USER:-$USER}"
 REAL_HOME="$(eval echo "~$REAL_USER")"
@@ -331,6 +333,12 @@ resolve_api_key() {
     local variable_name="$1"
     local key_value shell_name fallback_rc
 
+    key_value="$(extract_api_key_from_config_file "$variable_name")"
+    if [ -n "$key_value" ]; then
+        printf '%s' "$key_value"
+        return 0
+    fi
+
     if [ -n "$RC_FILE" ]; then
         key_value="$(extract_api_key_from_rc "$RC_FILE" "$variable_name")"
         if [ -n "$key_value" ]; then
@@ -356,6 +364,55 @@ resolve_api_key() {
     fi
 
     return 0
+}
+
+extract_api_key_from_config_file() {
+    local variable_name="$1"
+    local key_value
+
+    if [ ! -f "$REDSPLOIT_KEYS_FILE" ]; then
+        return 0
+    fi
+
+    key_value="$(grep "^${variable_name}=" "$REDSPLOIT_KEYS_FILE" 2>/dev/null | head -n 1 | cut -d'=' -f2-)"
+    if [ -n "$key_value" ]; then
+        printf '%s' "$key_value"
+        return 0
+    fi
+
+    return 0
+}
+
+write_keys_to_config_file() {
+    local openrouter_key="$1"
+    local chatanywhere_key="$2"
+    local nvidia_nim_key="$3"
+
+    mkdir -p "$REDSPLOIT_CONFIG_DIR"
+    chmod 700 "$REDSPLOIT_CONFIG_DIR"
+
+    {
+        echo "# RedSploit API Keys - Persistent configuration"
+        echo "# This file persists across installations"
+        echo ""
+        if [ -n "$openrouter_key" ]; then
+            echo "OPENROUTER_API_KEY=$openrouter_key"
+        fi
+        if [ -n "$chatanywhere_key" ]; then
+            echo "CHATANYWHERE_API_KEY=$chatanywhere_key"
+        fi
+        if [ -n "$nvidia_nim_key" ]; then
+            echo "NVIDIA_NIM_API_KEY=$nvidia_nim_key"
+        fi
+    } > "$REDSPLOIT_KEYS_FILE"
+
+    chmod 600 "$REDSPLOIT_KEYS_FILE"
+    if is_root_install; then
+        ensure_user_ownership "$REDSPLOIT_CONFIG_DIR"
+        ensure_user_ownership "$REDSPLOIT_KEYS_FILE"
+    fi
+
+    log_info "Saved API keys to $REDSPLOIT_KEYS_FILE"
 }
 
 ai_keys_config_status() {
@@ -641,9 +698,23 @@ configure_api_keys_interactive() {
         echo ""
     fi
 
-    write_api_key_block "$RC_FILE" "$openrouter_key" "$chatanywhere_key" "$nvidia_nim_key"
-    ensure_rc_ownership "$RC_FILE"
-    RELOAD_REQUIRED=1
+    write_keys_to_config_file "$openrouter_key" "$chatanywhere_key" "$nvidia_nim_key"
+
+    if [ -n "$RC_FILE" ]; then
+        if ! grep -q "redsploit/keys.env" "$RC_FILE" 2>/dev/null; then
+            {
+                echo ""
+                echo "$MANAGED_BLOCK_START"
+                echo "if [ -f \"$REDSPLOIT_KEYS_FILE\" ]; then"
+                echo "    source \"$REDSPLOIT_KEYS_FILE\""
+                echo "fi"
+                echo "$MANAGED_BLOCK_END"
+            } >> "$RC_FILE"
+            ensure_rc_ownership "$RC_FILE"
+            RELOAD_REQUIRED=1
+            log_info "Added source line for keys to $RC_FILE"
+        fi
+    fi
 
     if [ -n "$openrouter_key" ] && [ -n "$chatanywhere_key" ] && [ -n "$nvidia_nim_key" ]; then
         AI_STATUS="configured"
@@ -653,7 +724,7 @@ configure_api_keys_interactive() {
         AI_STATUS="skipped"
     fi
 
-    log_success "Saved API key exports to $RC_FILE"
+    log_success "Saved API keys to persistent config"
     if [ "$AI_STATUS" = "configured" ]; then
         log_info "All AI provider keys are configured."
     elif [ "$AI_STATUS" = "partial" ]; then
