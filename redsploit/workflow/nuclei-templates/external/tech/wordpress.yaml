@@ -1,0 +1,46 @@
+id: external-wordpress-exposure
+
+info:
+  name: WordPress File Exposure
+  author: pwnflow
+  severity: medium
+  tags: exposure,wordpress,external
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/wp-config.php"
+      - "{{BaseURL}}/wp-config.php.bak"
+      - "{{BaseURL}}/wp-config.php.old"
+      - "{{BaseURL}}/wp-config.php~"
+      - "{{BaseURL}}/wp-login.php"
+      - "{{BaseURL}}/wp-admin/"
+      - "{{BaseURL}}/wp-json/wp/v2/users"
+      - "{{BaseURL}}/wp-json/"
+      - "{{BaseURL}}/xmlrpc.php"
+      - "{{BaseURL}}/wp-content/debug.log"
+      - "{{BaseURL}}/wp-content/uploads/"
+      - "{{BaseURL}}/wp-includes/version.php"
+      - "{{BaseURL}}/?author=1"
+      - "{{BaseURL}}/readme.html"
+      - "{{BaseURL}}/license.txt"
+      - "{{BaseURL}}/wp-cron.php"
+      - "{{BaseURL}}/wp-trackback.php"
+
+    matchers-condition: or
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "WordPress"
+          - "wp-content"
+          - "wp-includes"
+          - "DB_NAME"
+          - "DB_PASSWORD"
+          - "table_prefix"
+          - "xmlrpc"
+          - "\"slug\":"
+
+      - type: status
+        status:
+          - 200

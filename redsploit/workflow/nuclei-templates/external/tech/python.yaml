@@ -1,0 +1,47 @@
+id: external-python-exposure
+
+info:
+  name: Python Stack File Exposure
+  author: pwnflow
+  severity: medium
+  tags: exposure,python,external
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/requirements.txt"
+      - "{{BaseURL}}/Pipfile"
+      - "{{BaseURL}}/Pipfile.lock"
+      - "{{BaseURL}}/settings.py"
+      - "{{BaseURL}}/config.py"
+      - "{{BaseURL}}/local_settings.py"
+      - "{{BaseURL}}/manage.py"
+      - "{{BaseURL}}/wsgi.py"
+      - "{{BaseURL}}/.env"
+      - "{{BaseURL}}/django-admin/"
+      - "{{BaseURL}}/admin/"
+      - "{{BaseURL}}/api/schema/"
+      - "{{BaseURL}}/api/docs/"
+      - "{{BaseURL}}/api/redoc/"
+      - "{{BaseURL}}/console"
+      - "{{BaseURL}}/__debugger__"
+
+    matchers-condition: or
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "Django"
+          - "Flask"
+          - "SECRET_KEY"
+          - "DATABASE_URL"
+          - "DATABASES"
+          - "DEBUG = True"
+          - "Werkzeug"
+          - "django"
+          - "flask"
+          - "pip"
+
+      - type: status
+        status:
+          - 200

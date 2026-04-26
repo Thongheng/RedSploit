@@ -1,0 +1,235 @@
+name: "Internal Blackbox Assessment"
+mode: project
+profile: aggressive
+version: "2.2"
+
+# Single known URL internal blackbox engagement.
+# No passive/OSINT — target was never publicly indexed.
+# No rate limiting on aggressive profile.
+# Depth modes: normal | deep only (light not supported for internal).
+#
+# DAG parallelism:
+#   Depth 0: probe_http + service_scan (independent — both start immediately)
+#   Depth 1: crawl + fuzz_content + nuclei_host + testssl (all depend on live_host)
+#   Depth 2: merge_paths (depends on crawl + fuzz outputs)
+#   Depth 3: param_discover + nuclei_paths + js_secret_scan (all depend on merge_paths)
+#   Depth 4: xss_confirm + sqli_confirm (depend on param_discover)
+
+scope:
+  domains:
+    - "{{TARGET}}"
+
+steps:
+
+  # ── Depth 0 ───────────────────────────────────────────────────────────────────
+
+  # Liveness gate + tech fingerprint. Circuit breaker for the entire scan.
+  # -json enables machine-parseable tech-detect output for nuclei -tags downstream.
+  # -timeout 10 prevents hanging on hosts that accept TCP but never respond at HTTP.
+  - id: probe_http
+    tool: httpx
+    input: "{{scope.domains}}"
+    args:
+      - "-silent"
+      - "-status-code"
+      - "-tech-detect"
+      - "-title"
+      - "-follow-redirects"
+      - "-json"
+      - "-timeout"
+      - "10"
+    output: live_host
+    on_empty: stop
+    on_failure: stop
+    timeout_seconds: 30
+
+  # Service version fingerprint. Identifies non-HTTP services on internal app ports.
+  # Custom port list biased toward internal stacks — not nmap's internet top-1000.
+  # -Pn required: internal hosts frequently don't respond to ICMP.
+  # Artifact only — not chained to HTTP pipeline.
+  - id: service_scan
+    tool: nmap
+    input: "{{TARGET}}"
+    args:
+      - "-sV"
+      - "-p"
+      - "80,443,8080,8443,8888,8000,8001,3000,4000,5000,9090,9091,9200,9300,27017,6379,5432,3306,1433,2375,4848,7001,15672,5601"
+      - "--open"
+      - "-T4"
+      - "-Pn"
+    output: service_findings
+    on_empty: warn
+    on_failure: warn
+    timeout_seconds: 300
+
+  # ── Depth 1 (all parallel, depend on live_host) ───────────────────────────────
+
+  # JS-aware crawl with automatic form-fill. Discovers endpoints, POST forms,
+  # API calls, and JS files. Adapter auto-injects -jsonl and -aff.
+  # normal: depth 2 | deep: depth 3 (via profile_override in builder)
+  - id: crawl
+    tool: katana
+    input: "{{live_host}}"
+    args:
+      - "-depth"
+      - "2"
+      - "-js-crawl"
+      - "-form-extraction"
+      - "-silent"
+    output: crawled_endpoints
+    on_empty: warn
+    on_failure: warn
+    timeout_seconds: 600
+
+  # Directory and content fuzzing with tech-profile extensions.
+  # normal: dirsearch only | deep: dirsearch + feroxbuster (see builder)
+  - id: fuzz_content
+    tool: dirsearch
+    input: "{{live_host}}"
+    args:
+      - "-e"
+      - "bak,old,zip,txt,json,html"
+      - "-w"
+      - "/usr/share/seclists/Discovery/Web-Content/raft-medium-directories.txt"
+      - "-t"
+      - "25"
+      - "-q"
+      - "--format"
+      - "json"
+      - "-o"
+      - "/dev/stdout"
+    output: fuzz_paths
+    on_empty: warn
+    on_failure: warn
+    timeout_seconds: 900
+
+  # Host-level vulnerability sweep. Runs once against the root URL.
+  # Covers misconfigs, default creds, admin panels, security headers, CORS.
+  # http/default-logins/ is the highest-yield template for internal engagements.
+  - id: nuclei_host
+    tool: nuclei
+    input: "{{live_host}}"
+    args:
+      - "-silent"
+      - "-severity"
+      - "low,medium,high,critical"
+      - "-t"
+      - "http/misconfiguration/"
+      - "-t"
+      - "http/exposures/"
+      - "-t"
+      - "http/default-logins/"
+      - "-t"
+      - "http/panels/"
+      - "-t"
+      - "http/misconfiguration/cors-misconfiguration.yaml"
+      - "-t"
+      - "http/misconfiguration/http-missing-security-headers/"
+    output: host_findings
+    on_empty: warn
+    on_failure: warn
+    timeout_seconds: 300
+
+  # TLS weak cipher audit. Scoped to ciphers only — headers and cert info
+  # are covered by nuclei_host to avoid duplication.
+  # --warnings batch prevents interactive prompts hanging the process.
+  - id: tls_audit
+    tool: testssl
+    input: "{{live_host}}"
+    args:
+      - "--weak-cipher"
+      - "--quiet"
+      - "--color"
+      - "0"
+      - "--warnings"
+      - "batch"
+    output: tls_findings
+    on_empty: warn
+    on_failure: warn
+    timeout_seconds: 180
+
+  # ── Depth 2 ───────────────────────────────────────────────────────────────────
+
+  # Deduplicate and combine katana crawl + fuzzer outputs into a single list.
+  # Input to arjun, nuclei_paths, and secretfinder.
+  - id: merge_paths
+    type: merge
+    input: "{{crawled_endpoints}}"
+    args:
+      - crawled_endpoints
+      - fuzz_paths
+    output: all_paths
+    on_empty: warn
+
+  # ── Depth 3 (all parallel, depend on merge_paths) ─────────────────────────────
+
+  # Hidden parameter discovery on endpoints where katana found no params.
+  # 10 threads, no rate limit (aggressive internal profile).
+  # on_empty: continue — silent. Empty param discovery is a normal outcome.
+  - id: param_discover
+    tool: arjun
+    input: "{{all_paths}}"
+    args:
+      - "-t"
+      - "10"
+      - "-oJ"
+      - "/dev/stdout"
+    output: param_endpoints
+    on_empty: continue
+    on_failure: warn
+    timeout_seconds: 900
+
+  # Path-level vulnerability sweep. Focused on endpoint-specific vulns —
+  # NOT misconfiguration (already covered by nuclei_host).
+  # http/exposures/apis/ catches Swagger, GraphQL, OpenAPI, Postman — high yield.
+  - id: nuclei_paths
+    tool: nuclei
+    input: "{{all_paths}}"
+    args:
+      - "-silent"
+      - "-severity"
+      - "low,medium,high,critical"
+      - "-t"
+      - "http/vulnerabilities/"
+      - "-t"
+      - "http/exposures/apis/"
+    output: path_findings
+    on_empty: warn
+    on_failure: warn
+    timeout_seconds: 600
+
+  # ── Depth 4 (parallel, depend on param_discover) ──────────────────────────────
+
+  # Active XSS confirmation with PoC payloads.
+  # --deep-domxss: DOM-based XSS detection — critical for JS-heavy internal apps.
+  # on_empty: continue — silent if no param endpoints found upstream.
+  - id: xss_confirm
+    tool: dalfox
+    input: "{{param_endpoints}}"
+    args:
+      - "pipe"
+      - "--silence"
+      - "--no-spinner"
+      - "--deep-domxss"
+      - "--format"
+      - "json"
+    output: xss_findings
+    on_empty: continue
+    on_failure: warn
+    timeout_seconds: 600
+
+  # SQLi confirmation. level=3 risk=2 appropriate for internal test environment.
+  # --output-dir uses {{SCAN_ID}} — prevents session collision between concurrent scans.
+  # Note: --format=json is NOT a valid sqlmap flag and has been removed.
+  - id: sqli_confirm
+    tool: sqlmap
+    input: "{{param_endpoints}}"
+    args:
+      - "--batch"
+      - "--level=3"
+      - "--risk=2"
+      - "--output-dir=./sqlmap-{{SCAN_ID}}"
+    output: sqli_findings
+    on_empty: continue
+    on_failure: warn
+    timeout_seconds: 1800

@@ -1,0 +1,52 @@
+id: external-php-exposure
+
+info:
+  name: PHP Stack File Exposure
+  author: pwnflow
+  severity: medium
+  tags: exposure,php,external
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/phpinfo.php"
+      - "{{BaseURL}}/info.php"
+      - "{{BaseURL}}/php.php"
+      - "{{BaseURL}}/test.php"
+      - "{{BaseURL}}/config.php"
+      - "{{BaseURL}}/configuration.php"
+      - "{{BaseURL}}/db.php"
+      - "{{BaseURL}}/database.php"
+      - "{{BaseURL}}/connect.php"
+      - "{{BaseURL}}/settings.php"
+      - "{{BaseURL}}/admin.php"
+      - "{{BaseURL}}/login.php"
+      - "{{BaseURL}}/install.php"
+      - "{{BaseURL}}/setup.php"
+      - "{{BaseURL}}/upgrade.php"
+      - "{{BaseURL}}/update.php"
+      - "{{BaseURL}}/shell.php"
+      - "{{BaseURL}}/cmd.php"
+      - "{{BaseURL}}/upload.php"
+      - "{{BaseURL}}/config.php.bak"
+      - "{{BaseURL}}/config.php.old"
+      - "{{BaseURL}}/config.php~"
+      - "{{BaseURL}}/index.php.bak"
+
+    matchers-condition: or
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "PHP Version"
+          - "phpinfo()"
+          - "php_uname"
+          - "mysql_connect"
+          - "mysqli_connect"
+          - "define('DB_"
+          - "$db_pass"
+          - "$password"
+
+      - type: status
+        status:
+          - 200

@@ -1,0 +1,60 @@
+id: external-spring-exposure
+
+info:
+  name: Java Spring Stack File Exposure
+  author: pwnflow
+  severity: high
+  tags: exposure,spring,java,external
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/actuator"
+      - "{{BaseURL}}/actuator/env"
+      - "{{BaseURL}}/actuator/health"
+      - "{{BaseURL}}/actuator/info"
+      - "{{BaseURL}}/actuator/mappings"
+      - "{{BaseURL}}/actuator/beans"
+      - "{{BaseURL}}/actuator/configprops"
+      - "{{BaseURL}}/actuator/loggers"
+      - "{{BaseURL}}/actuator/httptrace"
+      - "{{BaseURL}}/actuator/dump"
+      - "{{BaseURL}}/actuator/heapdump"
+      - "{{BaseURL}}/env"
+      - "{{BaseURL}}/health"
+      - "{{BaseURL}}/info"
+      - "{{BaseURL}}/mappings"
+      - "{{BaseURL}}/beans"
+      - "{{BaseURL}}/dump"
+      - "{{BaseURL}}/heapdump"
+      - "{{BaseURL}}/application.properties"
+      - "{{BaseURL}}/application.yml"
+      - "{{BaseURL}}/application-prod.yml"
+      - "{{BaseURL}}/application-production.yml"
+      - "{{BaseURL}}/WEB-INF/web.xml"
+      - "{{BaseURL}}/WEB-INF/applicationContext.xml"
+      - "{{BaseURL}}/pom.xml"
+      - "{{BaseURL}}/v2/api-docs"
+      - "{{BaseURL}}/v3/api-docs"
+      - "{{BaseURL}}/swagger-ui.html"
+      - "{{BaseURL}}/swagger-ui/"
+
+    matchers-condition: or
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "\"_links\":"
+          - "spring"
+          - "Spring"
+          - "datasource"
+          - "password"
+          - "\"status\":\"UP\""
+          - "heapdump"
+          - "\"beans\":"
+          - "web.xml"
+          - "servlet"
+
+      - type: status
+        status:
+          - 200

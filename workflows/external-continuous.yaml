@@ -1,0 +1,168 @@
+name: "External Monthly Assessment"
+mode: continuous
+profile: cautious
+version: "2.2"
+
+# Fixed recurring external assessment focused on live subdomain deltas and
+# low-noise per-host checks. Builder settings do not alter this workflow.
+
+scope:
+  domains:
+    - "{{TARGET}}"
+  exclude:
+    - "staging.{{TARGET}}"
+    - "dev.{{TARGET}}"
+    - "uat.{{TARGET}}"
+
+steps:
+  - id: subfinder_enum
+    tool: subfinder
+    args:
+      - "-d"
+      - "{{TARGET_DOMAIN}}"
+      - "-silent"
+      - "-all"
+    output: subfinder_subs
+    on_empty: warn
+    on_failure: warn
+    timeout_seconds: 120
+
+  - id: assetfinder_enum
+    tool: assetfinder
+    args:
+      - "--subs-only"
+      - "{{TARGET_DOMAIN}}"
+    output: assetfinder_subs
+    on_empty: warn
+    on_failure: warn
+    timeout_seconds: 60
+
+  - id: crtsh_enum
+    tool: crtsh
+    args:
+      - "{{TARGET_DOMAIN}}"
+    output: crtsh_subs
+    on_empty: warn
+    on_failure: warn
+    timeout_seconds: 30
+
+  - id: axfr_attempt
+    tool: dig
+    args:
+      - "axfr"
+      - "@{{TARGET_DOMAIN}}"
+      - "{{TARGET_DOMAIN}}"
+    output: axfr_result
+    on_empty: warn
+    on_failure: warn
+    timeout_seconds: 30
+
+  - id: merge_subdomains
+    type: merge
+    input:
+      - "{{subfinder_subs}}"
+      - "{{assetfinder_subs}}"
+      - "{{crtsh_subs}}"
+      - "{{axfr_result}}"
+    output: all_subdomains
+    on_empty: stop
+    timeout_seconds: 30
+
+  - id: httpx_probe
+    tool: httpx
+    input: "{{all_subdomains}}"
+    args:
+      - "-silent"
+      - "-status-code"
+      - "-tech-detect"
+      - "-title"
+      - "-follow-redirects"
+      - "-json"
+      - "-timeout"
+      - "10"
+      - "-mc"
+      - "200,301,302,403"
+    output: confirmed_live
+    on_empty: stop
+    on_failure: warn
+    timeout_seconds: 300
+
+  - id: nuclei_takeover
+    tool: nuclei
+    input: "{{confirmed_live}}"
+    iterate: per_host
+    args:
+      - "-silent"
+      - "-t"
+      - "http/takeovers/"
+      - "-severity"
+      - "medium,high,critical"
+      - "-u"
+      - "{{HOST}}"
+    output: takeover_findings
+    on_empty: warn
+    on_failure: warn
+    timeout_per_host: 60
+
+  - id: exposure_scan
+    tool: nuclei
+    input: "{{confirmed_live}}"
+    iterate: per_host
+    args:
+      - "-silent"
+      - "-t"
+      - "{{NUCLEI_TEMPLATES_PATH}}/external/base-exposure.yaml"
+      - "-t"
+      - "{{NUCLEI_TEMPLATES_PATH}}/external/tech/{{HOST_DETECTED_TECH}}"
+      - "-u"
+      - "{{HOST}}"
+    output: exposure_findings
+    on_empty: warn
+    on_failure: warn
+    timeout_per_host: 120
+
+  - id: header_scan
+    tool: shcheck
+    input: "{{confirmed_live}}"
+    iterate: per_host
+    args:
+      - "-d"
+      - "{{HOST}}"
+      - "--json"
+    output: header_findings
+    on_empty: warn
+    on_failure: warn
+    timeout_per_host: 30
+
+  - id: tls_audit
+    tool: testssl
+    input: "{{confirmed_live}}"
+    iterate: per_host
+    args:
+      - "--weak-cipher"
+      - "--quiet"
+      - "--color"
+      - "0"
+      - "--warnings"
+      - "batch"
+      - "{{HOST}}"
+    output: tls_findings
+    on_empty: warn
+    on_failure: warn
+    timeout_per_host: 180
+
+  - id: passive_urls
+    tool: waymore
+    args:
+      - "-i"
+      - "{{TARGET_DOMAIN}}"
+      - "-mode"
+      - "U"
+      - "-oU"
+      - "/dev/stdout"
+      - "--blacklist"
+      - "png,jpg,gif,svg,css,woff,woff2,ttf,eot,ico,mp4,mp3"
+    output: passive_urls
+    on_empty: warn
+    on_failure: warn
+    timeout_seconds: 300
