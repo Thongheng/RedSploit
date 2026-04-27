@@ -311,7 +311,17 @@ class InfraModule(BaseModule):
              )
              
         except KeyError as e:
-            log_error(f"Missing variable in command template: {e}")
+            from ...core.rich_output import get_formatter
+            formatter = get_formatter()
+            formatter.error_panel(
+                error_type="KeyError",
+                message=f"Missing variable in command template: {e}",
+                suggestions=[
+                    "Set the required variable using 'set <variable> <value>'",
+                    "Check available variables with 'options' command",
+                    "Verify the tool configuration is correct"
+                ]
+            )
             return 1
 
     def run(self, args_list):

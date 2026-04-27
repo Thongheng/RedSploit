@@ -615,32 +615,57 @@ class BaseShell(cmd.Cmd):
                     log_success(f"Added '{entry}' to /etc/hosts")
             
         except PermissionError:
-            log_error("Permission denied. Please run redsploit with sudo to modify /etc/hosts.")
+            from .rich_output import get_formatter
+            formatter = get_formatter()
+            formatter.error_panel(
+                error_type="PermissionError",
+                message="Permission denied. Cannot modify /etc/hosts without elevated privileges.",
+                suggestions=[
+                    "Run redsploit with sudo: sudo python red.py",
+                    "Manually add the entry to /etc/hosts",
+                    f"Entry to add: {entry}"
+                ]
+            )
         except Exception as e:
-            log_error(f"Failed to write to /etc/hosts: {e}")
+            from .rich_output import get_formatter
+            import traceback
+            formatter = get_formatter()
+            formatter.error_panel(
+                error_type=type(e).__name__,
+                message=f"Failed to write to /etc/hosts: {str(e)}",
+                traceback=traceback.format_exc() if hasattr(e, '__traceback__') else None,
+                suggestions=[
+                    "Check if /etc/hosts is writable",
+                    "Verify the hostname format is valid"
+                ]
+            )
 
     def do_help(self, arg):
         """List available commands with descriptions."""
+        from .rich_output import get_formatter
+        
         if arg:
             # If argument provided, use default help for that command
             super().do_help(arg)
             return
 
+        formatter = get_formatter()
+        
         if self.module_name is None:
-            print(f"\n{Colors.HEADER}Quick Start{Colors.ENDC}")
-            print("  set target 10.10.10.10     Set the active target")
-            print("  use infra                  Enter a module shell")
-            print("  infra nmap                 Run one module command from the main shell")
-            print("  options                    Show current session context")
-            print("  loot, workspace, workflow  Use built-in workflow helpers")
+            formatter.console.print("\n[bold]Quick Start[/bold]")
+            formatter.console.print("  set target 10.10.10.10     Set the active target")
+            formatter.console.print("  use infra                  Enter a module shell")
+            formatter.console.print("  infra nmap                 Run one module command from the main shell")
+            formatter.console.print("  options                    Show current session context")
+            formatter.console.print("  loot, workspace, workflow  Use built-in workflow helpers")
 
-        print(f"\n{Colors.HEADER}Global Flags{Colors.ENDC}")
-        print(f"{'-c, --copy':<16} Copy command to clipboard without running")
-        print(f"{'-p, --preview':<16} Preview command without running")
-        print(f"{'-e, --edit':<16} Edit command before running")
-        print(f"{'-nosummary':<16} Disable the post-run summary section")
-        print(f"{'-noauth':<16} Skip credentials for this run")
-        print(f"\n{'<tool> -h':<16} Show detailed help for a specific tool")
+        formatter.console.print("\n[bold]Global Flags[/bold]")
+        formatter.console.print(f"{'-c, --copy':<16} Copy command to clipboard without running")
+        formatter.console.print(f"{'-p, --preview':<16} Preview command without running")
+        formatter.console.print(f"{'-e, --edit':<16} Edit command before running")
+        formatter.console.print(f"{'-nosummary':<16} Disable the post-run summary section")
+        formatter.console.print(f"{'-noauth':<16} Skip credentials for this run")
+        formatter.console.print(f"\n{'<tool> -h':<16} Show detailed help for a specific tool")
 
 
 
@@ -681,24 +706,24 @@ class BaseShell(cmd.Cmd):
         # Only show Core Commands in the main shell
         if self.module_name is None:
             if nav_found:
-                print(f"\n{Colors.HEADER}Navigation{Colors.ENDC}")
+                formatter.console.print("\n[bold]Navigation[/bold]")
                 for cmd_name, doc in sorted(nav_found):
-                    print(f"{cmd_name:<20} {doc}")
+                    formatter.console.print(f"{cmd_name:<20} {doc}")
             
             if config_found:
-                print(f"\n{Colors.HEADER}Configuration{Colors.ENDC}")
+                formatter.console.print("\n[bold]Configuration[/bold]")
                 for cmd_name, doc in sorted(config_found):
-                    print(f"{cmd_name:<20} {doc}")
+                    formatter.console.print(f"{cmd_name:<20} {doc}")
             
             if module_select_found:
-                print(f"\n{Colors.HEADER}Modules{Colors.ENDC}")
+                formatter.console.print("\n[bold]Modules[/bold]")
                 for cmd_name, doc in sorted(module_select_found):
-                    print(f"{cmd_name:<20} {doc}")
+                    formatter.console.print(f"{cmd_name:<20} {doc}")
             
             if advanced_found:
-                print(f"\n{Colors.HEADER}Advanced Features{Colors.ENDC}")
+                formatter.console.print("\n[bold]Advanced Features[/bold]")
                 for cmd_name, doc in sorted(advanced_found):
-                    print(f"{cmd_name:<20} {doc}")
+                    formatter.console.print(f"{cmd_name:<20} {doc}")
         
         if module_cmds:
             categories = getattr(self, "COMMAND_CATEGORIES", {})
@@ -718,15 +743,15 @@ class BaseShell(cmd.Cmd):
                 dashes = "─" * max(0, BOX_W - len(title_str))
                 top = f"┌{title_str}{dashes}┐"
                 bot = f"└{'─' * BOX_W}┘"
-                print(f"\n{Colors.OKBLUE}{top}{Colors.ENDC}")
+                formatter.console.print(f"\n[terracotta]{top}[/terracotta]")
                 for cmd_name, doc in sorted(entries):
                     content = f"  {cmd_name:<18} {doc}"
                     if len(content) > BOX_W:
                         content = content[:BOX_W - 1] + "…"
-                    print(f"{Colors.OKBLUE}│{Colors.ENDC}{content:<{BOX_W}}{Colors.OKBLUE}│{Colors.ENDC}")
-                print(f"{Colors.OKBLUE}{bot}{Colors.ENDC}")
+                    formatter.console.print(f"[terracotta]│[/terracotta]{content:<{BOX_W}}[terracotta]│[/terracotta]")
+                formatter.console.print(f"[terracotta]{bot}[/terracotta]")
 
-            print(f"\n{Colors.HEADER}Module Commands{Colors.ENDC}")
+            formatter.console.print("\n[bold]Module Commands[/bold]")
             for cat in sorted(categorized.keys()):
                 _print_category_box(cat, categorized[cat])
 
@@ -794,24 +819,46 @@ class ModuleShell(BaseShell):
 
     def preloop(self):
         """Print a context summary when entering a module shell."""
+        from .rich_output import get_formatter
+        
         target = self.session.get("target")
         domain = self.session.get("domain")
         user = self.session.get("username")
+        workspace = self.session.get("workspace")
 
         display = domain if domain else target
-
-        parts = []
+        
+        # Build content for Rich panel
+        content_parts = []
         if display:
-            parts.append(f"target={Colors.WARNING}{display}{Colors.ENDC}")
+            content_parts.append(f"Target: [warning]{display}[/warning]")
         if user:
-            parts.append(f"user={Colors.OKGREEN}{user}{Colors.ENDC}")
-
-        ctx = "  ".join(parts) if parts else f"{Colors.DIM}(no context set — use 'set target <ip>'){Colors.ENDC}"
-        print(
-            f"\n{Colors.OKBLUE}[{Colors.ENDC}"
-            f"{Colors.FAIL}{Colors.BOLD}{self.module_name}{Colors.ENDC}"
-            f"{Colors.OKBLUE}]{Colors.ENDC} {ctx}\n"
+            content_parts.append(f"User: [success]{user}[/success]")
+        if workspace and workspace != "default":
+            content_parts.append(f"Workspace: [info]{workspace}[/info]")
+        
+        if not content_parts:
+            content_parts.append("[dim](no context set — use 'set target <ip>')[/dim]")
+        
+        content = "\n".join(content_parts)
+        
+        # Get module description if available
+        module_desc = ""
+        if hasattr(self, "module") and hasattr(self.module, "TOOLS"):
+            # Module has tools, we can show a brief description
+            module_desc = f"[dim]{len(self.module.TOOLS)} tools available[/dim]"
+        
+        if module_desc:
+            content = f"{module_desc}\n\n{content}"
+        
+        # Display using Rich panel
+        formatter = get_formatter()
+        formatter.panel(
+            content,
+            title=f"[bold terracotta]{self.module_name.upper()}[/bold terracotta]",
+            border_style="terracotta"
         )
+        print("")  # Add spacing after panel
 
     def complete_use(self, text, line, begidx, endidx):
         modules = ["infra", "ad", "web", "file", "shell", "workflow", "main"]

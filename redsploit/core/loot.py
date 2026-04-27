@@ -69,57 +69,52 @@ class LootManager:
         log_success("Loot locker cleared.")
 
     def list_loot(self):
-        """Print a formatted table of loot."""
+        """Print a formatted table of loot using Rich."""
+        from .rich_output import get_console
+        from rich.table import Table
+        
+        console = get_console()
+        
         if not self.loot_data:
-            print(f"\n{Colors.DIM}Loot locker is empty.{Colors.ENDC}\n")
+            console.print()
+            console.print(f"[dim]Loot locker is empty.[/dim]")
+            console.print()
             return
 
-        print(f"\n{Colors.HEADER}Loot Locker{Colors.ENDC} {Colors.DIM}({self.workspace_name}){Colors.ENDC}")
-
-        headers   = ["#",  "Type", "Target", "Service", "Content"]
-        col_widths = [4,    8,      15,        10,        38]
-
-        C_BORDER  = Colors.OKBLUE
-        C_HEADER  = Colors.BOLD
-        C_CONTENT = Colors.OKGREEN
-        C_RESET   = Colors.ENDC
-
-        def print_sep(top=False, bottom=False):
-            if top:
-                left, mid_j, right = "┌", "┬", "┐"
-            elif bottom:
-                left, mid_j, right = "└", "┴", "┘"
-            else:
-                left, mid_j, right = "├", "┼", "┤"
-            line = left + mid_j.join(["─" * (w + 2) for w in col_widths]) + right
-            print(f"{C_BORDER}{line}{C_RESET}")
-
-        print_sep(top=True)
-        header_parts = [f"{C_BORDER}│{C_RESET} {C_HEADER}{h:<{col_widths[i]}}{C_RESET}" for i, h in enumerate(headers)]
-        print(" ".join(header_parts) + f" {C_BORDER}│{C_RESET}")
-        print_sep()
-
+        # Create Rich table
+        table = Table(
+            title=f"Loot Locker ({self.workspace_name})",
+            show_header=True,
+            header_style="table.header",
+            border_style="terracotta"
+        )
+        
+        # Add columns with appropriate alignment
+        table.add_column("ID", justify="right", style="bold")
+        table.add_column("Type", justify="left")
+        table.add_column("Service", justify="left")
+        table.add_column("Content", justify="left", style="success")
+        table.add_column("Target", justify="left")
+        table.add_column("Timestamp", justify="left", style="dim")
+        
+        # Add rows
         for entry in self.loot_data:
-            loot_id  = str(entry.get("id", "?"))
+            loot_id = str(entry.get("id", "?"))
             loot_type = entry.get("type", "unk")
-            target   = entry.get("target", "")
-            service  = entry.get("service", "")
-            content  = entry.get("content", "")
-            if len(content) > col_widths[4]:
-                content = content[:col_widths[4] - 3] + "..."
-
-            row = (
-                f"{C_BORDER}│{C_RESET} {loot_id:<{col_widths[0]}} "
-                f"{C_BORDER}│{C_RESET} {loot_type:<{col_widths[1]}} "
-                f"{C_BORDER}│{C_RESET} {target:<{col_widths[2]}} "
-                f"{C_BORDER}│{C_RESET} {service:<{col_widths[3]}} "
-                f"{C_BORDER}│{C_RESET} {C_CONTENT}{content:<{col_widths[4]}}{C_RESET} "
-                f"{C_BORDER}│{C_RESET}"
-            )
-            print(row)
-
-        print_sep(bottom=True)
-        print("")
+            service = entry.get("service", "")
+            target = entry.get("target", "")
+            content = entry.get("content", "")
+            timestamp = entry.get("timestamp", "")
+            
+            # Truncate long content values with ellipsis
+            if len(content) > 50:
+                content = content[:47] + "..."
+            
+            table.add_row(loot_id, loot_type, service, content, target, timestamp)
+        
+        console.print()
+        console.print(table)
+        console.print()
 
     def set_workspace(self, workspace_name: str):
         """Switch workspace and reload loot."""

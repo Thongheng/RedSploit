@@ -137,6 +137,14 @@ class Session:
                 "max_step_outputs": 10,
                 "max_findings": 25,
             },
+            "ui": {
+                "rich_enabled": True,
+                "theme": "default",
+                "force_color": False,
+                "max_table_rows": 1000,
+                "panel_padding": 1,
+                "show_icons": True,
+            },
         }
 
         if os.path.exists(self.config_path):
@@ -277,6 +285,7 @@ class Session:
 
     def show_options(self, all_vars=False):
         if not all_vars:
+            # Brief mode: Keep existing simple display format
             print(f"\n{Colors.HEADER}Session Context{Colors.ENDC}")
             key_vars = ["target", "domain", "user", "username", "workspace", "interface", "lport"]
             found = False
@@ -291,79 +300,54 @@ class Session:
             print("")
             return
 
-        print(f"\n{Colors.HEADER}Session Variables{Colors.ENDC}")
-
-        headers = ["Variable", "Value", "Req", "Description"]
-        col_widths = [12, 24, 3, 35]
-
-        C_VAR    = Colors.OKBLUE + Colors.BOLD
-        C_VAL    = Colors.WARNING
-        C_HEADER = Colors.BOLD
-        C_RESET  = Colors.ENDC
-        C_DIM    = Colors.DIM
-
-        def make_row(cells, sep=" "):
-            """cells: list of (visible_str, colored_str) per column"""
-            parts = []
-            for i, (vis, col) in enumerate(cells):
-                pad = " " * max(0, col_widths[i] - len(vis))
-                parts.append(f"{col}{pad}")
-            return sep.join(parts)
-
-        def make_sep(char="-"):
-            parts = []
-            for w in col_widths:
-                parts.append(char * w)
-            return " ".join(parts)
-
-        print(make_sep("-"))
-        print(make_row([(h, f"{C_HEADER}{h}{C_RESET}") for h in headers]))
-        print(make_sep("-"))
-
+        # Full mode: Use Rich Table
+        from .rich_output import get_console
+        from rich.table import Table
+        
+        console = get_console()
+        
+        # Create Rich table
+        table = Table(title="Session Variables", show_header=True, header_style="table.header", border_style="terracotta")
+        
+        # Add columns with appropriate alignment
+        table.add_column("Variable", justify="left", style="bold")
+        table.add_column("Value", justify="left")
+        table.add_column("Required", justify="center")
+        table.add_column("Description", justify="left")
+        
+        # Add rows
         for key, value in self.env.items():
             if key == "user":
                 continue
             if key in self.OPTIONS_HIDDEN_KEYS:
                 continue
+            
             meta = self.VAR_METADATA.get(key, {"required": False, "desc": "Custom Variable"})
             required = meta.get("required", False)
             is_unset = not str(value).strip()
-
-            # Variable column
-            var_col = f"{C_VAR}{key}{C_RESET}"
-
-            # Value column
+            
+            # Format value
             val_str = self._format_display_value(key, value)
-            if len(val_str) > col_widths[1]:
-                val_str = val_str[:col_widths[1] - 3] + "..."
             if required and is_unset:
-                val_vis = "(unset)"
-                val_col = f"{Colors.DIM}(unset){C_RESET}"
+                val_display = "[dim](not set)[/dim]"
             else:
-                val_vis = val_str
-                val_col = f"{C_VAL}{val_str}{C_RESET}"
-
-            # Required column
-            req_str = "yes" if required else "no"
+                val_display = val_str
+            
+            # Format required column
+            req_display = "yes" if required else "no"
             if required and is_unset:
-                req_col = f"{Colors.FAIL}{req_str}{C_RESET}"
+                req_display = f"[error]{req_display}[/error]"
             else:
-                req_col = f"{Colors.DIM}{req_str}{C_RESET}"
-
-            # Description column
+                req_display = f"[dim]{req_display}[/dim]"
+            
+            # Description
             desc = meta.get("desc", "")
-            if len(desc) > col_widths[3]:
-                desc = desc[:col_widths[3] - 1] + "…"
-
-            cells = [
-                (key,     var_col),
-                (val_vis, val_col),
-                (req_str, req_col),
-                (desc,    desc),
-            ]
-            print(make_row(cells))
-
-        print("")
+            
+            table.add_row(key, val_display, req_display, desc)
+        
+        console.print()
+        console.print(table)
+        console.print()
 
     def save_workspace(self, name: Optional[str] = None) -> bool:
         """Save current environment variables to a workspace file."""
@@ -400,7 +384,12 @@ class Session:
             return False
 
     def list_workspaces(self):
-        """List available workspaces."""
+        """List available workspaces using Rich table."""
+        from .rich_output import get_console
+        from rich.table import Table
+        
+        console = get_console()
+        
         try:
             files = [
                 f for f in os.listdir(self.workspace_dir)
@@ -408,25 +397,43 @@ class Session:
             ]
             current = self.env.get("workspace", "default")
 
-            INNER_W = 44
-            title = "─ Workspaces "
-            top = f"┌{title}{'─' * (INNER_W - len(title) + 1)}┐"
-            bot = f"└{'─' * (INNER_W + 1)}┘"
-
-            print(f"\n{Colors.OKBLUE}{top}{Colors.ENDC}")
             if not files:
-                empty = "  No workspaces found."
-                print(f"{Colors.OKBLUE}│{Colors.ENDC} {empty:<{INNER_W}} {Colors.OKBLUE}│{Colors.ENDC}")
-            else:
-                for f in sorted(files):
-                    name = f[:-5]
-                    is_current = (name == current)
-                    marker = f"{Colors.OKGREEN}●{Colors.ENDC}" if is_current else f"{Colors.DIM}○{Colors.ENDC}"
-                    label  = f"{Colors.BOLD}{name}{Colors.ENDC}" if is_current else name
-                    # visible len of "  ● name" = 4 + len(name)
-                    padding = " " * max(0, INNER_W - 4 - len(name))
-                    print(f"{Colors.OKBLUE}│{Colors.ENDC}  {marker} {label}{padding}{Colors.OKBLUE}│{Colors.ENDC}")
-            print(f"{Colors.OKBLUE}{bot}{Colors.ENDC}\n")
+                console.print()
+                console.print("[dim]No workspaces found.[/dim]")
+                console.print()
+                return
+            
+            # Create Rich table
+            table = Table(
+                title="Workspaces",
+                show_header=True,
+                header_style="table.header",
+                border_style="terracotta",
+                show_lines=False
+            )
+            
+            # Add columns
+            table.add_column("Status", justify="center", width=6)
+            table.add_column("Workspace Name", justify="left")
+            
+            # Add rows
+            for f in sorted(files):
+                name = f[:-5]
+                is_current = (name == current)
+                
+                if is_current:
+                    status = "[success]●[/success]"
+                    workspace_name = f"[bold]{name}[/bold]"
+                else:
+                    status = "[dim]○[/dim]"
+                    workspace_name = name
+                
+                table.add_row(status, workspace_name)
+            
+            console.print()
+            console.print(table)
+            console.print()
+            
         except Exception as e:
             log_error(f"Error listing workspaces: {e}")
 
@@ -503,17 +510,39 @@ class Session:
         return self.config.get(module, {}).get("configs", {}).get(tool, {}).get(key, {}).get(active_value, "")
 
     def show_configs(self):
-        """Display current active configurations"""
+        """Display current active configurations using Rich table."""
+        from .rich_output import get_console
+        from rich.table import Table
+        
+        console = get_console()
+        
         if not self.active_configs:
-            print("No active configurations.")
+            console.print()
+            console.print("[dim]No active configurations.[/dim]")
+            console.print()
             return
         
-        print(f"\n{Colors.HEADER}Active Tool Configurations{Colors.ENDC}")
-        print("=" * 60)
+        # Create Rich table
+        table = Table(
+            title="Active Tool Configurations",
+            show_header=True,
+            header_style="table.header",
+            border_style="terracotta"
+        )
+        
+        # Add columns
+        table.add_column("Tool", justify="left", style="bold")
+        table.add_column("Config Key", justify="left")
+        table.add_column("Value", justify="left")
+        table.add_column("Flags", justify="left", style="dim")
+        
+        # Add rows
         for tool_key, configs in self.active_configs.items():
-            print(f"\n{Colors.BOLD}{tool_key}{Colors.ENDC}")
             for key, value in configs.items():
                 module, tool = tool_key.split('.')
                 flags = self.get_config_flags(module, tool, key)
-                print(f"  {key}: {value} => {flags}")
-        print()
+                table.add_row(tool_key, key, value, flags)
+        
+        console.print()
+        console.print(table)
+        console.print()

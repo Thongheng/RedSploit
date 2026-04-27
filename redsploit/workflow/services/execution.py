@@ -412,11 +412,13 @@ def _publish_tool_line(
 ) -> None:
     if not line:
         return
-    publisher.publish(scan_id, level, f"[tool:{step_id}] {_truncate_log_line(line)}")
+    # Publish full line without truncation for live tool output visibility
+    publisher.publish(scan_id, level, f"[tool:{step_id}] {line}")
 
 
 def _truncate_log_line(line: str, max_chars: int = 2000) -> str:
-    return line if len(line) <= max_chars else f"{line[:max_chars]}... [truncated]"
+    # No longer used - keeping for backward compatibility
+    return line
 
 
 def _input_count(input_value: str | list[str] | None) -> int:

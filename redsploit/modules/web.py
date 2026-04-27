@@ -176,7 +176,17 @@ class WebModule(BaseModule):
                 try:
                     scanner_args = shlex.split(new_cmd)
                 except ValueError as exc:
-                    log_error(f"Invalid arguments: {exc}")
+                    from ...core.rich_output import get_formatter
+                    formatter = get_formatter()
+                    formatter.error_panel(
+                        error_type="ValueError",
+                        message=f"Invalid arguments: {str(exc)}",
+                        suggestions=[
+                            "Check the command syntax",
+                            "Use 'help headerscan' for usage information",
+                            "Verify argument quoting is correct"
+                        ]
+                    )
                     return 1
 
             config = merge_security_header_config(self.session.config)
@@ -185,7 +195,17 @@ class WebModule(BaseModule):
             except HeaderscanHelp:
                 return 0
             except ValueError as exc:
-                log_error(str(exc))
+                from ...core.rich_output import get_formatter
+                formatter = get_formatter()
+                formatter.error_panel(
+                    error_type="ValueError",
+                    message=str(exc),
+                    suggestions=[
+                        "Check the headerscan arguments",
+                        "Use 'help headerscan' for usage information",
+                        "Verify URL format is correct"
+                    ]
+                )
                 return 1
 
             urls = collect_headerscan_urls(args, self.session)
@@ -216,7 +236,17 @@ class WebModule(BaseModule):
                     run_headerscan(scanner_args or [], self.session)
                 except ValueError as exc:
                     sys.stdout = old_stdout
-                    log_error(str(exc))
+                    from ...core.rich_output import get_formatter
+                    formatter = get_formatter()
+                    formatter.error_panel(
+                        error_type="ValueError",
+                        message=str(exc),
+                        suggestions=[
+                            "Check the headerscan arguments",
+                            "Verify URL format is correct",
+                            "Use 'help headerscan' for usage information"
+                        ]
+                    )
                     return 1
                 finally:
                     sys.stdout = old_stdout
@@ -228,7 +258,17 @@ class WebModule(BaseModule):
             try:
                 run_headerscan(scanner_args or [], self.session)
             except ValueError as exc:
-                log_error(str(exc))
+                from ...core.rich_output import get_formatter
+                formatter = get_formatter()
+                formatter.error_panel(
+                    error_type="ValueError",
+                    message=str(exc),
+                    suggestions=[
+                        "Check the headerscan arguments",
+                        "Verify URL format is correct",
+                        "Use 'help headerscan' for usage information"
+                    ]
+                )
                 return 1
             return 0
 
@@ -268,7 +308,17 @@ class WebModule(BaseModule):
                 summary_context=self._build_summary_context(tool_name, tool),
             )
         except KeyError as e:
-            log_error(f"Missing variable in command template: {e}")
+            from ...core.rich_output import get_formatter
+            formatter = get_formatter()
+            formatter.error_panel(
+                error_type="KeyError",
+                message=f"Missing variable in command template: {e}",
+                suggestions=[
+                    "Set the required variable using 'set <variable> <value>'",
+                    "Check available variables with 'options' command",
+                    "Verify the tool configuration is correct"
+                ]
+            )
             return 1
 
     def run(self, args_list):

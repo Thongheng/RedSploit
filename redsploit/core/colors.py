@@ -9,8 +9,33 @@ class Colors:
     BOLD = '\033[1m'
     DIM = '\033[2m'
 
-def log_info(msg): print(f"{Colors.OKCYAN}[*] {msg}{Colors.ENDC}")
-def log_success(msg): print(f"{Colors.OKGREEN}[+] {msg}{Colors.ENDC}")
-def log_warn(msg): print(f"{Colors.WARNING}[!] {msg}{Colors.ENDC}")
-def log_error(msg): print(f"{Colors.FAIL}[-] {msg}{Colors.ENDC}")
-def log_run(cmd): print(f"{Colors.BOLD}[>] {cmd}{Colors.ENDC}")
+
+# Rich-based log functions (backward compatible API)
+def log_info(msg: str) -> None:
+    """Display info message using Rich."""
+    from .rich_output import get_formatter
+    get_formatter().info(msg)
+
+
+def log_success(msg: str) -> None:
+    """Display success message using Rich."""
+    from .rich_output import get_formatter
+    get_formatter().success(msg)
+
+
+def log_warn(msg: str) -> None:
+    """Display warning message using Rich."""
+    from .rich_output import get_formatter
+    get_formatter().warn(msg)
+
+
+def log_error(msg: str) -> None:
+    """Display error message using Rich."""
+    from .rich_output import get_formatter
+    get_formatter().error(msg)
+
+
+def log_run(cmd: str) -> None:
+    """Display command execution using Rich."""
+    from .rich_output import get_formatter
+    get_formatter().run(cmd)

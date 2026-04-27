@@ -17,22 +17,21 @@ scope:
 
 steps:
 
-  # ── Depth 0 — TLS audit ────────────────────────────────────────────────────
-  # Weak cipher and certificate chain analysis. Standard external report items.
+  # ── Depth 0 — TLS/SSL audit ────────────────────────────────────────────────
+  # SSL/TLS security analysis using nmap ssl scripts
   - id: tls_audit
-    tool: testssl
+    tool: nmap
     input: "{{TARGET}}"
     args:
-      - "-f"
-      - "--quiet"
-      - "--color"
-      - "0"
-      - "--warnings"
-      - "batch"
+      - "--script"
+      - "ssl-cert,ssl-enum-ciphers,ssl-known-key,ssl-date"
+      - "-p"
+      - "443"
+      - "-Pn"
     output: tls_findings
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 180
+    timeout_seconds: 300
 
   # ── Depth 0 — HTTP security headers ─────────────────────────────────────────
   # shcheck.py: single request per target. Checks HSTS, CSP, X-Frame-Options,
@@ -66,4 +65,4 @@ steps:
     output: exposure_findings
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 300
+    timeout_seconds: 3600

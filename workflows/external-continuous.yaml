@@ -102,7 +102,7 @@ steps:
     output: takeover_findings
     on_empty: warn
     on_failure: warn
-    timeout_per_host: 60
+    timeout_per_host: 3600
 
   - id: exposure_scan
     tool: nuclei
@@ -119,7 +119,7 @@ steps:
     output: exposure_findings
     on_empty: warn
     on_failure: warn
-    timeout_per_host: 120
+    timeout_per_host: 3600
 
   - id: header_scan
     tool: shcheck

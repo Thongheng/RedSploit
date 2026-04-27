@@ -128,7 +128,7 @@ steps:
     output: host_findings
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 300
+    timeout_seconds: 3600
 
   # TLS weak cipher audit. Scoped to ciphers only — headers and cert info
   # are covered by nuclei_host to avoid duplication.
@@ -196,7 +196,7 @@ steps:
     output: path_findings
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 600
+    timeout_seconds: 3600
 
   # ── Depth 4 (parallel, depend on param_discover) ──────────────────────────────
 

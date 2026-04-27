@@ -26,16 +26,20 @@ from .services.finding_service import FindingService
 from .services.reporting import WorkflowReportService
 from .services.scan_runs import ScanRunStore
 from .worker.log_publisher import LogPublisher
+from .collapsible_output import CollapsibleOutputManager
 
 
 class CliLogPublisher(LogPublisher):
-    """Streams tool stdout/stderr lines to stderr in real-time."""
+    """Streams tool stdout/stderr lines to stderr in real-time with collapsible output."""
 
+    MAX_LINES_PER_STEP = 100  # Show first 100 lines, then truncate
+    
     def __init__(self, indent: str = "  ") -> None:
         super().__init__()
         self._indent = indent
         self._activity_lock = threading.Lock()
         self._step_activity: dict[str, dict[str, object]] = {}
+        self._output_manager = CollapsibleOutputManager(max_preview_lines=self.MAX_LINES_PER_STEP)
 
     def publish(self, scan_id: str, level: str, message: str) -> None:
         super().publish(scan_id, level, message)
@@ -46,9 +50,36 @@ class CliLogPublisher(LogPublisher):
             prefix, raw = raw.split("]", 1)
             step_id = prefix[len("[tool:") :]
             raw = raw.lstrip()
+        
         if step_id:
             self._record_step_activity(step_id, level, raw)
-        print(f"{self._indent}{raw}", file=sys.stderr, flush=True)
+            # Use collapsible output manager
+            output = self._output_manager.get_or_create(step_id)
+            output.add_line(raw)
+        else:
+            # Non-tool messages (warnings, errors) always show
+            print(raw, file=sys.stderr, flush=True)
+    
+    def reset_step_tracking(self, step_id: str) -> None:
+        """Reset tracking for a new step."""
+        self._output_manager.reset_step(step_id)
+    
+    def finalize_step_output(self, step_id: str) -> None:
+        """Finalize step output (show truncation indicator if needed)."""
+        self._output_manager.finalize_step(step_id)
+    
+    def stop_keyboard_listener(self) -> None:
+        """Stop keyboard listener."""
+        self._output_manager.stop_keyboard_listener()
+    
+    def get_step_full_output(self, step_id: str) -> str | None:
+        """Get the full buffered output for a step."""
+        output = self._output_manager.get_step_output(step_id)
+        return output.get_full_output() if output else None
+    
+    def view_step_in_pager(self, step_id: str) -> None:
+        """View step output in pager (like less)."""
+        self._output_manager.view_full_output_in_pager(step_id)
 
     def _record_step_activity(self, step_id: str, level: str, message: str) -> None:
         now = monotonic()
@@ -165,17 +196,21 @@ class _ProgressReporter:
         if self._use_fixed_header:
             self._setup_fixed_header(run)
         else:
-            print(file=sys.stderr)
-            print(
-                f"  {Colors.BOLD}{run.workflow_name}{Colors.ENDC}"
-                f"  {Colors.DIM}[{run.mode}/{run.profile}]{Colors.ENDC}"
-                f"  {Colors.WARNING}{run.target_name}{Colors.ENDC}",
-                file=sys.stderr,
+            from redsploit.core.rich_output import get_formatter
+            formatter = get_formatter()
+            
+            # Create workflow start panel
+            content = []
+            content.append(f"[bold]{run.workflow_name}[/bold]  [dim][{run.mode}/{run.profile}][/dim]")
+            content.append(f"[warning]Target:[/warning] {run.target_name}")
+            content.append(f"[dim]Steps:[/dim] {len(run.steps)}  [dim]·[/dim]  [dim]ID:[/dim] {run.id}")
+            
+            formatter.panel(
+                "\n".join(content),
+                title="[bold terracotta]Workflow Execution[/bold terracotta]",
+                border_style="terracotta"
             )
-            print(
-                f"  {Colors.DIM}{len(run.steps)} steps  ·  {run.id}{Colors.ENDC}",
-                file=sys.stderr,
-            )
+            
             print(file=sys.stderr)
             print(self._render_step_board(run), file=sys.stderr)
             print(file=sys.stderr)
@@ -245,6 +280,10 @@ class _ProgressReporter:
         self._current_run = run
         tool = step.tool or step.kind
         
+        # Reset line tracking for new step
+        if publisher is not None:
+            publisher.reset_step_tracking(step.id)
+        
         if self._use_fixed_header:
             self._update_fixed_header()
         else:
@@ -256,12 +295,14 @@ class _ProgressReporter:
             else:
                 self._first_step = False
         
-        print(
-            f"  {Colors.OKBLUE}▶{Colors.ENDC}  {Colors.BOLD}{step.id}{Colors.ENDC}"
-            f"  {Colors.DIM}{tool}{Colors.ENDC}",
-            file=sys.stderr,
-            flush=True,
-        )
+        from redsploit.core.rich_output import get_formatter
+        formatter = get_formatter()
+        # Rich console.print doesn't support file parameter, use stderr directly
+        import sys
+        old_file = formatter.console.file
+        formatter.console.file = sys.stderr
+        formatter.console.print(f"  [info]▶[/info]  [bold]{step.id}[/bold]  [dim]{tool}[/dim]")
+        formatter.console.file = old_file
         self._start_step_live_updates(step.id, tool, publisher)
 
     def step_completed(self, step) -> None:
@@ -271,11 +312,14 @@ class _ProgressReporter:
         telemetry = step.telemetry
         dur = self._format_duration_ms(telemetry.duration_ms) if telemetry else "n/a"
         out = telemetry.output_count if telemetry else len(step.output_items)
-        print(
-            f"  {Colors.OKGREEN}✓{Colors.ENDC}  {Colors.BOLD}{step.id}{Colors.ENDC}"
-            f"  {Colors.DIM}{dur}  ·  {out} output(s){Colors.ENDC}",
-            file=sys.stderr,
-        )
+        
+        from redsploit.core.rich_output import get_formatter
+        formatter = get_formatter()
+        import sys
+        old_file = formatter.console.file
+        formatter.console.file = sys.stderr
+        formatter.console.print(f"  [success]✓[/success]  [bold]{step.id}[/bold]  [dim]{dur}  ·  {out} output(s)[/dim]")
+        formatter.console.file = old_file
 
     def step_failed(self, step) -> None:
         self._stop_step_live_updates()
@@ -283,18 +327,24 @@ class _ProgressReporter:
             self._update_fixed_header()
         err = (step.error_summary or "failed")[:80]
         telemetry = step.telemetry
-        dur = f"  {Colors.DIM}{self._format_duration_ms(telemetry.duration_ms)}{Colors.ENDC}" if telemetry else ""
-        print(
-            f"  {Colors.FAIL}✗{Colors.ENDC}  {Colors.BOLD}{step.id}{Colors.ENDC}"
-            f"  {Colors.FAIL}{err}{Colors.ENDC}{dur}",
-            file=sys.stderr,
-        )
+        dur = f"  [dim]{self._format_duration_ms(telemetry.duration_ms)}[/dim]" if telemetry else ""
+        
+        from redsploit.core.rich_output import get_formatter
+        formatter = get_formatter()
+        import sys
+        old_file = formatter.console.file
+        formatter.console.file = sys.stderr
+        formatter.console.print(f"  [error]✗[/error]  [bold]{step.id}[/bold]  [error]{err}[/error]{dur}")
+        formatter.console.file = old_file
 
     def step_skipped(self, step) -> None:
-        print(
-            f"  {Colors.DIM}–  {step.id}  skipped{Colors.ENDC}",
-            file=sys.stderr,
-        )
+        from redsploit.core.rich_output import get_formatter
+        formatter = get_formatter()
+        import sys
+        old_file = formatter.console.file
+        formatter.console.file = sys.stderr
+        formatter.console.print(f"  [dim]–  {step.id}  skipped[/dim]")
+        formatter.console.file = old_file
 
     def run_footer(self, run) -> None:
         self._stop_step_live_updates()
@@ -309,20 +359,30 @@ class _ProgressReporter:
         complete = sum(1 for s in run.steps if s.status == "complete")
         failed = sum(1 for s in run.steps if s.status == "failed")
         skipped = sum(1 for s in run.steps if s.status == "skipped")
-        status_color = Colors.OKGREEN if run.status == "complete" else Colors.FAIL
         
         if not self._use_fixed_header:
             print(file=sys.stderr)
             print(self._render_step_board(run), file=sys.stderr)
             print(file=sys.stderr)
         
-        print(
-            f"  {status_color}{run.status.upper()}{Colors.ENDC}"
-            f"  {Colors.DIM}{complete}/{total} done"
-            + (f"  ·  {failed} failed" if failed else "")
-            + (f"  ·  {skipped} skipped" if skipped else "")
-            + f"  ·  {self._elapsed()}{Colors.ENDC}",
-            file=sys.stderr,
+        # Use Rich panel for completion summary
+        from redsploit.core.rich_output import get_formatter
+        formatter = get_formatter()
+        
+        status_style = "success" if run.status == "complete" else "error"
+        content = []
+        content.append(f"[{status_style}]{run.status.upper()}[/{status_style}]")
+        content.append(f"\n[dim]Completed:[/dim] {complete}/{total}")
+        if failed:
+            content.append(f"[error]Failed:[/error] {failed}")
+        if skipped:
+            content.append(f"[dim]Skipped:[/dim] {skipped}")
+        content.append(f"[dim]Duration:[/dim] {self._elapsed()}")
+        
+        formatter.panel(
+            "\n".join(content),
+            title="[bold terracotta]Workflow Summary[/bold terracotta]",
+            border_style="terracotta" if run.status == "complete" else "error"
         )
         print(file=sys.stderr)
 
@@ -377,16 +437,9 @@ class _ProgressReporter:
     ) -> str:
         idle_seconds = float(activity.get("idle_seconds", 0.0))
         elapsed_str = self._format_seconds(elapsed_seconds)
-        last_message = str(activity.get("last_message", "")).strip()
-        if len(last_message) > 60:
-            last_message = f"{last_message[:60]}..."
-        idle_note = ""
-        if idle_seconds >= self.STALLED_AFTER_SECONDS:
-            idle_note = f"  {Colors.WARNING}no output for {self._format_seconds(idle_seconds)}{Colors.ENDC}"
-        last_note = f"  {Colors.DIM}{last_message}{Colors.ENDC}" if last_message else ""
+        # Don't show idle warnings - tools like nmap/nuclei can be silent for long periods
         return (
-            f"  {Colors.DIM}  {step_id}  {elapsed_str}{Colors.ENDC}"
-            f"{idle_note}{last_note}"
+            f"  {Colors.DIM}[{step_id}] running {elapsed_str}{Colors.ENDC}"
         )
 
 
@@ -425,6 +478,9 @@ class WorkflowManager:
             if command == "runs":
                 self.list_runs()
                 return 0
+            if command == "output":
+                self.show_step_output(args[1:])
+                return 0
             if command == "findings":
                 self.list_findings(args[1:])
                 return 0
@@ -435,7 +491,17 @@ class WorkflowManager:
                 self.list_adapters()
                 return 0
         except (FileNotFoundError, WorkflowPlanningError, ValueError) as exc:
-            log_error(str(exc))
+            from redsploit.core.rich_output import get_formatter
+            formatter = get_formatter()
+            formatter.error_panel(
+                error_type=type(exc).__name__,
+                message=str(exc),
+                suggestions=[
+                    "Check if the workflow file exists using 'workflow list'",
+                    "Verify the target is set correctly",
+                    "Review command syntax with 'workflow' (no args) for usage"
+                ]
+            )
             return 1
 
         log_error(f"Unknown workflow command: {command}")
@@ -496,6 +562,59 @@ class WorkflowManager:
                 f"{Colors.DIM}{wf}{Colors.ENDC}"
             )
         print()
+        print(f"{Colors.DIM}Tip: Use 'workflow output --scan-id <id> --step <step_id>' to view full step output{Colors.ENDC}")
+        print()
+
+    def show_step_output(self, args: list[str], *, use_pager: bool = True) -> None:
+        """Display full output for a specific step."""
+        scan_id = self._require_flag_value(args, "--scan-id")
+        step_id = self._require_flag_value(args, "--step")
+        
+        run = self._store().get_run(scan_id)
+        if run is None:
+            raise ValueError(f"Scan '{scan_id}' not found")
+        
+        step = next((s for s in run.steps if s.id == step_id), None)
+        if step is None:
+            raise ValueError(f"Step '{step_id}' not found in scan '{scan_id}'")
+        
+        if not step.artifacts:
+            print(f"{Colors.DIM}No artifacts found for step '{step_id}'{Colors.ENDC}")
+            return
+        
+        stdout_artifact = next((a for a in step.artifacts if a.name == "stdout"), None)
+        stderr_artifact = next((a for a in step.artifacts if a.name == "stderr"), None)
+        
+        output_parts = []
+        
+        if stdout_artifact:
+            artifact_path = Path(self.session.workflow_data_dir()) / stdout_artifact.path
+            if artifact_path.exists():
+                output_parts.append(f"{Colors.HEADER}=== STDOUT for {step_id} ==={Colors.ENDC}")
+                output_parts.append(artifact_path.read_text(encoding="utf-8", errors="replace"))
+        
+        if stderr_artifact:
+            artifact_path = Path(self.session.workflow_data_dir()) / stderr_artifact.path
+            if artifact_path.exists():
+                output_parts.append(f"\n{Colors.HEADER}=== STDERR for {step_id} ==={Colors.ENDC}")
+                output_parts.append(artifact_path.read_text(encoding="utf-8", errors="replace"))
+        
+        if not output_parts:
+            print(f"{Colors.DIM}No output found for step '{step_id}'{Colors.ENDC}")
+            return
+        
+        full_output = "\n".join(output_parts)
+        
+        if use_pager:
+            # Use pager for interactive viewing (like less)
+            try:
+                import pydoc
+                pydoc.pager(full_output)
+            except Exception:
+                # Fallback to plain print
+                print(full_output)
+        else:
+            print(full_output)
 
     def list_findings(self, args: list[str]) -> None:
         scan_id = self._require_flag_value(args, "--scan-id")
@@ -591,8 +710,13 @@ class WorkflowManager:
             updated_step = next((s for s in updated.steps if s.id == step_id), None)
             if updated_step is not None:
                 if updated_step.status == "complete":
+                    # Finalize output to show truncation indicator if needed
+                    if publisher is not None:
+                        publisher.finalize_step_output(step_id)
                     reporter.step_completed(updated_step)
                 elif updated_step.status == "failed":
+                    if publisher is not None:
+                        publisher.finalize_step_output(step_id)
                     reporter.step_failed(updated_step)
 
             _report_skipped(updated)
@@ -605,6 +729,11 @@ class WorkflowManager:
             return 1
 
         reporter.run_footer(final_run)
+        
+        # Stop keyboard listener if active
+        if publisher is not None:
+            publisher.stop_keyboard_listener()
+        
         print(f"{final_run.id} {final_run.status} {final_run.workflow_name}")
         try:
             report_result = WorkflowReportService(self.session, store).generate_for_run(final_run)
@@ -720,6 +849,7 @@ class WorkflowManager:
         print("  workflow build --workflow <name> --target <target> --tech <profile> --depth <normal|deep>")
         print("  workflow run --workflow <name> --target <target> [--tech <profile>] [--depth <normal|deep>] [-q]")
         print("  workflow runs")
+        print("  workflow output --scan-id <id> --step <step_id>")
         print("  workflow findings --scan-id <id>")
         print("  workflow delta --target <name>")
         print("  workflow adapters")

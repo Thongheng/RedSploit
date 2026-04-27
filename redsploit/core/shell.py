@@ -342,15 +342,42 @@ class RedShell(BaseShell):
             return
 
         if len(matches) > 1:
-            log_warn(f"Ambiguous command '{command}'. Possible matches:")
+            from ..core.rich_output import get_formatter
+            formatter = get_formatter()
+            formatter.warn(f"Ambiguous command '{command}'. Possible matches:")
             for match in matches:
-                print(f"  - {self._format_candidate_label(match)}")
+                formatter.console.print(f"  • [terracotta]{self._format_candidate_label(match)}[/terracotta]")
             return
 
-        log_warn(f"Unknown command: {line}.")
+        from ..core.rich_output import get_formatter
+        formatter = get_formatter()
+        formatter.warn(f"Unknown command: {line}")
         suggestions = self._suggest_candidates(command)
         if suggestions:
-            print("Did you mean:")
+            formatter.console.print("\n[bold]Did you mean:[/bold]")
             for suggestion in suggestions:
-                print(f"  - {suggestion}")
-        print("Use 'shell <cmd>' to run system commands.")
+                # Highlight the matching portion
+                normalized_cmd = self._normalize_lookup_token(command)
+                normalized_sugg = self._normalize_lookup_token(suggestion.split()[0])
+                
+                # Find common prefix for highlighting
+                common_len = 0
+                for i, (c1, c2) in enumerate(zip(normalized_cmd, normalized_sugg)):
+                    if c1 == c2:
+                        common_len = i + 1
+                    else:
+                        break
+                
+                # Format with highlighting
+                if common_len > 0 and common_len < len(suggestion.split()[0]):
+                    sugg_parts = suggestion.split()
+                    first_word = sugg_parts[0]
+                    rest = " ".join(sugg_parts[1:]) if len(sugg_parts) > 1 else ""
+                    formatted = f"[terracotta bold]{first_word[:common_len]}[/terracotta bold][terracotta]{first_word[common_len:]}[/terracotta]"
+                    if rest:
+                        formatted += f" [dim]{rest}[/dim]"
+                    formatter.console.print(f"  • {formatted}")
+                else:
+                    formatter.console.print(f"  • [terracotta]{suggestion}[/terracotta]")
+        formatter.console.print("\n[dim]Use 'shell <cmd>' to run system commands.[/dim]")
+

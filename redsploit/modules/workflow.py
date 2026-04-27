@@ -51,7 +51,17 @@ class WorkflowShell(ModuleShell):
         try:
             self.module.manager.show_workflow(workflow_name)
         except (ValueError, FileNotFoundError) as e:
-            log_error(str(e))
+            from ...core.rich_output import get_formatter
+            formatter = get_formatter()
+            formatter.error_panel(
+                error_type=type(e).__name__,
+                message=str(e),
+                suggestions=[
+                    "Check if the workflow file exists in the workflows/ directory",
+                    "Use 'workflow list' to see available workflows",
+                    "Verify the workflow name is spelled correctly"
+                ]
+            )
 
     def do_preview(self, arg):
         """Preview a workflow plan. Usage: preview <name> [--target <target>]"""
@@ -80,6 +90,10 @@ class WorkflowShell(ModuleShell):
     def do_runs(self, arg):
         """List previous workflow runs."""
         self.module.manager.list_runs()
+
+    def do_output(self, arg):
+        """Show full output for a step. Usage: output --scan-id <id> --step <step_id>"""
+        self.module.manager.run_cli(["output"] + shlex.split(arg))
 
     def do_findings(self, arg):
         """Show findings for a scan run. Usage: findings --scan-id <id>"""
@@ -121,6 +135,7 @@ class WorkflowShell(ModuleShell):
         print(f"  {Colors.BOLD}preview <name>{Colors.ENDC:<18} Preview the execution plan")
         print(f"  {Colors.BOLD}build <name>{Colors.ENDC:<18} Generate tech-specific workflow")
         print(f"  {Colors.BOLD}runs{Colors.ENDC:<18} List previous scan runs")
+        print(f"  {Colors.BOLD}output{Colors.ENDC:<18} View full step output (--scan-id <id> --step <step_id>)")
         print(f"  {Colors.BOLD}findings{Colors.ENDC:<18} View results of a scan")
         print(f"  {Colors.BOLD}delta{Colors.ENDC:<18} Compare changes between runs")
         print(f"  {Colors.BOLD}adapters{Colors.ENDC:<18} List supported tool adapters")

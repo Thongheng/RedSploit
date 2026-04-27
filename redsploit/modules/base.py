@@ -128,53 +128,80 @@ class BaseModule:
         return None, None
 
     def print_tool_help(self, module_name: str, tool_name: str) -> None:
+        from ..core.rich_output import get_formatter
+        
         tool = getattr(self, "TOOLS", {}).get(tool_name)
         if not tool:
             log_error(f"Tool '{tool_name}' not found.")
             return
 
-        print(f"\n{Colors.HEADER}{tool_name}{Colors.ENDC}")
+        formatter = get_formatter()
+        
+        # Build help content sections
+        content = []
+        
+        # Description
         if tool.get("desc"):
-            print(f"  {tool['desc']}")
-        print(f"\n{Colors.BOLD}Binary:{Colors.ENDC} {tool.get('binary', 'N/A') or 'built-in'}")
-
+            content.append(f"[bold]{tool['desc']}[/bold]\n")
+        
+        # Binary information
+        binary = tool.get('binary', 'N/A') or 'built-in'
+        content.append(f"Binary: {binary}")
+        
+        # Session inputs
         reqs = tool.get("requires", [])
         if reqs:
-            print(f"{Colors.BOLD}Session inputs:{Colors.ENDC} {', '.join(reqs)}")
-
+            content.append(f"Session inputs: {', '.join(reqs)}")
+        
+        # Auth mode
         auth_mode = tool.get("auth_mode")
         if auth_mode:
-            print(f"{Colors.BOLD}Auth mode:{Colors.ENDC} {auth_mode}")
-
-        print(f"\n{Colors.BOLD}Recommended usage:{Colors.ENDC}")
-        for example in self._tool_examples(module_name, tool_name, tool):
-            print(f"  {example}")
-
-        print(f"\n{Colors.BOLD}Command template:{Colors.ENDC}")
-        print(f"  {tool.get('cmd', '')}")
-
+            content.append(f"Auth mode: {auth_mode}")
+        
+        # Render main panel
+        formatter.panel(
+            "\n".join(content),
+            title=f"[bold terracotta]{tool_name}[/bold terracotta]",
+            border_style="terracotta"
+        )
+        
+        # Show examples with syntax highlighting
+        examples = self._tool_examples(module_name, tool_name, tool)
+        if examples:
+            formatter.console.print("\n[bold]Recommended usage:[/bold]")
+            for example in examples:
+                formatter.syntax(example, lexer="bash", line_numbers=False)
+        
+        # Show command template with syntax highlighting
+        cmd_template = tool.get('cmd', '')
+        if cmd_template:
+            formatter.console.print("\n[bold]Command template:[/bold]")
+            formatter.syntax(cmd_template, lexer="bash", line_numbers=False)
+        
+        # Show flags
         if tool.get("cmd") == "built-in":
-            print(f"\n{Colors.BOLD}Runtime flags:{Colors.ENDC}")
-            print("  --web      Use the web profile")
-            print("  --api      Use the API profile")
-            print("  --json     Output JSON")
-            print("  --detailed Output a detailed report")
-            print("  -X/-H/-f   Request method, custom headers, and file input")
+            formatter.console.print("\n[bold]Runtime flags:[/bold]")
+            formatter.console.print("  --web      Use the web profile")
+            formatter.console.print("  --api      Use the API profile")
+            formatter.console.print("  --json     Output JSON")
+            formatter.console.print("  --detailed Output a detailed report")
+            formatter.console.print("  -X/-H/-f   Request method, custom headers, and file input")
         else:
-            print(f"\n{Colors.BOLD}Flags:{Colors.ENDC}")
-            print("  -c         Copy command to clipboard without running")
-            print("  -p         Preview command without running")
-            print("  -e         Edit command before running")
-            print("  -nosummary Disable the post-run summary section for this run")
-            print("  -noauth    Skip credentials for this run")
-
+            formatter.console.print("\n[bold]Flags:[/bold]")
+            formatter.console.print("  -c         Copy command to clipboard without running")
+            formatter.console.print("  -p         Preview command without running")
+            formatter.console.print("  -e         Edit command before running")
+            formatter.console.print("  -nosummary Disable the post-run summary section for this run")
+            formatter.console.print("  -noauth    Skip credentials for this run")
+        
+        # Show config options
         tool_configs = self.session.config.get(module_name, {}).get("configs", {}).get(tool_name, {})
         if tool_configs:
-            print(f"\n{Colors.BOLD}Config options:{Colors.ENDC}")
+            formatter.console.print("\n[bold]Config options:[/bold]")
             for key, options in tool_configs.items():
                 current = self.session.get_tool_config(module_name, tool_name, key)
                 suffix = f" (current: {current})" if current else ""
-                print(f"  {key}: {', '.join(options.keys())}{suffix}")
+                formatter.console.print(f"  {key}: {', '.join(options.keys())}{suffix}")
 
         print("")
 
@@ -349,7 +376,20 @@ class BaseModule:
                 else:
                     return self._run_passthrough(cmd)
             except Exception as e:
-                log_error(f"Execution failed: {e}")
+                from ..core.rich_output import get_formatter
+                import traceback
+                
+                formatter = get_formatter()
+                formatter.error_panel(
+                    error_type=type(e).__name__,
+                    message=str(e),
+                    traceback=traceback.format_exc() if hasattr(e, '__traceback__') else None,
+                    suggestions=[
+                        "Check if the tool is installed and available in PATH",
+                        "Verify session variables are set correctly (use 'options' command)",
+                        "Review command syntax with 'help <command>'"
+                    ]
+                )
                 return 1
             finally:
                 if log_file:
