@@ -270,7 +270,7 @@ workflow_install_command() {
             fi
             ;;
         testssl.sh)
-            rm -rf "$HOME/.local/share/testssl.sh" "$HOME/.local/bin/testssl.sh" && mkdir -p "$HOME/.local/share/testssl.sh" && git clone --depth 1 https://github.com/testssl/testssl.sh.git --branch 3.3dev "$HOME/.local/share/testssl.sh" && mkdir -p "$HOME/.local/bin" && ln -sf "$HOME/.local/share/testssl.sh/testssl.sh" "$HOME/.local/bin/testssl.sh"
+            printf 'rm -rf "$HOME/.local/share/testssl.sh" "$HOME/.local/bin/testssl.sh" && mkdir -p "$HOME/.local/share/testssl.sh" && git clone --depth 1 https://github.com/testssl/testssl.sh.git --branch 3.3dev "$HOME/.local/share/testssl.sh" && mkdir -p "$HOME/.local/bin" && ln -sf "$HOME/.local/share/testssl.sh/testssl.sh" "$HOME/.local/bin/testssl.sh"'
             return 0
             ;;
         shcheck.py)
@@ -296,7 +296,7 @@ workflow_install_command() {
             fi
             ;;
         dirsearch)
-            rm -rf "$HOME/.local/share/dirsearch" "$HOME/.local/bin/dirsearch" && mkdir -p "$HOME/.local/share/dirsearch" && git clone --depth 1 https://github.com/maurosoria/dirsearch.git "$HOME/.local/share/dirsearch" && chmod +x "$HOME/.local/share/dirsearch/dirsearch.py" && mkdir -p "$HOME/.local/bin" && ln -sf "$HOME/.local/share/dirsearch/dirsearch.py" "$HOME/.local/bin/dirsearch"
+            printf 'rm -rf "$HOME/.local/share/dirsearch" "$HOME/.local/bin/dirsearch" && mkdir -p "$HOME/.local/share/dirsearch" && git clone --depth 1 https://github.com/maurosoria/dirsearch.git "$HOME/.local/share/dirsearch" && chmod +x "$HOME/.local/share/dirsearch/dirsearch.py" && mkdir -p "$HOME/.local/bin" && ln -sf "$HOME/.local/share/dirsearch/dirsearch.py" "$HOME/.local/bin/dirsearch"'
             return 0
             ;;
         sqlmap)
@@ -306,14 +306,7 @@ workflow_install_command() {
             fi
             ;;
         secretfinder)
-            rm -rf "$HOME/.local/share/SecretFinder"
-            mkdir -p "$HOME/.local/share/SecretFinder"
-            mkdir -p "$HOME/.local/bin"
-            git clone --depth 1 https://github.com/m4ll0k/SecretFinder.git "$HOME/.local/share/SecretFinder"
-            cd "$HOME/.local/share/SecretFinder"
-            python3 -m pip install -r requirements.txt
-            chmod +x "$HOME/.local/share/SecretFinder/SecretFinder.py"
-            ln -sf "$HOME/.local/share/SecretFinder/SecretFinder.py" "$HOME/.local/bin/secretfinder"
+            printf 'rm -rf "$HOME/.local/share/SecretFinder" && mkdir -p "$HOME/.local/share/SecretFinder" "$HOME/.local/bin" && git clone --depth 1 https://github.com/m4ll0k/SecretFinder.git "$HOME/.local/share/SecretFinder" && python3 -m pip install -r "$HOME/.local/share/SecretFinder/requirements.txt" && chmod +x "$HOME/.local/share/SecretFinder/SecretFinder.py" && ln -sf "$HOME/.local/share/SecretFinder/SecretFinder.py" "$HOME/.local/bin/secretfinder"'
             return 0
             ;;
     esac
