@@ -12,6 +12,20 @@ class WorkflowModule(BaseModule):
         super().__init__(session)
         from ..workflow.manager import WorkflowManager
         self.manager = WorkflowManager(session)
+        self._check_httpx()
+
+    def _check_httpx(self):
+        """Warn if the 'httpx' on PATH is the Python library instead of ProjectDiscovery tool."""
+        import subprocess
+        try:
+            # Python httpx CLI returns usage error for --version
+            res = subprocess.run(["httpx", "--version"], capture_output=True, text=True, timeout=2)
+            if "Usage: httpx [OPTIONS] URL" in res.stderr or "Usage: httpx [OPTIONS] URL" in res.stdout:
+                from ..core.colors import log_warn, Colors
+                log_warn(f"Conflict detected: The '{Colors.BOLD}httpx{Colors.ENDC}' on your path is the Python library, not the ProjectDiscovery tool.")
+                print(f"  {Colors.DIM}Workflows require the ProjectDiscovery version. You may need to rename the Python version or adjust your PATH.{Colors.ENDC}")
+        except Exception:
+            pass
 
     def run(self, args_list):
         """Handle CLI invocation: red -workflow <subcommand> [args]"""
@@ -30,22 +44,38 @@ class WorkflowShell(ModuleShell):
 
     def do_show(self, arg):
         """Show workflow details. Usage: show <name>"""
+        workflow_name = arg.strip()
+        if not workflow_name:
+            log_error("Usage: show <name>")
+            return
         try:
-            self.module.manager.show_workflow(arg.strip())
-        except ValueError as e:
+            self.module.manager.show_workflow(workflow_name)
+        except (ValueError, FileNotFoundError) as e:
             log_error(str(e))
 
     def do_preview(self, arg):
         """Preview a workflow plan. Usage: preview <name> [--target <target>]"""
-        self.module.manager.run_cli(["preview"] + shlex.split(arg))
+        args = shlex.split(arg)
+        if not args:
+            log_error("Usage: preview <name> [--target <target>]")
+            return
+        self.module.manager.run_cli(["preview"] + args)
 
     def do_build(self, arg):
         """Build a technology-specific workflow. Usage: build <name> --tech <tech> --depth <depth>"""
-        self.module.manager.run_cli(["build"] + shlex.split(arg))
+        args = shlex.split(arg)
+        if not args:
+            log_error("Usage: build <name> --tech <tech> --depth <depth>")
+            return
+        self.module.manager.run_cli(["build"] + args)
 
     def do_run(self, arg):
         """Run a workflow. Usage: run <name> [--target <target>] [-q]"""
-        self.module.manager.run_cli(["run"] + shlex.split(arg))
+        args = shlex.split(arg)
+        if not args:
+            log_error("Usage: run <name> [--target <target>] [-q]")
+            return
+        self.module.manager.run_cli(["run"] + args)
 
     def do_runs(self, arg):
         """List previous workflow runs."""
@@ -76,6 +106,25 @@ class WorkflowShell(ModuleShell):
 
     def complete_run(self, text, line, begidx, endidx):
         return self._complete_manager_subcommand("run", text, line)
+
+    def do_help(self, arg):
+        """Show help for workflow commands."""
+        if arg:
+            super().do_help(arg)
+            return
+
+        from ..core.colors import Colors
+        print(f"\n{Colors.HEADER}Workflow Commands{Colors.ENDC}")
+        print(f"  {Colors.BOLD}list{Colors.ENDC:<18} List available workflows")
+        print(f"  {Colors.BOLD}show <name>{Colors.ENDC:<18} Show workflow details and plan")
+        print(f"  {Colors.BOLD}run <name>{Colors.ENDC:<18} Execute a workflow scan")
+        print(f"  {Colors.BOLD}preview <name>{Colors.ENDC:<18} Preview the execution plan")
+        print(f"  {Colors.BOLD}build <name>{Colors.ENDC:<18} Generate tech-specific workflow")
+        print(f"  {Colors.BOLD}runs{Colors.ENDC:<18} List previous scan runs")
+        print(f"  {Colors.BOLD}findings{Colors.ENDC:<18} View results of a scan")
+        print(f"  {Colors.BOLD}delta{Colors.ENDC:<18} Compare changes between runs")
+        print(f"  {Colors.BOLD}adapters{Colors.ENDC:<18} List supported tool adapters")
+        print(f"\n{Colors.DIM}Usage example: run internal-project.yaml --target 10.10.10.10{Colors.ENDC}\n")
 
     def _complete_manager_subcommand(self, subcommand, text, line):
         # reuse logic from complete_workflow but adapted for the shell (no 'workflow' prefix)

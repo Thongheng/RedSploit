@@ -376,7 +376,7 @@ class WorkflowManager:
 
     def show_workflow(self, workflow_name: str) -> None:
         if not workflow_name:
-            raise ValueError("Usage: workflow show <name>")
+            raise ValueError("Usage: show <name>")
         _, workflow, content = read_workflow_document(workflow_name, allow_local_paths=True)
         print(f"{workflow.name} ({workflow.mode}/{workflow.profile})")
         print(content)
@@ -427,9 +427,9 @@ class WorkflowManager:
         target = options.get("target") or self.session.get("target")
         workflow_name = options.get("workflow")
         if not workflow_name:
-            raise ValueError("Requires --workflow <name>. Usage: workflow preview --workflow <name> --target <target>")
+            raise ValueError("Requires a workflow name. Usage: preview <name> --target <target>")
         if not target:
-            raise ValueError("Requires --target <target>. Usage: workflow preview --workflow <name> --target <target>")
+            raise ValueError("Requires a target. Usage: preview <name> --target <target>")
 
         generated = self._build_generated_if_requested(options, target)
         if generated is not None:
@@ -451,9 +451,9 @@ class WorkflowManager:
         workflow_name = options.get("workflow")
         quiet = options.pop("quiet", "false").lower() in {"true", "1", "yes"}
         if not workflow_name:
-            raise ValueError("workflow run requires --workflow <name>. Usage: workflow run --workflow <name> --target <target>")
+            raise ValueError("Workflow run requires a name. Usage: run <name> --target <target>")
         if not target:
-            raise ValueError("workflow run requires --target <target>. Usage: workflow run --workflow <name> --target <target>")
+            raise ValueError("Workflow run requires a target. Usage: run <name> --target <target>")
 
         store = self._store()
         generated = self._build_generated_if_requested(options, target)
@@ -582,7 +582,7 @@ class WorkflowManager:
         for index, arg in enumerate(args):
             if arg == flag and index + 1 < len(args):
                 return args[index + 1]
-        raise ValueError(f"Usage: workflow {flag} <value>")
+        raise ValueError(f"Usage: {flag} <value>")
 
     @staticmethod
     def _print_usage() -> int:
