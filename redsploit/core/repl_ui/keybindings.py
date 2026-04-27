@@ -29,13 +29,10 @@ def create_key_bindings(current_text: list[str]) -> KeyBindings:
 
         # First: accept inline autosuggestion if available
         if text and text.strip():
-            # Use the session's auto_suggest if available
-            session = event.app.session
-            if session and session.auto_suggest:
-                suggestion = session.auto_suggest.get_suggestion(buffer, buffer.document)
-                if suggestion and suggestion.text:
-                    buffer.insert_text(suggestion.text)
-                    return
+            suggestion = buffer.suggestion
+            if suggestion and suggestion.text:
+                buffer.insert_text(suggestion.text)
+                return
 
         # Second: cycle through completion menu
         if buffer.complete_state:
@@ -59,12 +56,10 @@ def create_key_bindings(current_text: list[str]) -> KeyBindings:
         text = buffer.text
 
         if text and text.strip():
-            session = event.app.session
-            if session and session.auto_suggest:
-                suggestion = session.auto_suggest.get_suggestion(buffer, buffer.document)
-                if suggestion and suggestion.text:
-                    buffer.insert_text(suggestion.text)
-                    return
+            suggestion = buffer.suggestion
+            if suggestion and suggestion.text:
+                buffer.insert_text(suggestion.text)
+                return
 
         # Default right arrow behavior
         event.current_buffer.cursor_right()
