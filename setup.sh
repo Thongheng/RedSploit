@@ -4,6 +4,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PATH="$HOME/.local/bin:$PATH"
 RED_PY="$SCRIPT_DIR/red.py"
 MANAGED_BLOCK_START="# >>> RedSploit AI Summary Keys >>>"
 MANAGED_BLOCK_END="# <<< RedSploit AI Summary Keys <<<"
