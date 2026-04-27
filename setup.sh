@@ -19,7 +19,7 @@ INSTALL_TARGET=""
 RC_FILE=""
 DETECTED_SHELL=""
 CURRENT_STEP=0
-TOTAL_STEPS=4
+TOTAL_STEPS=5
 TEST_ONLY=0
 OPENROUTER_TEST_URL="https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_TEST_MODEL="openrouter/free"
@@ -56,6 +56,72 @@ WORKFLOW_REQUIRED_BINARIES=(
     secretfinder
 )
 
+PACKAGE_MANAGERS=(
+    brew
+    go
+    pipx
+    pip
+    cargo
+)
+
+SYSTEM_PACKAGES=(
+    apt-get
+    yum
+    dnf
+    apk
+)
+
+list_required_managers() {
+    local available=()
+    local pm
+    for pm in "${PACKAGE_MANAGERS[@]}" "${SYSTEM_PACKAGES[@]}"; do
+        if command -v "$pm" >/dev/null 2>&1; then
+            available+=("$pm")
+        fi
+    done
+    printf '%s\n' "${available[@]}"
+}
+
+check_all_tools_before_install() {
+    print_step "Check tool availability"
+    
+    local available_tools=()
+    local missing_tools=()
+    local managers
+    local tool
+    
+    mapfile -t managers < <(list_required_managers)
+    if [ ${#managers[@]} -gt 0 ]; then
+        log_info "Available package managers: ${managers[*]}"
+    else
+        log_warn "No package managers detected"
+    fi
+    
+    for tool in "${WORKFLOW_REQUIRED_BINARIES[@]}"; do
+        if command -v "$tool" >/dev/null 2>&1; then
+            available_tools+=("$tool")
+        else
+            missing_tools+=("$tool")
+        fi
+    done
+    
+    echo ""
+    if [ ${#available_tools[@]} -gt 0 ]; then
+        printf '%s[+]%s Available tools (%d): %s\n' "$C_GREEN" "$C_RESET" ${#available_tools[@]} "${available_tools[*]}"
+    fi
+    
+    if [ ${#missing_tools[@]} -gt 0 ]; then
+        printf '%s[-]%s Missing tools (%d): %s\n' "$C_YELLOW" "$C_RESET" ${#missing_tools[@]} "${missing_tools[*]}"
+    else
+        log_success "All workflow tools are already installed"
+    fi
+    
+    if [ ${#missing_tools[@]} -gt 0 ]; then
+        return 1
+    fi
+    return 0
+}
+
 list_missing_workflow_tools() {
     local binary missing=()
     for binary in "${WORKFLOW_REQUIRED_BINARIES[@]}"; do
@@ -77,43 +143,47 @@ run_as_root_or_sudo() {
 workflow_install_command() {
     local binary="$1"
 
+    has_package_manager() {
+        command -v "$1" >/dev/null 2>&1
+    }
+
     case "$binary" in
         python3)
-            if command -v apt-get >/dev/null 2>&1; then
+            if has_package_manager apt-get; then
                 printf 'run_as_root_or_sudo apt-get install -y python3'
                 return 0
             fi
-            if command -v brew >/dev/null 2>&1; then
+            if has_package_manager brew; then
                 printf 'brew install python3'
                 return 0
             fi
             ;;
         dig)
-            if command -v apt-get >/dev/null 2>&1; then
+            if has_package_manager apt-get; then
                 printf 'run_as_root_or_sudo apt-get install -y dnsutils'
                 return 0
             fi
-            if command -v brew >/dev/null 2>&1; then
+            if has_package_manager brew; then
                 printf 'brew install bind'
                 return 0
             fi
             ;;
         nmap)
-            if command -v apt-get >/dev/null 2>&1; then
+            if has_package_manager apt-get; then
                 printf 'run_as_root_or_sudo apt-get install -y nmap'
                 return 0
             fi
-            if command -v brew >/dev/null 2>&1; then
+            if has_package_manager brew; then
                 printf 'brew install nmap'
                 return 0
             fi
             ;;
         feroxbuster)
-            if command -v apt-get >/dev/null 2>&1; then
+            if has_package_manager apt-get; then
                 printf 'run_as_root_or_sudo apt-get install -y feroxbuster'
                 return 0
             fi
-            if command -v brew >/dev/null 2>&1; then
+            if has_package_manager brew; then
                 printf 'brew install feroxbuster'
                 return 0
             fi
@@ -123,71 +193,71 @@ workflow_install_command() {
             fi
             ;;
         httpx)
-            if command -v brew >/dev/null 2>&1; then
+            if has_package_manager brew; then
                 printf 'brew install httpx'
                 return 0
             fi
-            if command -v go >/dev/null 2>&1; then
+            if has_package_manager go; then
                 printf 'go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest'
                 return 0
             fi
             ;;
         nuclei)
-            if command -v brew >/dev/null 2>&1; then
+            if has_package_manager brew; then
                 printf 'brew install nuclei'
                 return 0
             fi
-            if command -v go >/dev/null 2>&1; then
+            if has_package_manager go; then
                 printf 'go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest'
                 return 0
             fi
             ;;
         katana)
-            if command -v go >/dev/null 2>&1; then
+            if has_package_manager go; then
                 printf 'go install github.com/projectdiscovery/katana/cmd/katana@latest'
                 return 0
             fi
             ;;
         naabu)
-            if command -v go >/dev/null 2>&1; then
+            if has_package_manager go; then
                 printf 'go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest'
                 return 0
             fi
             ;;
         subfinder)
-            if command -v brew >/dev/null 2>&1; then
+            if has_package_manager brew; then
                 printf 'brew install subfinder'
                 return 0
             fi
-            if command -v go >/dev/null 2>&1; then
+            if has_package_manager go; then
                 printf 'go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest'
                 return 0
             fi
             ;;
         assetfinder)
-            if command -v go >/dev/null 2>&1; then
+            if has_package_manager go; then
                 printf 'go install github.com/tomnomnom/assetfinder@latest'
                 return 0
             fi
             ;;
         ffuf)
-            if command -v brew >/dev/null 2>&1; then
+            if has_package_manager brew; then
                 printf 'brew install ffuf'
                 return 0
             fi
-            if command -v go >/dev/null 2>&1; then
+            if has_package_manager go; then
                 printf 'go install github.com/ffuf/ffuf/v2@latest'
                 return 0
             fi
             ;;
         gau)
-            if command -v go >/dev/null 2>&1; then
+            if has_package_manager go; then
                 printf 'go install github.com/lc/gau/v2/cmd/gau@latest'
                 return 0
             fi
             ;;
         waymore)
-            if command -v pipx >/dev/null 2>&1; then
+            if has_package_manager pipx; then
                 printf 'pipx install git+https://github.com/xnl-h4ck3r/waymore.git'
                 return 0
             fi
@@ -203,29 +273,29 @@ workflow_install_command() {
             return 0
             ;;
         shcheck.py)
-            if command -v pipx >/dev/null 2>&1; then
+            if has_package_manager pipx; then
                 printf 'pipx install shcheck'
                 return 0
             fi
             ;;
         arjun)
-            if command -v pipx >/dev/null 2>&1; then
+            if has_package_manager pipx; then
                 printf 'pipx install arjun'
                 return 0
             fi
             ;;
         dalfox)
-            if command -v brew >/dev/null 2>&1; then
+            if has_package_manager brew; then
                 printf 'brew install dalfox'
                 return 0
             fi
-            if command -v go >/dev/null 2>&1; then
+            if has_package_manager go; then
                 printf 'go install Dalfox.com/hahwul/dalfox/v2@latest'
                 return 0
             fi
             ;;
         sqlmap)
-            if command -v pipx >/dev/null 2>&1; then
+            if has_package_manager pipx; then
                 printf 'pipx install sqlmap'
                 return 0
             fi
@@ -264,30 +334,50 @@ workflow_install_hint() {
 install_missing_workflow_tools() {
     local binary install_cmd
     local failed=0
+    local installed=0
 
     for binary in "$@"; do
+        if command -v "$binary" >/dev/null 2>&1; then
+            continue
+        fi
+        
+        log_info "Installing $binary..."
         if install_cmd="$(workflow_install_command "$binary" 2>/dev/null)"; then
-            log_info "Installing $binary using official method"
-            if ! bash -lc "$install_cmd"; then
-                log_warn "Auto-install failed for $binary. $(workflow_install_hint "$binary")"
-                failed=1
+            if bash -lc "$install_cmd" 2>/dev/null; then
+                if command -v "$binary" >/dev/null 2>&1; then
+                    log_success "$binary installed successfully"
+                    installed=$((installed + 1))
+                else
+                    log_warn "$binary install command ran but binary not found in PATH"
+                    failed=$((failed + 1))
+                fi
+            else
+                log_warn "Failed to install $binary. $(workflow_install_hint "$binary")"
+                failed=$((failed + 1))
             fi
         else
-            log_warn "No safe auto-install path for $binary. $(workflow_install_hint "$binary")"
-            failed=1
+            log_warn "No auto-install path for $binary. $(workflow_install_hint "$binary")"
+            failed=$((failed + 1))
         fi
     done
 
+    echo ""
+    if [ $installed -gt 0 ]; then
+        log_success "Installed $installed tool(s)"
+    fi
+    if [ $failed -gt 0 ]; then
+        log_warn "$failed tool(s) failed to install"
+    fi
+    
     return "$failed"
 }
 
 ensure_workflow_tools() {
-    print_step "Install workflow tool dependencies"
     local missing_tools
     mapfile -t missing_tools < <(list_missing_workflow_tools)
 
     if [ "${#missing_tools[@]}" -eq 0 ]; then
-        log_success "Workflow tools already available on PATH"
+        log_success "All workflow tools are available on PATH"
         return 0
     fi
 
@@ -295,12 +385,19 @@ ensure_workflow_tools() {
     install_missing_workflow_tools "${missing_tools[@]}" || true
 
     mapfile -t missing_tools < <(list_missing_workflow_tools)
+    
     if [ "${#missing_tools[@]}" -eq 0 ]; then
-        log_success "Workflow tool dependencies installed"
+        log_success "All workflow tools installed successfully"
+        echo ""
+        log_info "Tool availability summary after install:"
+        check_all_tools_before_install
         return 0
     fi
 
     log_warn "Some workflow tools are still missing: ${missing_tools[*]}"
+    echo ""
+    log_info "Tool availability summary:"
+    check_all_tools_before_install
     return 0
 }
 
@@ -327,21 +424,25 @@ setup_colors() {
 }
 
 log_info() {
-    printf '%s[*]%s %s\n' "$C_CYAN" "$C_RESET" "$1"
+    printf '%s[INFO]%s %s\n' "$C_CYAN" "$C_RESET" "$1"
 }
 
 log_success() {
-    printf '%s[+]%s %s\n' "$C_GREEN" "$C_RESET" "$1"
+    printf '%s[ OK ]%s %s\n' "$C_GREEN" "$C_RESET" "$1"
 }
 
 log_warn() {
-    printf '%s[!]%s %s\n' "$C_YELLOW" "$C_RESET" "$1"
+    printf '%s[WARN]%s %s\n' "$C_YELLOW" "$C_RESET" "$1"
+}
+
+log_error() {
+    printf '%s[ERR ]%s %s\n' "$C_RED" "$C_RESET" "$1"
 }
 
 print_step() {
     CURRENT_STEP=$((CURRENT_STEP + 1))
     echo ""
-    printf '%s[%d/%d]%s %s%s%s\n' "$C_BLUE" "$CURRENT_STEP" "$TOTAL_STEPS" "$C_RESET" "$C_BOLD" "$1" "$C_RESET"
+    printf '%s===>%s Step %d/%d: %s%s%s\n' "$C_BLUE" "$C_RESET" "$CURRENT_STEP" "$TOTAL_STEPS" "$C_BOLD" "$1" "$C_RESET"
 }
 
 print_usage() {
@@ -356,6 +457,7 @@ EOF
 
 preflight_check() {
     local failures=0
+    local pm
 
     if ! command -v python3 >/dev/null 2>&1; then
         log_warn "python3 is required but not available on PATH."
@@ -375,6 +477,21 @@ preflight_check() {
     if [ "$TEST_ONLY" -eq 1 ] && ! command -v curl >/dev/null 2>&1; then
         log_warn "curl is required for --test but is not available on PATH."
         failures=$((failures + 1))
+    fi
+
+    echo ""
+    log_info "Checking system prerequisites..."
+    
+    local found_pm=0
+    for pm in "${PACKAGE_MANAGERS[@]}" "${SYSTEM_PACKAGES[@]}"; do
+        if command -v "$pm" >/dev/null 2>&1; then
+            log_success "Found: $pm"
+            found_pm=1
+        fi
+    done
+    
+    if [ $found_pm -eq 0 ]; then
+        log_warn "No package manager found (brew, go, pipx, apt, etc.)"
     fi
 
     if [ "$failures" -gt 0 ]; then
@@ -1210,6 +1327,7 @@ main() {
     choose_install_mode
     install_python_package
     install_redsploit
+    check_all_tools_before_install
     ensure_workflow_tools
     setup_shell_completion
     print_step "Configure AI summaries"
