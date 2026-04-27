@@ -305,7 +305,7 @@ workflow_install_command() {
             fi
             ;;
         secretfinder)
-            printf 'mkdir -p "%s/.local/share/SecretFinder" && git clone --depth 1 https://github.com/momenon/SecretFinder.git "%s/.local/share/SecretFinder" && mkdir -p "%s/.local/bin" && ln -sf "%s/.local/share/SecretFinder/SecretFinder.py" "%s/.local/bin/secretfinder"' "$REAL_HOME" "$REAL_HOME" "$REAL_HOME" "$REAL_HOME" "$REAL_HOME"
+            printf 'mkdir -p "%s/.local/share/SecretFinder" && git clone --depth 1 https://github.com/m4ll0k/SecretFinder.git "%s/.local/share/SecretFinder" && chmod +x "%s/.local/share/SecretFinder/SecretFinder.py" && ln -sf "%s/.local/share/SecretFinder/SecretFinder.py" "%s/.local/bin/secretfinder"' "$REAL_HOME" "$REAL_HOME" "$REAL_HOME" "$REAL_HOME"
             return 0
             ;;
     esac
