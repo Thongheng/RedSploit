@@ -406,7 +406,12 @@ ensure_workflow_tools() {
         return 0
     fi
 
-    log_warn "Some workflow tools are still missing: ${missing_tools[*]}"
+    log_warn "Some workflow tools are still missing after install:"
+    echo ""
+    local tool
+    for tool in "${missing_tools[@]}"; do
+        printf '%s[-]%s %s — %s\n' "$C_YELLOW" "$C_RESET" "$tool" "$(workflow_install_hint "$tool")"
+    done
     echo ""
     log_info "Tool availability summary:"
     check_all_tools_before_install
