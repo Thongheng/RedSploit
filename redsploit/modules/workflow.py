@@ -131,10 +131,17 @@ class WorkflowShell(ModuleShell):
         # However, the easiest way is to just call a helper in BaseShell or similar.
         # For now, let's just implement a simplified version.
         from ..workflow.planner import list_workflow_files
+        from ..workflow.manager import WorkflowManager
         files = [path.name for path in list_workflow_files()]
         flags = ["--workflow", "--target", "--tech", "--depth", "-q", "--quiet"]
+        tech_values = list(WorkflowManager.TECH_CHOICES)
+        depth_values = list(WorkflowManager.DEPTH_CHOICES)
         
         parts = line.split()
+        if parts and parts[-1] == "--tech":
+            return [value for value in tech_values if value.startswith(text)]
+        if parts and parts[-1] == "--depth":
+            return [value for value in depth_values if value.startswith(text)]
         # If completing the first argument after the subcommand
         if len(parts) == 1 and line.endswith(" "):
             return files + flags

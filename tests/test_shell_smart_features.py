@@ -136,6 +136,24 @@ def test_main_shell_workflow_show_completion_lists_workflow_files(session):
     assert "external-continuous.yaml" in completions
 
 
+def test_main_shell_workflow_completion_suggests_tech_values(session):
+    shell = RedShell(session)
+
+    completions = shell.complete_workflow("", "workflow run internal-project.yaml --tech ", 41, 41)
+
+    assert "generic" in completions
+    assert "php" in completions
+    assert "java_spring" in completions
+
+
+def test_main_shell_workflow_completion_suggests_depth_values(session):
+    shell = RedShell(session)
+
+    completions = shell.complete_workflow("", "workflow run internal-project.yaml --depth ", 42, 42)
+
+    assert completions == ["normal", "deep"]
+
+
 def test_history_auto_suggest_uses_prompt_history_when_json_history_is_empty(session):
     shell = RedShell(session)
     suggest = HistoryAutoSuggest(shell.command_history)

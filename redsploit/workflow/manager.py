@@ -9,6 +9,7 @@ from time import monotonic
 from redsploit.core.colors import Colors, log_error, log_warn
 
 from .builder import ProjectWorkflowBuildRequest, build_project_workflow
+from .services.workflow_builder import PROJECT_WORKFLOWS, TECH_EXTENSIONS
 from .config import configure_settings
 from .planner import (
     WorkflowPlanningError,
@@ -320,6 +321,9 @@ class _ProgressReporter:
 
 
 class WorkflowManager:
+    TECH_CHOICES = tuple(TECH_EXTENSIONS.keys())
+    DEPTH_CHOICES = ("normal", "deep")
+
     def __init__(self, session) -> None:
         self.session = session
 
@@ -530,6 +534,9 @@ class WorkflowManager:
 
     def _build_generated_if_requested(self, options: dict[str, str], target: str):
         workflow_name = options.get("workflow")
+        if workflow_name in PROJECT_WORKFLOWS:
+            self._prompt_for_missing_generation_options(options)
+
         if "tech" not in options and "depth" not in options:
             return None
         if not workflow_name:
@@ -547,6 +554,27 @@ class WorkflowManager:
             "sqlmap", "secretfinder",
         }
         return build_project_workflow(request, available_tools=available)
+
+    def _prompt_for_missing_generation_options(self, options: dict[str, str]) -> None:
+        if "tech" not in options:
+            options["tech"] = self._prompt_choice(
+                "Select tech profile",
+                self.TECH_CHOICES,
+            )
+        if "depth" not in options:
+            options["depth"] = self._prompt_choice(
+                "Select test depth",
+                self.DEPTH_CHOICES,
+            )
+
+    @staticmethod
+    def _prompt_choice(label: str, choices: tuple[str, ...]) -> str:
+        prompt = f"{label} ({', '.join(choices)}): "
+        while True:
+            value = input(prompt).strip().lower()
+            if value in choices:
+                return value
+            print(f"Invalid choice. Expected one of: {', '.join(choices)}")
 
     def _print_plan(self, plan) -> None:
         print(f"{plan.workflow_name} [{plan.mode}/{plan.profile}] target={plan.target}")

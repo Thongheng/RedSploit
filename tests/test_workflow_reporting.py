@@ -159,6 +159,21 @@ def test_workflow_manager_auto_generates_html_report(session, monkeypatch, capsy
     assert reports[0].read_text(encoding="utf-8").find("Auto Report") != -1
 
 
+def test_workflow_manager_prompts_for_missing_project_tech_and_depth(session, monkeypatch) -> None:
+    manager = WorkflowManager(session)
+
+    monkeypatch.setattr("builtins.input", lambda prompt="": "php" if "tech" in prompt.lower() else "deep")
+
+    generated = manager._build_generated_if_requested(  # noqa: SLF001
+        {"workflow": "internal-project.yaml"},
+        "example.com",
+    )
+
+    assert generated is not None
+    assert generated.builder_enabled is True
+    assert generated.workflow_file == "generated:internal-project.yaml:php:deep"
+
+
 def test_workflow_report_service_uses_deterministic_fallback_summary(session, monkeypatch) -> None:
     store = ScanRunStore(session.workflow_db_path())
     workflow_path = Path(session.workflow_data_dir()) / "fallback-report.yaml"

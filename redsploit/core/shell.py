@@ -2,6 +2,7 @@ import difflib
 
 from .colors import Colors, log_warn
 from .base_shell import BaseShell
+from ..workflow.manager import WorkflowManager
 
 CORE_COMMANDS = {"use", "set", "show", "exit", "back", "shell", "help", "clear", "options", "workspace"}
 
@@ -285,8 +286,16 @@ class RedShell(BaseShell):
         subcommands = ["list", "show", "preview", "build", "run", "runs", "findings", "delta", "adapters"]
         workflow_files = [path.name for path in list_workflow_files()]
         flags = ["--workflow", "--target", "--tech", "--depth", "--scan-id", "-q", "--quiet"]
+        tech_values = list(WorkflowManager.TECH_CHOICES)
+        depth_values = list(WorkflowManager.DEPTH_CHOICES)
 
         parts = line.split()
+        if parts and parts[-1] == "--tech":
+            return [value for value in tech_values if value.startswith(text)]
+
+        if parts and parts[-1] == "--depth":
+            return [value for value in depth_values if value.startswith(text)]
+
         if len(parts) <= 1 or (len(parts) == 2 and not line.endswith(" ")):
             return [cmd for cmd in subcommands if cmd.startswith(text)]
 
