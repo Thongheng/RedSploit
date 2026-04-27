@@ -90,8 +90,8 @@ preflight_check() {
         failures=$((failures + 1))
     fi
 
-    if ! python3 -m pip --version >/dev/null 2>&1; then
-        log_warn "python3 -m pip is required but not available."
+    if ! command -v pipx >/dev/null 2>&1; then
+        log_warn "pipx is required but not found. Please install pipx (e.g., sudo apt install pipx)."
         failures=$((failures + 1))
     fi
 
@@ -739,7 +739,9 @@ configure_api_keys_interactive() {
 
 install_python_package() {
     print_step "Install Python package and dependencies"
-    local -a install_cmd
+    local max_retries=3
+    local retry_delay=5
+    local success=0
 
     if [ -z "$INSTALL_MODE" ]; then
         choose_install_mode
@@ -750,11 +752,33 @@ install_python_package() {
         INSTALL_MODE="local"
     fi
 
-    install_cmd=(pipx install --include-deps -e "$SCRIPT_DIR")
+    if ! command -v pipx >/dev/null 2>&1; then
+        log_warn "pipx is required but not found. Please install pipx first (e.g., sudo apt install pipx)."
+        return 1
+    fi
 
-    log_info "Running: ${install_cmd[*]}"
-    "${install_cmd[@]}"
-    log_success "Installed RedSploit Python package and dependencies"
+    for ((i=1; i<=max_retries; i++)); do
+        log_info "Installation attempt $i of $max_retries..."
+        
+        log_info "Running: pipx install --include-deps -e \"$SCRIPT_DIR\""
+        if pipx install --include-deps -e "$SCRIPT_DIR"; then
+            success=1
+            break
+        fi
+
+        if [ $i -lt $max_retries ]; then
+            log_warn "Installation failed. Retrying in $retry_delay seconds..."
+            sleep $retry_delay
+        fi
+    done
+
+    if [ $success -eq 1 ]; then
+        log_success "Installed RedSploit Python package and dependencies"
+    else
+        log_warn "Python package installation failed after $max_retries attempts."
+        log_info "If this is a network issue, you might need to check your connection or use a mirror."
+        return 1
+    fi
 }
 
 install_redsploit() {
