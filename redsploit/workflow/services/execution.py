@@ -482,7 +482,7 @@ def _normalize_execution_result(
     )
 
 
-def _truncate(value: str, max_chars: int = 4000) -> str | None:
+def _truncate(value: str, max_chars: int = 9500) -> str | None:
     cleaned = value.strip()
     if not cleaned:
         return None

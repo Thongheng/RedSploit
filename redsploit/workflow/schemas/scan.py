@@ -115,8 +115,8 @@ class StepRun(BaseModel):
     status: StepRunStatus
     started_at: str | None = None
     finished_at: str | None = None
-    output_summary: str | None = Field(default=None, max_length=2000)
-    error_summary: str | None = Field(default=None, max_length=2000)
+    output_summary: str | None = Field(default=None, max_length=10000)
+    error_summary: str | None = Field(default=None, max_length=10000)
     telemetry: StepTelemetry | None = None
     artifacts: list[StepArtifact] = Field(default_factory=list)
     output_items: list[str] = Field(default_factory=list)
@@ -173,10 +173,10 @@ class ScanRun(BaseModel):
 
 
 class StepCompletionRequest(BaseModel):
-    output_summary: str | None = Field(default=None, max_length=2000)
+    output_summary: str | None = Field(default=None, max_length=10000)
     output_items: list[str] = Field(default_factory=list)
     discovered_endpoints: list[EndpointRecord] = Field(default_factory=list)
 
 
 class StepFailureRequest(BaseModel):
-    error_summary: str | None = Field(default=None, max_length=2000)
+    error_summary: str | None = Field(default=None, max_length=10000)
