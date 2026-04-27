@@ -306,7 +306,14 @@ workflow_install_command() {
             fi
             ;;
         secretfinder)
-            rm -rf "$HOME/.local/share/SecretFinder" && mkdir -p "$HOME/.local/share/SecretFinder" "$HOME/.local/bin" && git clone --depth 1 https://github.com/m4ll0k/SecretFinder.git "$HOME/.local/share/SecretFinder" && (cd "$HOME/.local/share/SecretFinder" && python3 -m pip install -r requirements.txt) && chmod +x "$HOME/.local/share/SecretFinder/SecretFinder.py" && ln -sf "$HOME/.local/share/SecretFinder/SecretFinder.py" "$HOME/.local/bin/secretfinder"
+            rm -rf "$HOME/.local/share/SecretFinder"
+            mkdir -p "$HOME/.local/share/SecretFinder"
+            mkdir -p "$HOME/.local/bin"
+            git clone --depth 1 https://github.com/m4ll0k/SecretFinder.git "$HOME/.local/share/SecretFinder"
+            cd "$HOME/.local/share/SecretFinder"
+            python3 -m pip install -r requirements.txt
+            chmod +x "$HOME/.local/share/SecretFinder/SecretFinder.py"
+            ln -sf "$HOME/.local/share/SecretFinder/SecretFinder.py" "$HOME/.local/bin/secretfinder"
             return 0
             ;;
     esac
@@ -332,7 +339,7 @@ workflow_install_hint() {
         testssl.sh) printf 'Official: git clone testssl/testssl.sh and run from the cloned directory' ;;
         theHarvester) printf 'Official: Kali package, pipx in a repo clone, Docker, or uv source install' ;;
         sqlmap) printf 'Official source uses pip; installer uses pipx install sqlmap for isolated CLI install' ;;
-        secretfinder) printf 'Official: git clone menonon/SecretFinder and symlink SecretFinder.py to PATH' ;;
+        secretfinder) printf 'Official: git clone m4ll0k/SecretFinder, pip install -r requirements.txt, then python3 SecretFinder.py' ;;
         dirsearch) printf 'Official: git clone maurosoria/dirsearch and run it, or install it in an isolated environment' ;;
         dig) printf 'Install DNS utilities from your OS package manager' ;;
         nmap) printf 'Install nmap from your OS package manager' ;;
