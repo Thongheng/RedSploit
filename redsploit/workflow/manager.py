@@ -426,8 +426,10 @@ class WorkflowManager:
         options = self._parse_options(args)
         target = options.get("target") or self.session.get("target")
         workflow_name = options.get("workflow")
-        if not workflow_name or not target:
-            raise ValueError("Usage: workflow preview|build --workflow <name> --target <target>")
+        if not workflow_name:
+            raise ValueError("Requires --workflow <name>. Usage: workflow preview --workflow <name> --target <target>")
+        if not target:
+            raise ValueError("Requires --target <target>. Usage: workflow preview --workflow <name> --target <target>")
 
         generated = self._build_generated_if_requested(options, target)
         if generated is not None:
@@ -448,8 +450,10 @@ class WorkflowManager:
         target = options.get("target") or self.session.get("target")
         workflow_name = options.get("workflow")
         quiet = options.pop("quiet", "false").lower() in {"true", "1", "yes"}
-        if not workflow_name or not target:
-            raise ValueError("Usage: workflow run --workflow <name> --target <target>")
+        if not workflow_name:
+            raise ValueError("workflow run requires --workflow <name>. Usage: workflow run --workflow <name> --target <target>")
+        if not target:
+            raise ValueError("workflow run requires --target <target>. Usage: workflow run --workflow <name> --target <target>")
 
         store = self._store()
         generated = self._build_generated_if_requested(options, target)
@@ -553,6 +557,7 @@ class WorkflowManager:
     @staticmethod
     def _parse_options(args: list[str]) -> dict[str, str]:
         parsed: dict[str, str] = {}
+        positionals = []
         i = 0
         while i < len(args):
             arg = args[i]
@@ -564,7 +569,12 @@ class WorkflowManager:
                 parsed[arg[2:]] = args[i + 1]
                 i += 2
                 continue
+            if not arg.startswith("-"):
+                positionals.append(arg)
             i += 1
+        
+        if positionals and "workflow" not in parsed:
+            parsed["workflow"] = positionals[0]
         return parsed
 
     @staticmethod
@@ -586,4 +596,6 @@ class WorkflowManager:
         print("  workflow findings --scan-id <id>")
         print("  workflow delta --target <name>")
         print("  workflow adapters")
+        print("")
+        print(f"{Colors.DIM}Note: --workflow and --target are required for preview/build/run commands.{Colors.ENDC}")
         return 0

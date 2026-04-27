@@ -12,8 +12,10 @@ def create_prompt_style() -> Style:
         "completion-menu": "bg:#1a1d26 #e4e7ec",
         "completion-menu.completion": "bg:#1a1d26 #e4e7ec",
         "completion-menu.completion.current": "bg:#e05a2f #ffffff",
+        "completion-menu.meta.completion": "bg:#1a1d26 #888888",
         "scrollbar.background": "bg:#1a1d26",
         "scrollbar.button": "bg:#e05a2f",
+        "auto-suggestion": "#666666 italic",
     })
 
 

@@ -22,25 +22,52 @@ def create_key_bindings(current_text: list[str]) -> KeyBindings:
 
     @kb.add("tab")
     def handle_tab(event):
-        """Tab accepts history suggestion first, else starts completion."""
+        """Tab accepts inline autosuggestion first, then cycles completion menu."""
         buffer = event.current_buffer
         text = buffer.text
         current_text[0] = text
 
-        # Try history suggestion first
-        if text:
-            auto_suggest = AutoSuggestFromHistory()
-            suggestion = auto_suggest.get_suggestion(buffer, buffer.document)
-            if suggestion and suggestion.text:
-                buffer.text = text + suggestion.text
-                buffer.cursor_position = len(buffer.text)
-                return
+        # First: accept inline autosuggestion if available
+        if text and text.strip():
+            # Use the session's auto_suggest if available
+            session = event.app.session
+            if session and session.auto_suggest:
+                suggestion = session.auto_suggest.get_suggestion(buffer, buffer.document)
+                if suggestion and suggestion.text:
+                    buffer.insert_text(suggestion.text)
+                    return
 
-        # Then try completion menu
+        # Second: cycle through completion menu
         if buffer.complete_state:
             buffer.complete_next()
         else:
-            buffer.start_completion(select_first=False)
+            buffer.start_completion(select_first=True)
+
+    @kb.add("s-tab")
+    def handle_shift_tab(event):
+        """Shift+Tab goes backward in completion menu."""
+        buffer = event.current_buffer
+        if buffer.complete_state:
+            buffer.complete_previous()
+        else:
+            buffer.start_completion(select_first=True)
+
+    @kb.add("right")
+    def handle_right_arrow(event):
+        """Right arrow accepts the autosuggestion."""
+        buffer = event.current_buffer
+        text = buffer.text
+
+        if text and text.strip():
+            session = event.app.session
+            if session and session.auto_suggest:
+                suggestion = session.auto_suggest.get_suggestion(buffer, buffer.document)
+                if suggestion and suggestion.text:
+                    buffer.insert_text(suggestion.text)
+                    return
+
+        # Default right arrow behavior
+        event.current_buffer.cursor_right()
 
     @kb.add("escape", "enter")
     def handle_escape_enter(event):

@@ -24,8 +24,9 @@ class HistoryAutoSuggest(AutoSuggest):
 
     def get_suggestion(self, buffer, document):
         text = document.text
-        if not text or " " not in text:
+        if not text or not text.strip():
             return None
+        # Find the most recent matching command from history
         for cmd in reversed(self.history.all()):
             if cmd.startswith(text) and len(cmd) > len(text):
                 return Suggestion(cmd[len(text):])
@@ -186,15 +187,8 @@ class BaseShell(cmd.Cmd):
                             )
                             current_text[0] = ""
 
-                            def get_rprompt():
-                                return make_rprompt(
-                                    list(self.command_history.all()),
-                                    current_text[0],
-                                )
-
                             line = self.prompt_session.prompt(
                                 prompt_tokens,
-                                rprompt=get_rprompt,
                             )
                         except EOFError:
                             line = 'EOF'
@@ -524,20 +518,89 @@ class BaseShell(cmd.Cmd):
     def complete_workflow(self, text, line, begidx, endidx):
         commands = ["list", "show", "preview", "build", "run", "runs", "findings", "delta", "adapters"]
         parts = line.split()
+
         # Completing the subcommand name (e.g. "workflow s" or "workflow ")
         if len(parts) == 1 and line.endswith(" "):
             return commands
         if len(parts) == 2 and not line.endswith(" "):
             return [command for command in commands if command.startswith(text)]
-        # Subcommand arguments
-        if len(parts) >= 2 and parts[1] == "show":
-            from redsploit.workflow.planner import list_workflow_files
 
+        # Subcommand arguments
+        subcommand = parts[1] if len(parts) > 1 else ""
+
+        # Flags common to run/preview/build
+        flags = ["--workflow", "--target", "--tech", "--depth", "-q", "--quiet"]
+
+        if subcommand in ("run", "preview", "build"):
+            from redsploit.workflow.planner import list_workflow_files
+            files = [path.name for path in list_workflow_files()]
+
+            # Check what's already provided
+            has_workflow = False
+            has_target = False
+            last_flag = None
+            # Scan parts after 'workflow <subcommand>'
+            # We skip the last part if it's the one currently being completed (text == parts[-1])
+            parts_to_scan = parts[2:]
+            if text and parts and text == parts[-1]:
+                parts_to_scan = parts[2:-1]
+
+            for p in parts_to_scan:
+                if p == "--workflow":
+                    has_workflow = True
+                elif p == "--target":
+                    has_target = True
+                elif not p.startswith("-"):
+                    # Found a positional argument, assume it's the workflow
+                    has_workflow = True
+
+            # If currently completing a flag value
+            if text.startswith("--"):
+                return [f for f in flags if f.startswith(text)]
+
+            # Determine what to complete based on context
+            if len(parts) >= 3:
+                last_part = parts[-2] if text else parts[-1]
+                # If the previous word was a flag, complete its value
+                if last_part == "--workflow":
+                    return files
+                elif last_part == "--target":
+                    return []  # No completion for target
+                elif last_part == "--tech":
+                    return ["java", "dotnet", "php", "nodejs", "generic"]
+                elif last_part == "--depth":
+                    return ["normal", "deep"]
+                
+                # If we are completing a flag itself
+                if text.startswith("-"):
+                     return [f for f in flags if f.startswith(text)]
+
+            # Default: suggest workflow file if not provided
+            if not has_workflow:
+                return [f for f in files if f.startswith(text)]
+            # After workflow, suggest flags
+            return [f for f in flags if f.startswith(text)]
+
+        if subcommand == "show":
+            from redsploit.workflow.planner import list_workflow_files
             files = [path.name for path in list_workflow_files()]
             if len(parts) == 2 and line.endswith(" "):
                 return files
             if len(parts) >= 3 and not line.endswith(" "):
                 return [f for f in files if f.startswith(text)]
+
+        if subcommand == "findings":
+            if text.startswith("--"):
+                return ["--scan-id"]
+            if len(parts) >= 3 and parts[2] == "--scan-id":
+                return []  # Could complete scan IDs from history
+            return []
+
+        if subcommand == "delta":
+            if text.startswith("--"):
+                return ["--target"]
+            return []
+
         return []
 
     def do_config(self, arg):
