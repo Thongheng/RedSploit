@@ -279,8 +279,9 @@ class ScanRunStore:
             for endpoint in (discovered_endpoints or [])
         ]
         if stop_scan:
+            skipped_step_ids = self._dependent_step_ids(run, step_id)
             for remaining in run.steps:
-                if remaining.id == step_id:
+                if remaining.id not in skipped_step_ids:
                     continue
                 if remaining.status in {"blocked", "ready", "queued"}:
                     remaining.status = "skipped"
@@ -435,6 +436,24 @@ class ScanRunStore:
             return list(step.dependency_step_ids)
         producer = step.planned_input.producer_step_id if step.planned_input else None
         return [producer] if producer else []
+
+    @classmethod
+    def _dependent_step_ids(cls, run: ScanRun, source_step_id: str) -> set[str]:
+        dependent_ids: set[str] = set()
+        frontier = [source_step_id]
+
+        while frontier:
+            current = frontier.pop()
+            for step in run.steps:
+                if step.id == source_step_id or step.id in dependent_ids:
+                    continue
+                dependencies = cls._step_dependencies(step)
+                if current not in dependencies:
+                    continue
+                dependent_ids.add(step.id)
+                frontier.append(step.id)
+
+        return dependent_ids
 
     @staticmethod
     def _first_actionable_step(run: ScanRun) -> StepRun | None:

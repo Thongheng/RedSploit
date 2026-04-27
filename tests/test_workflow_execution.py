@@ -234,6 +234,39 @@ def test_on_empty_stop_halts_scan() -> None:
     assert updated.steps[1].status == "skipped"
 
 
+def test_on_empty_stop_only_skips_dependent_branch() -> None:
+    store = ScanRunStore()
+    content = yaml_safe_dump({
+        "name": "BranchStop",
+        "mode": "project",
+        "profile": "cautious",
+        "version": "1",
+        "steps": [
+            {"id": "probe_http", "tool": "httpx", "input": "{{TARGET}}", "args": [], "output": "live_host", "on_empty": "stop"},
+            {"id": "service_scan", "tool": "nmap", "input": "{{TARGET}}", "args": []},
+            {"id": "crawl", "tool": "katana", "input": "{{live_host}}", "args": []},
+        ],
+    })
+    plan = build_scan_plan_from_text(content, "example.com")
+    run = store.create_run_from_plan(plan, "branch-stop.yaml")
+
+    store.start_step(run.id, "probe_http")
+    updated = store.complete_step(
+        run.id,
+        "probe_http",
+        output_summary="No HTTP targets found",
+        output_items=[],
+        stop_scan=True,
+    )
+
+    step_by_id = {step.id: step for step in updated.steps}
+    assert step_by_id["probe_http"].status == "complete"
+    assert step_by_id["crawl"].status == "skipped"
+    assert step_by_id["service_scan"].status == "ready"
+    assert updated.status == "running"
+    assert updated.current_step == "service_scan"
+
+
 # ─── Timeout handling (via execution service) ─────────────────────────────────
 
 

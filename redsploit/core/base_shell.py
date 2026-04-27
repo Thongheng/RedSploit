@@ -22,12 +22,29 @@ class HistoryAutoSuggest(AutoSuggest):
     def __init__(self, history: CommandHistory):
         self.history = history
 
+    def _iter_history_entries(self, buffer):
+        seen = set()
+
+        prompt_history = getattr(buffer, "history", None)
+        if prompt_history is not None:
+            get_strings = getattr(prompt_history, "get_strings", None)
+            if callable(get_strings):
+                for cmd in reversed(list(get_strings())):
+                    if cmd and cmd not in seen:
+                        seen.add(cmd)
+                        yield cmd
+
+        for cmd in reversed(self.history.all()):
+            if cmd and cmd not in seen:
+                seen.add(cmd)
+                yield cmd
+
     def get_suggestion(self, buffer, document):
         text = document.text
         if not text or not text.strip():
             return None
         # Find the most recent matching command from history
-        for cmd in reversed(self.history.all()):
+        for cmd in self._iter_history_entries(buffer):
             if cmd.startswith(text) and len(cmd) > len(text):
                 return Suggestion(cmd[len(text):])
         return None
@@ -118,6 +135,7 @@ class BaseShell(cmd.Cmd):
         super().__init__()
         self.session = session if session else Session()
         self.module_name = module_name
+        self.session._current_module = module_name or "main"
         self.command_history = CommandHistory()
 
         # Removed readline config

@@ -262,6 +262,50 @@ class RedShell(BaseShell):
             return [c for c in commands if c.startswith(text)]
         return commands
 
+    def do_workflow(self, arg):
+        """
+        Run workflow commands or enter workflow module.
+        Usage: workflow [command]
+        Example: workflow list
+                 workflow run internal-project.yaml --target https://example.com
+                 workflow (enters module)
+        """
+        if not arg:
+            self.do_use("workflow")
+            return
+
+        from ..workflow.manager import WorkflowManager
+
+        WorkflowManager(self.session).handle_shell_command(arg)
+
+    def complete_workflow(self, text, line, begidx, endidx):
+        """Autocomplete workflow subcommands, workflow files, and common flags."""
+        from ..workflow.planner import list_workflow_files
+
+        subcommands = ["list", "show", "preview", "build", "run", "runs", "findings", "delta", "adapters"]
+        workflow_files = [path.name for path in list_workflow_files()]
+        flags = ["--workflow", "--target", "--tech", "--depth", "--scan-id", "-q", "--quiet"]
+
+        parts = line.split()
+        if len(parts) <= 1 or (len(parts) == 2 and not line.endswith(" ")):
+            return [cmd for cmd in subcommands if cmd.startswith(text)]
+
+        subcommand = parts[1]
+        if subcommand in {"show"}:
+            return [name for name in workflow_files if name.startswith(text)]
+
+        if subcommand in {"preview", "build", "run"}:
+            candidates = workflow_files + flags
+            return [candidate for candidate in candidates if candidate.startswith(text)]
+
+        if subcommand in {"findings"}:
+            return [flag for flag in ["--scan-id"] if flag.startswith(text)]
+
+        if subcommand in {"delta"}:
+            return [flag for flag in ["--target"] if flag.startswith(text)]
+
+        return [flag for flag in flags if flag.startswith(text)]
+
     def do_help(self, arg):
         topic = arg.strip()
         if topic:

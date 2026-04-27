@@ -1,6 +1,12 @@
 from unittest.mock import patch
 
+from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.document import Document
+from prompt_toolkit.history import InMemoryHistory
+
+from redsploit.core.base_shell import HistoryAutoSuggest
 from redsploit.core.shell import RedShell
+from redsploit.core.repl_ui.toolbar import make_toolbar_func
 
 
 def test_main_shell_routes_bare_infra_tool(session):
@@ -128,3 +134,31 @@ def test_main_shell_workflow_show_completion_lists_workflow_files(session):
     assert "external-project.yaml" in completions
     assert "internal-project.yaml" in completions
     assert "external-continuous.yaml" in completions
+
+
+def test_history_auto_suggest_uses_prompt_history_when_json_history_is_empty(session):
+    shell = RedShell(session)
+    suggest = HistoryAutoSuggest(shell.command_history)
+    history = InMemoryHistory()
+    history.append_string("workflow run --workflow internal-project.yaml --target https://example.com")
+    buffer = Buffer(history=history)
+    document = Document(text="workflow ru", cursor_position=len("workflow ru"))
+
+    suggestion = suggest.get_suggestion(buffer, document)
+
+    assert suggestion is not None
+    assert suggestion.text == "n --workflow internal-project.yaml --target https://example.com"
+
+
+def test_toolbar_reflects_current_shell_module(session):
+    shell = RedShell(session)
+    assert getattr(session, "_current_module", None) == "main"
+
+    shell.do_use("workflow")
+
+    assert session.next_shell == "workflow"
+
+    session._current_module = "workflow"
+    toolbar = make_toolbar_func(session)
+    rendered = toolbar().value
+    assert "workflow" in rendered
