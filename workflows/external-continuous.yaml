@@ -135,21 +135,20 @@ steps:
     timeout_per_host: 30
 
   - id: tls_audit
-    tool: testssl
+    tool: nmap
     input: "{{confirmed_live}}"
     iterate: per_host
     args:
-      - "--weak-cipher"
-      - "--quiet"
-      - "--color"
-      - "0"
-      - "--warnings"
-      - "batch"
+      - "--script"
+      - "ssl-cert,ssl-enum-ciphers,ssl-known-key,ssl-date"
+      - "-p"
+      - "443"
+      - "-Pn"
       - "{{HOST}}"
     output: tls_findings
     on_empty: warn
     on_failure: warn
-    timeout_per_host: 180
+    timeout_per_host: 300
 
   - id: passive_urls
     tool: waymore

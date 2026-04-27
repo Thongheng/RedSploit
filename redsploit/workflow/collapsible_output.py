@@ -139,7 +139,7 @@ class CollapsibleOutputManager:
                             char = sys.stdin.read(1)
                             # Ctrl+O is ASCII 15 (0x0F)
                             if ord(char) == 15:
-                                self._view_full_output(step_id)
+                                self.view_full_output_in_pager(step_id)
                                 break
                 finally:
                     # Restore terminal settings
@@ -152,8 +152,8 @@ class CollapsibleOutputManager:
         self._keyboard_thread = threading.Thread(target=listen, daemon=True)
         self._keyboard_thread.start()
     
-    def _view_full_output(self, step_id: str) -> None:
-        """View full output in a pager."""
+    def view_full_output_in_pager(self, step_id: str) -> None:
+        """View full output in a pager (like less)."""
         output = self.get_step_output(step_id)
         if output is None:
             return

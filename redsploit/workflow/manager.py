@@ -132,7 +132,8 @@ class _ProgressReporter:
     @staticmethod
     def _supports_terminal_control() -> bool:
         """Check if terminal supports ANSI control sequences for fixed header."""
-        return sys.stderr.isatty() and os.getenv("TERM") not in {None, "dumb"}
+        # Disable fixed header mode - it causes confusing repeated output
+        return False
 
     def _elapsed(self) -> str:
         secs = int(monotonic() - self._start)
@@ -193,27 +194,23 @@ class _ProgressReporter:
 
     def run_header(self, run) -> None:
         self._current_run = run
-        if self._use_fixed_header:
-            self._setup_fixed_header(run)
-        else:
-            from redsploit.core.rich_output import get_formatter
-            formatter = get_formatter()
-            
-            # Create workflow start panel
-            content = []
-            content.append(f"[bold]{run.workflow_name}[/bold]  [dim][{run.mode}/{run.profile}][/dim]")
-            content.append(f"[warning]Target:[/warning] {run.target_name}")
-            content.append(f"[dim]Steps:[/dim] {len(run.steps)}  [dim]·[/dim]  [dim]ID:[/dim] {run.id}")
-            
-            formatter.panel(
-                "\n".join(content),
-                title="[bold terracotta]Workflow Execution[/bold terracotta]",
-                border_style="terracotta"
-            )
-            
-            print(file=sys.stderr)
-            print(self._render_step_board(run), file=sys.stderr)
-            print(file=sys.stderr)
+        # Always use simple mode - fixed header causes visual chaos
+        from redsploit.core.rich_output import get_formatter
+        formatter = get_formatter()
+        
+        # Create workflow start panel
+        content = []
+        content.append(f"[bold]{run.workflow_name}[/bold]  [dim][{run.mode}/{run.profile}][/dim]")
+        content.append(f"[warning]Target:[/warning] {run.target_name}")
+        content.append(f"[dim]Steps:[/dim] {len(run.steps)}  [dim]·[/dim]  [dim]ID:[/dim] {run.id}")
+        
+        formatter.panel(
+            "\n".join(content),
+            title="[bold terracotta]Workflow Execution[/bold terracotta]",
+            border_style="terracotta"
+        )
+        
+        print(file=sys.stderr)
 
     def _setup_fixed_header(self, run) -> None:
         """Setup a fixed header area at the top of the terminal."""
@@ -284,17 +281,6 @@ class _ProgressReporter:
         if publisher is not None:
             publisher.reset_step_tracking(step.id)
         
-        if self._use_fixed_header:
-            self._update_fixed_header()
-        else:
-            # Reprint the board before each step to keep task overview visible
-            if not self._first_step:
-                print(file=sys.stderr)
-                print(self._render_step_board(run), file=sys.stderr)
-                print(file=sys.stderr)
-            else:
-                self._first_step = False
-        
         from redsploit.core.rich_output import get_formatter
         formatter = get_formatter()
         # Rich console.print doesn't support file parameter, use stderr directly
@@ -307,12 +293,11 @@ class _ProgressReporter:
         formatter.console.print(f"  [info]▶[/info]  [bold]{step.id}[/bold]  [dim]{tool}[/dim]")
         
         formatter.console.file = old_file
-        self._start_step_live_updates(step.id, tool, publisher)
+        # Don't start live updates - they cause confusing repeated output
+        # self._start_step_live_updates(step.id, tool, publisher)
 
     def step_completed(self, step) -> None:
         self._stop_step_live_updates()
-        if self._use_fixed_header:
-            self._update_fixed_header()
         telemetry = step.telemetry
         dur = self._format_duration_ms(telemetry.duration_ms) if telemetry else "n/a"
         out = telemetry.output_count if telemetry else len(step.output_items)
@@ -328,8 +313,6 @@ class _ProgressReporter:
 
     def step_failed(self, step) -> None:
         self._stop_step_live_updates()
-        if self._use_fixed_header:
-            self._update_fixed_header()
         err = (step.error_summary or "failed")[:80]
         telemetry = step.telemetry
         dur = f"  [dim]{self._format_duration_ms(telemetry.duration_ms)}[/dim]" if telemetry else ""
@@ -356,20 +339,10 @@ class _ProgressReporter:
         self._stop_step_live_updates()
         self._current_run = run
         
-        if self._use_fixed_header:
-            self._update_fixed_header()
-            # Add some space before final summary
-            print("\n" * 2, file=sys.stderr)
-        
         total = len(run.steps)
         complete = sum(1 for s in run.steps if s.status == "complete")
         failed = sum(1 for s in run.steps if s.status == "failed")
         skipped = sum(1 for s in run.steps if s.status == "skipped")
-        
-        if not self._use_fixed_header:
-            print(file=sys.stderr)
-            print(self._render_step_board(run), file=sys.stderr)
-            print(file=sys.stderr)
         
         # Use Rich panel for completion summary
         from redsploit.core.rich_output import get_formatter

@@ -130,23 +130,19 @@ steps:
     on_failure: warn
     timeout_seconds: 3600
 
-  # TLS weak cipher audit. Scoped to ciphers only — headers and cert info
-  # are covered by nuclei_host to avoid duplication.
-  # --warnings batch prevents interactive prompts hanging the process.
   - id: tls_audit
-    tool: testssl
+    tool: nmap
     input: "{{live_host}}"
     args:
-      - "-f"
-      - "--quiet"
-      - "--color"
-      - "0"
-      - "--warnings"
-      - "batch"
+      - "--script"
+      - "ssl-cert,ssl-enum-ciphers,ssl-known-key,ssl-date"
+      - "-p"
+      - "443"
+      - "-Pn"
     output: tls_findings
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 180
+    timeout_seconds: 300
 
   # ── Depth 2 ───────────────────────────────────────────────────────────────────
 

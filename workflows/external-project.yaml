@@ -24,7 +24,7 @@ steps:
     input: "{{TARGET}}"
     args:
       - "--script"
-      - "ssl-cert,ssl-enum-ciphers,ssl-known-key,ssl-date"
+      - "ssl*"
       - "-p"
       - "443"
       - "-Pn"
