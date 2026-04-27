@@ -21,11 +21,14 @@ class CommandRunner:
     @classmethod
     def from_settings(cls, settings: Settings | None = None) -> "CommandRunner":
         resolved = settings or get_settings()
-        system_path = os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin")
+        # Inherit the full process environment so tools like katana can find $HOME,
+        # then layer in extra go/local bin paths on top.
+        base_env = dict(os.environ)
         home = os.path.expanduser("~")
-        extra_paths = f":{home}/go/bin:{home}/.local/bin:/root/go/bin:/root/.local/bin"
+        extra = f"{home}/go/bin:{home}/.local/bin:/root/go/bin:/root/.local/bin"
+        base_env["PATH"] = extra + ":" + base_env.get("PATH", "/usr/local/bin:/usr/bin:/bin")
         return cls(
-            env={"PATH": system_path + extra_paths},
+            env=base_env,
             working_directory=resolved.data_path if resolved.data_path.exists() else None,
         )
 

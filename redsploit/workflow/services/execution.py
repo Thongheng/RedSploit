@@ -112,6 +112,7 @@ def execute_current_step(
             runner=runner,
             store=store,
             publisher=publisher,
+            technology_profile=run.technology_profile,
         )
     except FileNotFoundError:
         err = f"Binary '{adapter.binary}' not found. Is it installed and in PATH?"
@@ -235,10 +236,11 @@ def _run_tool_commands(
     runner: CommandRunner,
     store: ScanRunStore,
     publisher: LogPublisher | None = None,
+    technology_profile: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     adapter = get_adapter(step.tool or "")
     # Substitute runtime variables not available at plan time (e.g. {{SCAN_ID}})
-    resolved_args = _resolve_runtime_args(step, scan_id)
+    resolved_args = _resolve_runtime_args(step, scan_id, technology_profile=technology_profile)
     if step.iterate == "per_host":
         return _run_per_host_commands(
             scan_id=scan_id,
@@ -573,9 +575,20 @@ def _snapshot_tech_map(store: ScanRunStore, scan_id: str) -> dict[str, list[str]
     }
 
 
-def _resolve_runtime_args(step: StepRun, scan_id: str) -> list[str]:
+def _resolve_runtime_args(step: StepRun, scan_id: str, *, technology_profile: str | None = None) -> list[str]:
+    from redsploit.workflow.worker.executor import _get_nuclei_templates_path
     settings = get_settings()
-    resolved_args = [arg.replace("{{SCAN_ID}}", scan_id) for arg in step.args]
+    nuclei_templates_path = str(_get_nuclei_templates_path())
+    # Map technology_profile to the nuclei template filename
+    tech_profile_file = f"{technology_profile or 'generic'}.yaml"
+
+    def _sub(arg: str) -> str:
+        arg = arg.replace("{{SCAN_ID}}", scan_id)
+        arg = arg.replace("{{NUCLEI_TEMPLATES_PATH}}", nuclei_templates_path)
+        arg = arg.replace("{{TECH_PROFILE}}", tech_profile_file)
+        return arg
+
+    resolved_args = [_sub(arg) for arg in step.args]
     if (
         step.tool == "httpx"
         and step.id == "httpx_probe"

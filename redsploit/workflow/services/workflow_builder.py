@@ -168,7 +168,7 @@ def _project_steps(
             "tool": "testssl",
             "input": "{{TARGET}}",
             "args": [
-                "--weak-cipher",
+                "-f",
                 "--quiet", "--color", "0", "--warnings", "batch",
             ],
             "output": "tls_findings",
@@ -405,7 +405,7 @@ def _project_steps(
         "id": "tls_audit",
         "tool": "testssl",
         "input": probe_input,
-        "args": ["--weak-cipher", "--quiet", "--color", "0", "--warnings", "batch"],
+        "args": ["-f", "--quiet", "--color", "0", "--warnings", "batch"],
         "output": "tls_findings",
         "on_empty": "warn",
         "on_failure": "warn",

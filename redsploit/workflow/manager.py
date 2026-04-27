@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import threading
 from pathlib import Path
@@ -93,6 +94,14 @@ class _ProgressReporter:
         self._step_live_thread: threading.Thread | None = None
         self._active_step_started = 0.0
         self._first_step = True
+        self._use_fixed_header = self._supports_terminal_control()
+        self._header_lines = 0
+        self._current_run = None
+
+    @staticmethod
+    def _supports_terminal_control() -> bool:
+        """Check if terminal supports ANSI control sequences for fixed header."""
+        return sys.stderr.isatty() and os.getenv("TERM") not in {None, "dumb"}
 
     def _elapsed(self) -> str:
         secs = int(monotonic() - self._start)
@@ -152,28 +161,101 @@ class _ProgressReporter:
         return "\n".join(lines)
 
     def run_header(self, run) -> None:
-        print(file=sys.stderr)
-        print(
-            f"  {Colors.BOLD}{run.workflow_name}{Colors.ENDC}"
-            f"  {Colors.DIM}[{run.mode}/{run.profile}]{Colors.ENDC}"
-            f"  {Colors.WARNING}{run.target_name}{Colors.ENDC}",
-            file=sys.stderr,
-        )
-        print(
-            f"  {Colors.DIM}{len(run.steps)} steps  ·  {run.id}{Colors.ENDC}",
-            file=sys.stderr,
-        )
-        print(file=sys.stderr)
-        print(self._render_step_board(run), file=sys.stderr)
-        print(file=sys.stderr)
-
-    def step_started(self, run, step, *, publisher: CliLogPublisher | None = None) -> None:
-        tool = step.tool or step.kind
-        # Only reprint the board on first step; after that just show the active step line
-        if self._first_step:
-            self._first_step = False
+        self._current_run = run
+        if self._use_fixed_header:
+            self._setup_fixed_header(run)
         else:
             print(file=sys.stderr)
+            print(
+                f"  {Colors.BOLD}{run.workflow_name}{Colors.ENDC}"
+                f"  {Colors.DIM}[{run.mode}/{run.profile}]{Colors.ENDC}"
+                f"  {Colors.WARNING}{run.target_name}{Colors.ENDC}",
+                file=sys.stderr,
+            )
+            print(
+                f"  {Colors.DIM}{len(run.steps)} steps  ·  {run.id}{Colors.ENDC}",
+                file=sys.stderr,
+            )
+            print(file=sys.stderr)
+            print(self._render_step_board(run), file=sys.stderr)
+            print(file=sys.stderr)
+
+    def _setup_fixed_header(self, run) -> None:
+        """Setup a fixed header area at the top of the terminal."""
+        # Clear screen and move cursor to top
+        print("\033[2J\033[H", file=sys.stderr, end="", flush=True)
+        
+        # Render header content
+        header_lines = []
+        header_lines.append("")
+        header_lines.append(
+            f"  {Colors.BOLD}{run.workflow_name}{Colors.ENDC}"
+            f"  {Colors.DIM}[{run.mode}/{run.profile}]{Colors.ENDC}"
+            f"  {Colors.WARNING}{run.target_name}{Colors.ENDC}"
+        )
+        header_lines.append(
+            f"  {Colors.DIM}{len(run.steps)} steps  ·  {run.id}{Colors.ENDC}"
+        )
+        header_lines.append("")
+        header_lines.extend(self._render_step_board(run).split("\n"))
+        header_lines.append("")
+        header_lines.append(f"  {Colors.DIM}{'─' * 70}{Colors.ENDC}")
+        header_lines.append("")
+        
+        for line in header_lines:
+            print(line, file=sys.stderr)
+        
+        self._header_lines = len(header_lines)
+
+    def _update_fixed_header(self) -> None:
+        """Update the fixed header with current run status."""
+        if not self._use_fixed_header or self._current_run is None:
+            return
+        
+        # Save cursor position
+        print("\033[s", file=sys.stderr, end="", flush=True)
+        
+        # Move to top and redraw header
+        print("\033[H", file=sys.stderr, end="", flush=True)
+        
+        header_lines = []
+        header_lines.append("")
+        header_lines.append(
+            f"  {Colors.BOLD}{self._current_run.workflow_name}{Colors.ENDC}"
+            f"  {Colors.DIM}[{self._current_run.mode}/{self._current_run.profile}]{Colors.ENDC}"
+            f"  {Colors.WARNING}{self._current_run.target_name}{Colors.ENDC}"
+        )
+        header_lines.append(
+            f"  {Colors.DIM}{len(self._current_run.steps)} steps  ·  {self._current_run.id}  ·  {self._elapsed()}{Colors.ENDC}"
+        )
+        header_lines.append("")
+        header_lines.extend(self._render_step_board(self._current_run).split("\n"))
+        header_lines.append("")
+        header_lines.append(f"  {Colors.DIM}{'─' * 70}{Colors.ENDC}")
+        header_lines.append("")
+        
+        # Clear and redraw each line
+        for line in header_lines:
+            print(f"\033[K{line}", file=sys.stderr)
+        
+        # Restore cursor position
+        print("\033[u", file=sys.stderr, end="", flush=True)
+
+    def step_started(self, run, step, *, publisher: CliLogPublisher | None = None) -> None:
+        self._current_run = run
+        tool = step.tool or step.kind
+        
+        if self._use_fixed_header:
+            self._update_fixed_header()
+        else:
+            # Reprint the board before each step to keep task overview visible
+            if not self._first_step:
+                print(file=sys.stderr)
+                print(self._render_step_board(run), file=sys.stderr)
+                print(file=sys.stderr)
+            else:
+                self._first_step = False
+        
         print(
             f"  {Colors.OKBLUE}▶{Colors.ENDC}  {Colors.BOLD}{step.id}{Colors.ENDC}"
             f"  {Colors.DIM}{tool}{Colors.ENDC}",
@@ -184,6 +266,8 @@ class _ProgressReporter:
 
     def step_completed(self, step) -> None:
         self._stop_step_live_updates()
+        if self._use_fixed_header:
+            self._update_fixed_header()
         telemetry = step.telemetry
         dur = self._format_duration_ms(telemetry.duration_ms) if telemetry else "n/a"
         out = telemetry.output_count if telemetry else len(step.output_items)
@@ -195,6 +279,8 @@ class _ProgressReporter:
 
     def step_failed(self, step) -> None:
         self._stop_step_live_updates()
+        if self._use_fixed_header:
+            self._update_fixed_header()
         err = (step.error_summary or "failed")[:80]
         telemetry = step.telemetry
         dur = f"  {Colors.DIM}{self._format_duration_ms(telemetry.duration_ms)}{Colors.ENDC}" if telemetry else ""
@@ -212,14 +298,24 @@ class _ProgressReporter:
 
     def run_footer(self, run) -> None:
         self._stop_step_live_updates()
+        self._current_run = run
+        
+        if self._use_fixed_header:
+            self._update_fixed_header()
+            # Add some space before final summary
+            print("\n" * 2, file=sys.stderr)
+        
         total = len(run.steps)
         complete = sum(1 for s in run.steps if s.status == "complete")
         failed = sum(1 for s in run.steps if s.status == "failed")
         skipped = sum(1 for s in run.steps if s.status == "skipped")
         status_color = Colors.OKGREEN if run.status == "complete" else Colors.FAIL
-        print(file=sys.stderr)
-        print(self._render_step_board(run), file=sys.stderr)
-        print(file=sys.stderr)
+        
+        if not self._use_fixed_header:
+            print(file=sys.stderr)
+            print(self._render_step_board(run), file=sys.stderr)
+            print(file=sys.stderr)
+        
         print(
             f"  {status_color}{run.status.upper()}{Colors.ENDC}"
             f"  {Colors.DIM}{complete}/{total} done"

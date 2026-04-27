@@ -137,7 +137,7 @@ steps:
     tool: testssl
     input: "{{live_host}}"
     args:
-      - "--weak-cipher"
+      - "-f"
       - "--quiet"
       - "--color"
       - "0"

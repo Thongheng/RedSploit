@@ -23,7 +23,7 @@ steps:
     tool: testssl
     input: "{{TARGET}}"
     args:
-      - "--weak-cipher"
+      - "-f"
       - "--quiet"
       - "--color"
       - "0"
