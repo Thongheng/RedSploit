@@ -381,6 +381,12 @@ def _run_single_command(
     publisher: LogPublisher | None = None,
 ) -> subprocess.CompletedProcess[str]:
     logger.info("[scan=%s step=%s] Running: %s", scan_id, step.id, " ".join(command[:3]))
+    
+    # Log the full command to the publisher for CLI visibility
+    if publisher is not None:
+        full_command = " ".join(command)
+        publisher.publish(scan_id, "info", f"[tool:{step.id}] $ {full_command}")
+    
     if publisher is not None:
         return runner.run_streaming(
             command,

@@ -32,7 +32,7 @@ from .collapsible_output import CollapsibleOutputManager
 class CliLogPublisher(LogPublisher):
     """Streams tool stdout/stderr lines to stderr in real-time with collapsible output."""
 
-    MAX_LINES_PER_STEP = 100  # Show first 100 lines, then truncate
+    MAX_LINES_PER_STEP = 10000  # Show up to 10000 lines per step (effectively unlimited for most tools)
     
     def __init__(self, indent: str = "  ") -> None:
         super().__init__()
@@ -301,7 +301,11 @@ class _ProgressReporter:
         import sys
         old_file = formatter.console.file
         formatter.console.file = sys.stderr
+        
+        # Add visual separator and step header
+        formatter.console.print(f"\n[dim]{'─' * 80}[/dim]")
         formatter.console.print(f"  [info]▶[/info]  [bold]{step.id}[/bold]  [dim]{tool}[/dim]")
+        
         formatter.console.file = old_file
         self._start_step_live_updates(step.id, tool, publisher)
 
@@ -319,6 +323,7 @@ class _ProgressReporter:
         old_file = formatter.console.file
         formatter.console.file = sys.stderr
         formatter.console.print(f"  [success]✓[/success]  [bold]{step.id}[/bold]  [dim]{dur}  ·  {out} output(s)[/dim]")
+        formatter.console.print(f"[dim]{'─' * 80}[/dim]\n")
         formatter.console.file = old_file
 
     def step_failed(self, step) -> None:
@@ -335,6 +340,7 @@ class _ProgressReporter:
         old_file = formatter.console.file
         formatter.console.file = sys.stderr
         formatter.console.print(f"  [error]✗[/error]  [bold]{step.id}[/bold]  [error]{err}[/error]{dur}")
+        formatter.console.print(f"[dim]{'─' * 80}[/dim]\n")
         formatter.console.file = old_file
 
     def step_skipped(self, step) -> None:
