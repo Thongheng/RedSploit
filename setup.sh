@@ -305,7 +305,7 @@ workflow_install_command() {
             fi
             ;;
         secretfinder)
-            rm -rf "$HOME/.local/share/SecretFinder" "$HOME/.local/bin/secretfinder" && mkdir -p "$HOME/.local/share/SecretFinder" && git clone --depth 1 https://github.com/m4ll0k/SecretFinder.git "$HOME/.local/share/SecretFinder" && chmod +x "$HOME/.local/share/SecretFinder/SecretFinder.py" && mkdir -p "$HOME/.local/bin" && ln -sf "$HOME/.local/share/SecretFinder/SecretFinder.py" "$HOME/.local/bin/secretfinder"
+            rm -rf "$HOME/.local/share/SecretFinder" && mkdir -p "$HOME/.local/share/SecretFinder" "$HOME/.local/bin" && git clone --depth 1 https://github.com/m4ll0k/SecretFinder.git "$HOME/.local/share/SecretFinder" && (cd "$HOME/.local/share/SecretFinder" && python3 -m pip install -r requirements.txt) && chmod +x "$HOME/.local/share/SecretFinder/SecretFinder.py" && ln -sf "$HOME/.local/share/SecretFinder/SecretFinder.py" "$HOME/.local/bin/secretfinder"
             return 0
             ;;
     esac
