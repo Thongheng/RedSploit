@@ -294,11 +294,19 @@ workflow_install_command() {
                 return 0
             fi
             ;;
+        dirsearch)
+            printf 'git clone --depth 1 https://github.com/maurosoria/dirsearch.git "$HOME/.local/share/dirsearch" && ln -sf "$HOME/.local/share/dirsearch/dirsearch.py" "$HOME/.local/bin/dirsearch"'
+            return 0
+            ;;
         sqlmap)
             if has_package_manager pipx; then
                 printf 'pipx install sqlmap'
                 return 0
             fi
+            ;;
+        secretfinder)
+            printf 'git clone https://github.com/momenon/SecretFinder.git "$HOME/.local/share/SecretFinder" && ln -sf "$HOME/.local/share/SecretFinder/SecretFinder.py" "$HOME/.local/bin/secretfinder"'
+            return 0
             ;;
     esac
 
@@ -323,6 +331,7 @@ workflow_install_hint() {
         testssl.sh) printf 'Official: git clone testssl/testssl.sh and run from the cloned directory' ;;
         theHarvester) printf 'Official: Kali package, pipx in a repo clone, Docker, or uv source install' ;;
         sqlmap) printf 'Official source uses pip; installer uses pipx install sqlmap for isolated CLI install' ;;
+        secretfinder) printf 'Official: git clone menonon/SecretFinder and symlink SecretFinder.py to PATH' ;;
         dirsearch) printf 'Official: git clone maurosoria/dirsearch and run it, or install it in an isolated environment' ;;
         dig) printf 'Install DNS utilities from your OS package manager' ;;
         nmap) printf 'Install nmap from your OS package manager' ;;
