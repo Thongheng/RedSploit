@@ -19,7 +19,7 @@ INSTALL_TARGET=""
 RC_FILE=""
 DETECTED_SHELL=""
 CURRENT_STEP=0
-TOTAL_STEPS=5
+TOTAL_STEPS=3
 TEST_ONLY=0
 OPENROUTER_TEST_URL="https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_TEST_MODEL="openrouter/free"
@@ -598,15 +598,9 @@ PY
 run_ai_provider_tests() {
     local openrouter_key chatanywhere_key nvidia_nim_key failures=0
 
-    print_step "Inspect environment"
     local shell_name
     shell_name="$(detect_real_shell_name)"
     RC_FILE="$(resolve_shell_rc_file "$shell_name" 2>/dev/null || true)"
-    log_info "Detected user: $REAL_USER"
-    log_info "Detected shell: $shell_name"
-    if [ -n "$RC_FILE" ]; then
-        log_info "Shell rc file: $RC_FILE"
-    fi
 
     print_step "Test AI providers"
     openrouter_key="$(resolve_api_key OPENROUTER_API_KEY)"
@@ -782,7 +776,6 @@ install_python_package() {
 }
 
 install_redsploit() {
-    print_step "Install command"
     chmod +x "$RED_PY"
     log_success "Made red.py executable"
 
@@ -821,7 +814,6 @@ install_redsploit() {
 }
 
 setup_shell_completion() {
-    print_step "Set up shell completion"
     if [ "$DETECTED_SHELL" = "zsh" ]; then
         install_zsh_completion
         return 0
@@ -943,19 +935,7 @@ main() {
 
     DETECTED_SHELL="$(detect_real_shell_name)"
     RC_FILE="$(resolve_shell_rc_file "$DETECTED_SHELL" 2>/dev/null || true)"
-    print_step "Inspect environment"
-    log_info "Detected user: $REAL_USER"
-    log_info "Detected shell: $DETECTED_SHELL"
-    if [ -n "$RC_FILE" ]; then
-        log_info "Shell rc file: $RC_FILE"
-        log_info "The installer may update this file for PATH and AI provider exports if needed."
-    fi
     choose_install_mode
-    if [ "$INSTALL_MODE" = "system" ]; then
-        log_info "Install mode: system (/usr/bin)"
-    else
-        log_info "Install mode: local (~/.local/bin)"
-    fi
     install_python_package
     install_redsploit
     setup_shell_completion
