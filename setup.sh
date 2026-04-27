@@ -130,7 +130,7 @@ list_missing_workflow_tools() {
             missing+=("$binary")
         fi
     done
-    printf '%s\n' "${missing[@]}"
+    [ ${#missing[@]} -gt 0 ] && printf '%s\n' "${missing[@]}"
 }
 
 run_as_root_or_sudo() {
@@ -397,24 +397,18 @@ ensure_workflow_tools() {
     install_missing_workflow_tools "${missing_tools[@]}" || true
 
     mapfile -t missing_tools < <(list_missing_workflow_tools)
-    
+
     if [ "${#missing_tools[@]}" -eq 0 ]; then
         log_success "All workflow tools installed successfully"
-        echo ""
-        log_info "Tool availability summary after install:"
-        check_all_tools_before_install
         return 0
     fi
 
-    log_warn "Some workflow tools are still missing after install:"
     echo ""
+    log_warn "Some workflow tools could not be installed:"
     local tool
     for tool in "${missing_tools[@]}"; do
         printf '%s[-]%s %s — %s\n' "$C_YELLOW" "$C_RESET" "$tool" "$(workflow_install_hint "$tool")"
     done
-    echo ""
-    log_info "Tool availability summary:"
-    check_all_tools_before_install
     return 0
 }
 
