@@ -269,7 +269,9 @@ workflow_install_command() {
             fi
             ;;
         testssl.sh)
-            rm -rf "$HOME/.local/share/testssl.sh" "$HOME/.local/bin/testssl.sh" && mkdir -p "$HOME/.local/share/testssl.sh" && git clone --depth 1 https://github.com/testssl/testssl.sh.git --branch 3.3dev "$HOME/.local/share/testssl.sh" && mkdir -p "$HOME/.local/bin" && ln -sf "$HOME/.local/share/testssl.sh/testssl.sh" "$HOME/.local/bin/testssl.sh"
+            local target_dir
+            target_dir="$(eval echo "~$REAL_USER")"
+            rm -rf "$target_dir/.local/share/testssl.sh" "$target_dir/.local/bin/testssl.sh" && mkdir -p "$target_dir/.local/share/testssl.sh" && git clone --depth 1 https://github.com/testssl/testssl.sh.git --branch 3.3dev "$target_dir/.local/share/testssl.sh" && mkdir -p "$target_dir/.local/bin" && ln -sf "$target_dir/.local/share/testssl.sh/testssl.sh" "$target_dir/.local/bin/testssl.sh"
             return 0
             ;;
         shcheck.py)
@@ -295,7 +297,9 @@ workflow_install_command() {
             fi
             ;;
         dirsearch)
-            rm -rf "$HOME/.local/share/dirsearch" "$HOME/.local/bin/dirsearch" && mkdir -p "$HOME/.local/share/dirsearch" && git clone --depth 1 https://github.com/maurosoria/dirsearch.git "$HOME/.local/share/dirsearch" && chmod +x "$HOME/.local/share/dirsearch/dirsearch.py" && mkdir -p "$HOME/.local/bin" && ln -sf "$HOME/.local/share/dirsearch/dirsearch.py" "$HOME/.local/bin/dirsearch"
+            local target_dir
+            target_dir="$(eval echo "~$REAL_USER")"
+            rm -rf "$target_dir/.local/share/dirsearch" "$target_dir/.local/bin/dirsearch" && mkdir -p "$target_dir/.local/share/dirsearch" && git clone --depth 1 https://github.com/maurosoria/dirsearch.git "$target_dir/.local/share/dirsearch" && chmod +x "$target_dir/.local/share/dirsearch/dirsearch.py" && mkdir -p "$target_dir/.local/bin" && ln -sf "$target_dir/.local/share/dirsearch/dirsearch.py" "$target_dir/.local/bin/dirsearch"
             return 0
             ;;
         sqlmap)
@@ -305,7 +309,9 @@ workflow_install_command() {
             fi
             ;;
         secretfinder)
-            rm -rf "$HOME/.local/share/SecretFinder" "$HOME/.local/bin/secretfinder" && mkdir -p "$HOME/.local/share/SecretFinder" && git clone --depth 1 https://github.com/m4ll0k/SecretFinder.git "$HOME/.local/share/SecretFinder" && chmod +x "$HOME/.local/share/SecretFinder/SecretFinder.py" && mkdir -p "$HOME/.local/bin" && ln -sf "$HOME/.local/share/SecretFinder/SecretFinder.py" "$HOME/.local/bin/secretfinder"
+            local target_dir
+            target_dir="$(eval echo "~$REAL_USER")"
+            rm -rf "$target_dir/.local/share/SecretFinder" "$target_dir/.local/bin/secretfinder" && mkdir -p "$target_dir/.local/share/SecretFinder" && git clone --depth 1 https://github.com/m4ll0k/SecretFinder.git "$target_dir/.local/share/SecretFinder" && chmod +x "$target_dir/.local/share/SecretFinder/SecretFinder.py" && mkdir -p "$target_dir/.local/bin" && ln -sf "$target_dir/.local/share/SecretFinder/SecretFinder.py" "$target_dir/.local/bin/secretfinder"
             return 0
             ;;
     esac
