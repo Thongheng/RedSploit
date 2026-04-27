@@ -389,9 +389,23 @@ class ScanRunStore:
             for artifact in (artifacts or [])
         ]
         step.output_items = []
-        run.status = "failed"
-        run.current_step = step.id
-        run.finished_at = transition_time
+        # Only halt the entire run if on_failure is not "warn" or "continue"
+        if step.on_failure not in {"warn", "continue"}:
+            run.status = "failed"
+            run.current_step = step.id
+            run.finished_at = transition_time
+        else:
+            # Warn/continue: unblock dependents and keep the run going
+            self._unblock_ready_steps(run)
+            next_step = self._first_actionable_step(run)
+            if next_step is not None:
+                run.status = "running"
+                run.current_step = next_step.id
+                run.finished_at = None
+            else:
+                run.status = "complete"
+                run.current_step = None
+                run.finished_at = transition_time
         self._save_run(run)
         return run
 

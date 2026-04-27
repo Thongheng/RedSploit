@@ -84,14 +84,15 @@ class CliLogPublisher(LogPublisher):
 class _ProgressReporter:
     """Prints step transitions for a workflow run to stderr so stdout stays clean."""
 
-    HEARTBEAT_INTERVAL_SECONDS = 5.0
-    STALLED_AFTER_SECONDS = 15.0
+    HEARTBEAT_INTERVAL_SECONDS = 10.0
+    STALLED_AFTER_SECONDS = 60.0  # tools like nmap legitimately go silent for 60s+
 
     def __init__(self) -> None:
         self._start = monotonic()
         self._step_live_stop = threading.Event()
         self._step_live_thread: threading.Thread | None = None
         self._active_step_started = 0.0
+        self._first_step = True
 
     def _elapsed(self) -> str:
         secs = int(monotonic() - self._start)
@@ -109,132 +110,103 @@ class _ProgressReporter:
         return f"{duration_ms / 1000:.1f}s"
 
     @staticmethod
-    def _summarize_run_counts(run) -> str:
-        counts = {
-            "ready": 0,
-            "running": 0,
-            "blocked": 0,
-            "complete": 0,
-            "failed": 0,
-            "skipped": 0,
-        }
-        for step in run.steps:
-            counts[step.status] = counts.get(step.status, 0) + 1
-        return (
-            f"ready:{counts['ready']}  running:{counts['running']}  blocked:{counts['blocked']}  "
-            f"done:{counts['complete']}  failed:{counts['failed']}  skipped:{counts['skipped']}"
-        )
-
-    @staticmethod
     def _status_icon(status: str) -> str:
         return {
-            "ready": "○",
-            "running": "▶",
-            "blocked": "…",
+            "ready":    "○",
+            "running":  "▶",
+            "blocked":  "·",
             "complete": "✓",
-            "failed": "✗",
-            "skipped": "⊘",
-            "queued": "◌",
+            "failed":   "✗",
+            "skipped":  "–",
+            "queued":   "◌",
         }.get(status, "?")
 
-    def _render_step_board(self, run, publisher: CliLogPublisher | None = None) -> str:
-        lines = [f"  {Colors.BOLD}Step Board{Colors.ENDC}"]
+    @staticmethod
+    def _status_color(status: str) -> str:
+        return {
+            "complete": Colors.OKGREEN,
+            "failed":   Colors.FAIL,
+            "running":  Colors.OKBLUE,
+            "skipped":  Colors.DIM,
+            "blocked":  Colors.DIM,
+            "ready":    "",
+        }.get(status, Colors.DIM)
+
+    def _render_step_board(self, run) -> str:
+        lines = []
         for step in run.steps:
             icon = self._status_icon(step.status)
-            marker = "⊙" if run.current_step == step.id and step.status == "running" else " "
+            color = self._status_color(step.status)
             tool = step.tool or step.kind
-            details: list[str] = [tool]
-
+            suffix = ""
             if step.telemetry is not None and step.status in {"complete", "failed"}:
-                details.append(f"{self._format_duration_ms(step.telemetry.duration_ms)}")
-                if step.telemetry.output_count:
-                    details.append(f"out:{step.telemetry.output_count}")
-
-            if publisher is not None:
-                activity = publisher.get_step_activity(step.id)
-                if activity is not None and step.status == "running":
-                    details.append(f"lines:{int(activity['line_count'])}")
-                    details.append(f"idle:{self._format_seconds(float(activity['idle_seconds']))}")
-                    last_message = str(activity["last_message"]).strip()
-                    if last_message:
-                        if len(last_message) > 40:
-                            last_message = f"{last_message[:40]}..."
-                        details.append(f"last:{last_message}")
-
+                dur = self._format_duration_ms(step.telemetry.duration_ms)
+                out = f"  out:{step.telemetry.output_count}" if step.telemetry.output_count else ""
+                suffix = f"  {Colors.DIM}{dur}{out}{Colors.ENDC}"
+            elif step.status == "failed" and step.error_summary:
+                err = step.error_summary[:50]
+                suffix = f"  {Colors.FAIL}{err}{Colors.ENDC}"
             lines.append(
-                f"  {marker} {icon} {step.id:<18} {Colors.DIM}{'  ·  '.join(details)}{Colors.ENDC}"
+                f"  {color}{icon}{Colors.ENDC}  {step.id:<20} {Colors.DIM}{tool}{Colors.ENDC}{suffix}"
             )
         return "\n".join(lines)
 
     def run_header(self, run) -> None:
         print(file=sys.stderr)
         print(
-            f"  {Colors.HEADER}{run.workflow_name}{Colors.ENDC}  "
-            f"[{run.mode}/{run.profile}]  target={Colors.WARNING}{run.target_name}{Colors.ENDC}",
+            f"  {Colors.BOLD}{run.workflow_name}{Colors.ENDC}"
+            f"  {Colors.DIM}[{run.mode}/{run.profile}]{Colors.ENDC}"
+            f"  {Colors.WARNING}{run.target_name}{Colors.ENDC}",
             file=sys.stderr,
         )
         print(
-            f"  {Colors.DIM}{len(run.steps)} steps{Colors.ENDC}  ·  "
-            f"{Colors.DIM}{run.id}{Colors.ENDC}",
+            f"  {Colors.DIM}{len(run.steps)} steps  ·  {run.id}{Colors.ENDC}",
             file=sys.stderr,
         )
-        print(
-            f"  {Colors.DIM}{self._summarize_run_counts(run)}{Colors.ENDC}",
-            file=sys.stderr,
-        )
+        print(file=sys.stderr)
         print(self._render_step_board(run), file=sys.stderr)
         print(file=sys.stderr)
 
     def step_started(self, run, step, *, publisher: CliLogPublisher | None = None) -> None:
         tool = step.tool or step.kind
+        # Only reprint the board on first step; after that just show the active step line
+        if self._first_step:
+            self._first_step = False
+        else:
+            print(file=sys.stderr)
         print(
-            f"  {Colors.DIM}{self._summarize_run_counts(run)}{Colors.ENDC}",
-            file=sys.stderr,
-        )
-        print(
-            f"  {Colors.OKBLUE}▶{Colors.ENDC} {Colors.BOLD}{step.id}{Colors.ENDC}  "
-            f"{Colors.DIM}{tool}{Colors.ENDC}",
+            f"  {Colors.OKBLUE}▶{Colors.ENDC}  {Colors.BOLD}{step.id}{Colors.ENDC}"
+            f"  {Colors.DIM}{tool}{Colors.ENDC}",
             file=sys.stderr,
             flush=True,
         )
-        print(self._render_step_board(run, publisher), file=sys.stderr, flush=True)
         self._start_step_live_updates(step.id, tool, publisher)
 
     def step_completed(self, step) -> None:
         self._stop_step_live_updates()
-        items = len(step.output_items) if step.output_items else 0
         telemetry = step.telemetry
-        detail_parts = [f"items:{items}"]
-        if telemetry is not None:
-            detail_parts.append(f"in:{telemetry.input_count}")
-            detail_parts.append(f"out:{telemetry.output_count}")
-            detail_parts.append(f"duration:{self._format_duration_ms(telemetry.duration_ms)}")
-        detail_parts.append(f"artifacts:{len(step.artifacts)}")
+        dur = self._format_duration_ms(telemetry.duration_ms) if telemetry else "n/a"
+        out = telemetry.output_count if telemetry else len(step.output_items)
         print(
-            f"  {Colors.OKGREEN}✓{Colors.ENDC} {Colors.BOLD}{step.id}{Colors.ENDC}  "
-            f"{Colors.DIM}{'  ·  '.join(detail_parts)}  ·  elapsed:{self._elapsed()}{Colors.ENDC}",
+            f"  {Colors.OKGREEN}✓{Colors.ENDC}  {Colors.BOLD}{step.id}{Colors.ENDC}"
+            f"  {Colors.DIM}{dur}  ·  {out} output(s){Colors.ENDC}",
             file=sys.stderr,
         )
 
     def step_failed(self, step) -> None:
         self._stop_step_live_updates()
-        err = (step.error_summary or "failed")[:70]
+        err = (step.error_summary or "failed")[:80]
         telemetry = step.telemetry
-        suffix = ""
-        if telemetry is not None:
-            suffix = (
-                f"  {Colors.DIM}in:{telemetry.input_count}  ·  "
-                f"duration:{self._format_duration_ms(telemetry.duration_ms)}{Colors.ENDC}"
-            )
+        dur = f"  {Colors.DIM}{self._format_duration_ms(telemetry.duration_ms)}{Colors.ENDC}" if telemetry else ""
         print(
-            f"  {Colors.FAIL}✗{Colors.ENDC} {Colors.BOLD}{step.id}{Colors.ENDC}  "
-            f"{Colors.FAIL}{err}{Colors.ENDC}{suffix}",
+            f"  {Colors.FAIL}✗{Colors.ENDC}  {Colors.BOLD}{step.id}{Colors.ENDC}"
+            f"  {Colors.FAIL}{err}{Colors.ENDC}{dur}",
             file=sys.stderr,
         )
 
     def step_skipped(self, step) -> None:
         print(
-            f"  {Colors.DIM}⊘ {step.id}{Colors.ENDC}  {Colors.DIM}(skipped){Colors.ENDC}",
+            f"  {Colors.DIM}–  {step.id}  skipped{Colors.ENDC}",
             file=sys.stderr,
         )
 
@@ -246,12 +218,14 @@ class _ProgressReporter:
         skipped = sum(1 for s in run.steps if s.status == "skipped")
         status_color = Colors.OKGREEN if run.status == "complete" else Colors.FAIL
         print(file=sys.stderr)
+        print(self._render_step_board(run), file=sys.stderr)
+        print(file=sys.stderr)
         print(
-            f"  {status_color}{run.status.upper()}{Colors.ENDC}  "
-            f"{Colors.DIM}{complete}/{total} complete{Colors.ENDC}  ·  "
-            f"{Colors.DIM}{failed} failed{Colors.ENDC}  ·  "
-            f"{Colors.DIM}{skipped} skipped{Colors.ENDC}  ·  "
-            f"{Colors.DIM}{self._elapsed()}{Colors.ENDC}",
+            f"  {status_color}{run.status.upper()}{Colors.ENDC}"
+            f"  {Colors.DIM}{complete}/{total} done"
+            + (f"  ·  {failed} failed" if failed else "")
+            + (f"  ·  {skipped} skipped" if skipped else "")
+            + f"  ·  {self._elapsed()}{Colors.ENDC}",
             file=sys.stderr,
         )
         print(file=sys.stderr)
@@ -306,17 +280,17 @@ class _ProgressReporter:
         activity: dict[str, object],
     ) -> str:
         idle_seconds = float(activity.get("idle_seconds", 0.0))
-        state = "stalled" if idle_seconds >= self.STALLED_AFTER_SECONDS else "active"
-        last_message = str(activity.get("last_message", "waiting for output")).strip() or "waiting for output"
-        if len(last_message) > 72:
-            last_message = f"{last_message[:72]}..."
+        elapsed_str = self._format_seconds(elapsed_seconds)
+        last_message = str(activity.get("last_message", "")).strip()
+        if len(last_message) > 60:
+            last_message = f"{last_message[:60]}..."
+        idle_note = ""
+        if idle_seconds >= self.STALLED_AFTER_SECONDS:
+            idle_note = f"  {Colors.WARNING}no output for {self._format_seconds(idle_seconds)}{Colors.ENDC}"
+        last_note = f"  {Colors.DIM}{last_message}{Colors.ENDC}" if last_message else ""
         return (
-            f"  {Colors.DIM}… {step_id} [{tool_name}] {state}  "
-            f"elapsed:{self._format_seconds(elapsed_seconds)}  "
-            f"idle:{self._format_seconds(idle_seconds)}  "
-            f"lines:{int(activity.get('line_count', 0))}  "
-            f"warn:{int(activity.get('warn_count', 0))}  "
-            f"last:{last_message}{Colors.ENDC}"
+            f"  {Colors.DIM}  {step_id}  {elapsed_str}{Colors.ENDC}"
+            f"{idle_note}{last_note}"
         )
 
 
@@ -409,8 +383,23 @@ class WorkflowManager:
         print(f"\n{Colors.DIM}Tip: Install missing tools to enable workflow support.{Colors.ENDC}")
 
     def list_runs(self) -> None:
-        for run in self._store().list_run_summaries():
-            print(f"{run.id}  {run.status:<10}  {run.target_name}  ({run.workflow_name})")
+        runs = self._store().list_run_summaries()
+        if not runs:
+            print(f"{Colors.DIM}No runs yet.{Colors.ENDC}")
+            return
+        print(f"\n  {Colors.BOLD}{'ID':<16} {'STATUS':<10} {'TARGET':<35} WORKFLOW{Colors.ENDC}")
+        print(f"  {Colors.DIM}{'─' * 80}{Colors.ENDC}")
+        for run in runs:
+            status_color = Colors.OKGREEN if run.status == "complete" else (Colors.FAIL if run.status == "failed" else Colors.DIM)
+            target = run.target_name[:33] + ".." if len(run.target_name) > 35 else run.target_name
+            wf = run.workflow_name[:30] + ".." if len(run.workflow_name) > 32 else run.workflow_name
+            print(
+                f"  {Colors.DIM}{run.id}{Colors.ENDC}  "
+                f"{status_color}{run.status:<10}{Colors.ENDC}"
+                f"{Colors.WARNING}{target:<35}{Colors.ENDC}"
+                f"{Colors.DIM}{wf}{Colors.ENDC}"
+            )
+        print()
 
     def list_findings(self, args: list[str]) -> None:
         scan_id = self._require_flag_value(args, "--scan-id")
@@ -535,7 +524,7 @@ class WorkflowManager:
     def _build_generated_if_requested(self, options: dict[str, str], target: str):
         workflow_name = options.get("workflow")
         if workflow_name in PROJECT_WORKFLOWS:
-            self._prompt_for_missing_generation_options(options)
+            self._prompt_for_missing_generation_options(options, workflow_name)
 
         if "tech" not in options and "depth" not in options:
             return None
@@ -546,6 +535,7 @@ class WorkflowManager:
             workflow=workflow_name,
             technology_profile=options.get("tech", "generic"),
             test_depth=options.get("depth", "normal"),
+            waf_present=options.get("waf", "yes") != "no",
         )
         available = {
             "httpx", "naabu", "nmap", "katana", "ffuf", "dirsearch",
@@ -555,7 +545,7 @@ class WorkflowManager:
         }
         return build_project_workflow(request, available_tools=available)
 
-    def _prompt_for_missing_generation_options(self, options: dict[str, str]) -> None:
+    def _prompt_for_missing_generation_options(self, options: dict[str, str], workflow_name: str) -> None:
         if "tech" not in options:
             options["tech"] = self._prompt_choice(
                 "Select tech profile",
@@ -566,6 +556,19 @@ class WorkflowManager:
                 "Select test depth",
                 self.DEPTH_CHOICES,
             )
+        if workflow_name == "external-project.yaml" and "waf" not in options:
+            options["waf"] = self._prompt_yes_no("Is a WAF present?")
+
+    @staticmethod
+    def _prompt_yes_no(label: str) -> str:
+        prompt = f"{label} (yes/no): "
+        while True:
+            value = input(prompt).strip().lower()
+            if value in {"yes", "y"}:
+                return "yes"
+            if value in {"no", "n"}:
+                return "no"
+            print("Please answer yes or no.")
 
     @staticmethod
     def _prompt_choice(label: str, choices: tuple[str, ...]) -> str:

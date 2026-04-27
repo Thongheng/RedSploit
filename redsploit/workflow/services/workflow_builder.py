@@ -56,6 +56,7 @@ class ProjectWorkflowBuildRequest(BaseModel):
     workflow: str
     technology_profile: TechnologyProfile = "generic"
     test_depth: TestDepth = "normal"
+    waf_present: bool = True
 
 
 class GeneratedWorkflow(BaseModel):
@@ -83,12 +84,15 @@ def build_project_workflow(
     if workflow not in PROJECT_WORKFLOWS:
         raise ValueError(f"Unsupported workflow '{workflow}' for project workflow builder.")
 
-    profile = "aggressive" if workflow == "internal-project.yaml" else "cautious"
+    profile = "aggressive" if workflow == "internal-project.yaml" else (
+        "cautious" if request.waf_present else "aggressive"
+    )
     name = _workflow_name(workflow, request.technology_profile, request.test_depth)
     steps = _project_steps(
         workflow=workflow,
         technology_profile=request.technology_profile,
         test_depth=request.test_depth,
+        waf_present=request.waf_present,
         available_tools=available_tools,
     )
     payload = {
@@ -104,7 +108,7 @@ def build_project_workflow(
         workflow_name=name,
         builder_enabled=True,
         content=yaml.safe_dump(payload, sort_keys=False),
-        explanations=_explanations(request.technology_profile, request.test_depth),
+        explanations=_explanations(request.technology_profile, request.test_depth, request.waf_present),
     )
 
 
@@ -113,9 +117,11 @@ def _project_steps(
     workflow: str,
     technology_profile: TechnologyProfile,
     test_depth: TestDepth,
+    waf_present: bool = True,
     available_tools: set[str] | None,
 ) -> list[dict[str, object]]:
     is_internal = workflow == "internal-project.yaml"
+    is_external = not is_internal
     rate_limit = DEPTH_RATE_LIMITS[test_depth]
     extensions = TECH_EXTENSIONS[technology_profile]
     wordlist = WORDLISTS[test_depth]
@@ -154,10 +160,9 @@ def _project_steps(
         })
         probe_input = "{{live_host}}"
     else:
-        # ── External: 3 parallel steps only — WAF-safe, recon-only ──────────
+        # ── External: WAF present — 3 parallel recon steps, no active scanning ──
         # No port scan, no passive recon, no liveness filtering.
         # All 3 steps receive TARGET directly. No sequential chain.
-        # test_depth has no effect on external tool arguments.
         steps.append({
             "id": "tls_audit",
             "tool": "testssl",
@@ -195,7 +200,172 @@ def _project_steps(
             "on_failure": "warn",
             "timeout_seconds": 300,
         })
-        # Return early — external has no more steps
+        if waf_present:
+            # WAF present — recon only, stop here
+            return steps
+
+        # ── External, no WAF — full active pipeline with conservative rate limits ──
+        # WAF-safe rate limits applied throughout (5 req/s max).
+        # Mirrors internal pipeline but cautious profile: lower threads, rate-limited.
+        waf_rate = "5"
+
+        steps.append({
+            "id": "probe_http",
+            "tool": "httpx",
+            "input": "{{scope.domains}}",
+            "args": ["-silent", "-status-code", "-tech-detect", "-title",
+                     "-follow-redirects", "-json", "-timeout", "10"],
+            "output": "live_host",
+            "on_empty": "stop",
+            "on_failure": "stop",
+            "timeout_seconds": 30,
+        })
+
+        # Depth 1 — parallel on live_host
+        steps.append({
+            "id": "crawl",
+            "tool": "katana",
+            "input": "{{live_host}}",
+            "args": ["-depth", crawl_depth, "-js-crawl", "-form-extraction",
+                     "-silent", "-rate-limit", waf_rate],
+            "output": "crawled_endpoints",
+            "on_empty": "warn",
+            "on_failure": "warn",
+            "timeout_seconds": 1200 if test_depth == "deep" else 600,
+        })
+        steps.append({
+            "id": "nuclei_host",
+            "tool": "nuclei",
+            "input": "{{live_host}}",
+            "args": [
+                "-silent", "-severity", "low,medium,high,critical",
+                "-rate-limit", waf_rate,
+                "-t", "http/misconfiguration/",
+                "-t", "http/exposures/",
+                "-t", "http/panels/",
+                "-t", "http/misconfiguration/cors-misconfiguration.yaml",
+                "-t", "http/misconfiguration/http-missing-security-headers/",
+            ],
+            "output": "host_findings",
+            "on_empty": "warn",
+            "on_failure": "warn",
+            "timeout_seconds": 300,
+        })
+
+        # Depth 1 — fuzzing
+        has_ferox = test_depth == "deep" and (available_tools is None or "feroxbuster" in available_tools)
+        fuzz_output_key: str
+        if test_depth == "deep":
+            steps.append({
+                "id": "fuzz_dirsearch",
+                "tool": "dirsearch",
+                "input": "{{live_host}}",
+                "args": ["-e", extensions, "-w", wordlist, "-t", "10", "-q",
+                         "--format", "json", "-o", "/dev/stdout"],
+                "output": "dirsearch_paths",
+                "on_empty": "warn",
+                "on_failure": "warn",
+                "timeout_seconds": 900,
+            })
+            if has_ferox:
+                steps.append({
+                    "id": "fuzz_feroxbuster",
+                    "tool": "feroxbuster",
+                    "input": "{{live_host}}",
+                    "args": ["-w", wordlist, "-x", extensions, "-t", "10", "-q",
+                             "--json", "-o", "/dev/stdout", "--no-recursion",
+                             "--rate-limit", waf_rate],
+                    "output": "ferox_paths",
+                    "on_empty": "warn",
+                    "on_failure": "warn",
+                    "timeout_seconds": 900,
+                })
+                steps.append({
+                    "id": "merge_fuzz_paths",
+                    "type": "merge",
+                    "args": ["dirsearch_paths", "ferox_paths"],
+                    "output": "fuzz_paths",
+                    "on_empty": "warn",
+                })
+                fuzz_output_key = "fuzz_paths"
+            else:
+                fuzz_output_key = "dirsearch_paths"
+        else:
+            steps.append({
+                "id": "fuzz_content",
+                "tool": "dirsearch",
+                "input": "{{live_host}}",
+                "args": ["-e", extensions, "-w", wordlist, "-t", "10", "-q",
+                         "--format", "json", "-o", "/dev/stdout"],
+                "output": "fuzz_paths",
+                "on_empty": "warn",
+                "on_failure": "warn",
+                "timeout_seconds": 900,
+            })
+            fuzz_output_key = "fuzz_paths"
+
+        # Depth 2 — merge
+        steps.append({
+            "id": "merge_paths",
+            "type": "merge",
+            "args": ["crawled_endpoints", fuzz_output_key],
+            "output": "all_paths",
+            "on_empty": "warn",
+        })
+
+        # Depth 3 — param discovery + path nuclei
+        steps.append({
+            "id": "param_discover",
+            "tool": "arjun",
+            "input": "{{all_paths}}",
+            "args": ["-t", "5", "--rate-limit", waf_rate, "-oJ", "/dev/stdout"],
+            "output": "param_endpoints",
+            "on_empty": "continue",
+            "on_failure": "warn",
+            "timeout_seconds": 900,
+        })
+        steps.append({
+            "id": "nuclei_paths",
+            "tool": "nuclei",
+            "input": "{{all_paths}}",
+            "args": [
+                "-silent", "-severity", "low,medium,high,critical",
+                "-rate-limit", waf_rate,
+                "-t", "http/vulnerabilities/",
+                "-t", "http/exposures/apis/",
+            ],
+            "output": "path_findings",
+            "on_empty": "warn",
+            "on_failure": "warn",
+            "timeout_seconds": 600,
+        })
+
+        # Depth 4 — active confirmation
+        steps.append({
+            "id": "xss_confirm",
+            "tool": "dalfox",
+            "input": "{{param_endpoints}}",
+            "args": ["pipe", "--silence", "--no-spinner", "--deep-domxss",
+                     "--format", "json", "--delay", "200"],
+            "output": "xss_findings",
+            "on_empty": "continue",
+            "on_failure": "warn",
+            "timeout_seconds": 600,
+        })
+        steps.append({
+            "id": "sqli_confirm",
+            "tool": "sqlmap",
+            "input": "{{param_endpoints}}",
+            "args": [
+                "--batch", "--level=2", "--risk=1",
+                "--delay=1",
+                "--output-dir=./sqlmap-{{SCAN_ID}}",
+            ],
+            "output": "sqli_findings",
+            "on_empty": "continue",
+            "on_failure": "warn",
+            "timeout_seconds": 1800,
+        })
         return steps
 
     # ── Depth 1 (all parallel, depend on probe output) ────────────────────────
@@ -377,12 +547,18 @@ def _generated_workflow_file(workflow: str, technology_profile: str, test_depth:
     return f"generated:{workflow}:{technology_profile}:{test_depth}"
 
 
-def _explanations(technology_profile: str, test_depth: str) -> list[str]:
-    return [
+def _explanations(technology_profile: str, test_depth: str, waf_present: bool = True) -> list[str]:
+    notes = [
         f"Technology profile '{technology_profile}' sets file extensions for directory fuzzing.",
         f"Test depth '{test_depth}' controls crawl depth ({CRAWL_DEPTHS[test_depth]}), "
         f"rate limit ({DEPTH_RATE_LIMITS[test_depth]} req/s), wordlist size, and tool inclusion.",
         "Generated project workflows are not saved to the workflow catalog.",
-        "Depth modes: normal (dirsearch) | deep (dirsearch + feroxbuster parallel).",
-        "Per-step timeouts are set — sqlmap: 1800s, arjun: 900s, katana deep: 1200s.",
     ]
+    if not waf_present:
+        notes.append(
+            "No WAF detected — full active pipeline enabled with conservative rate limits (5 req/s)."
+        )
+    else:
+        notes.append("WAF present — recon-only mode: tls_audit + header_scan + exposure_scan.")
+    notes.append("Per-step timeouts are set — sqlmap: 1800s, arjun: 900s, katana deep: 1200s.")
+    return notes

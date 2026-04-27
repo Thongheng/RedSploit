@@ -631,7 +631,7 @@ def _persist_step_snapshots(
     step: StepRun,
     output_items: list[str],
 ) -> None:
-    if step.tool != "httpx" or step.output_key not in {"live_hosts", "confirmed_live"}:
+    if step.tool != "httpx" or step.output_key not in {"live_host", "live_hosts", "confirmed_live"}:
         return
     tech_by_host = _extract_httpx_tech_by_host(step)
     for host in output_items:

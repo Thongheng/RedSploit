@@ -20,15 +20,17 @@ def create_prompt_style() -> Style:
 
 
 def make_prompt_tokens(module_name: str | None, context_str: str) -> list[tuple[str, str]]:
-    """Build prompt_toolkit formatted text tokens for the prompt."""
+    """Build prompt_toolkit formatted text tokens for the prompt.
+    Always shows just 'redsploit' (or 'redsploit(module)') — context lives in the toolbar.
+    """
     if module_name:
         return [
             ("class:prompt", f"redsploit({module_name})"),
-            ("", f" [{context_str}] > "),
+            ("", " > "),
         ]
     return [
         ("class:prompt", "redsploit"),
-        ("", f" [{context_str}] > "),
+        ("", " > "),
     ]
 
 
@@ -37,7 +39,6 @@ def make_rprompt(command_history: list[str], current_text: str) -> HTML | None:
     if not current_text or not current_text.strip():
         return None
 
-    # Find the most recent history command that starts with current text
     for cmd in reversed(command_history):
         if cmd.startswith(current_text) and cmd != current_text:
             shadow = cmd[len(current_text):]

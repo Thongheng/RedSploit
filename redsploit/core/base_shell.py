@@ -252,36 +252,11 @@ class BaseShell(cmd.Cmd):
         return " ".join(parts) if parts else "none"
 
     def update_prompt(self):
-        target = self.session.get("target")
-        domain = self.session.get("domain")
-        user = self.session.get("username")
-        workspace = self.session.get("workspace")
-
-        display = domain if domain else target
-
-        segments = []
-        if workspace and workspace != "default":
-            segments.append(f"{Colors.OKCYAN}ws:{workspace}{Colors.ENDC}")
-        if display:
-            segments.append(f"{Colors.WARNING}{display}{Colors.ENDC}")
-        if user:
-            segments.append(f"{Colors.OKGREEN}{user}{Colors.ENDC}")
-
-        sep = f" {Colors.DIM}│{Colors.ENDC} "
-        context_str = sep.join(segments) if segments else ""
-
         module_part = (
             f" {Colors.DIM}({Colors.ENDC}{Colors.FAIL}{self.module_name}{Colors.ENDC}{Colors.DIM}){Colors.ENDC}"
             if self.module_name else ""
         )
-
-        if context_str:
-            self.prompt = (
-                f"{Colors.FAIL}{Colors.BOLD}redsploit{Colors.ENDC}{module_part}"
-                f" {Colors.DIM}[{Colors.ENDC}{context_str}{Colors.DIM}]{Colors.ENDC} > "
-            )
-        else:
-            self.prompt = f"{Colors.FAIL}{Colors.BOLD}redsploit{Colors.ENDC}{module_part} > "
+        self.prompt = f"{Colors.FAIL}{Colors.BOLD}redsploit{Colors.ENDC}{module_part} > "
 
     def parse_common_options(self, arg):
         """Parse shared runtime flags from argument string."""

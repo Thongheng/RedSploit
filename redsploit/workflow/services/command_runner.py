@@ -22,7 +22,8 @@ class CommandRunner:
     def from_settings(cls, settings: Settings | None = None) -> "CommandRunner":
         resolved = settings or get_settings()
         system_path = os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin")
-        extra_paths = ":/root/go/bin:/root/.local/bin"
+        home = os.path.expanduser("~")
+        extra_paths = f":{home}/go/bin:{home}/.local/bin:/root/go/bin:/root/.local/bin"
         return cls(
             env={"PATH": system_path + extra_paths},
             working_directory=resolved.data_path if resolved.data_path.exists() else None,
