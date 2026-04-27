@@ -3,97 +3,320 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RedSploit — How to Use</title>
+<title>RedSploit — Getting Started & Workflows</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0b0d10;
-    --surface: #13161c;
-    --surface-2: #1a1d26;
-    --border: #2a2e38;
-    --ink: #e4e7ec;
-    --muted: #8b92a3;
-    --accent: #e05a2f;
-    --good: #3ddc84;
-    --info: #4aa8ff;
-    --warn: #f5c542;
+    --bg: #090a0f;
+    --surface: #11141c;
+    --surface-2: #1a1d28;
+    --surface-3: #232736;
+    --border: #262b3a;
+    --ink: #f8fafc;
+    --muted: #94a3b8;
+    --accent: #ff5a2b;
+    --accent-glow: rgba(255, 90, 43, 0.3);
+    --good: #10b981;
+    --info: #3b82f6;
+    --warn: #f59e0b;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
   }
+  
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg); color: var(--ink);
-    min-height: 100vh; display: flex; flex-direction: column;
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
+
+  /* Glassmorphism Header */
   .header {
-    height: 56px; border-bottom: 1px solid var(--border);
-    background: rgba(11,13,16,0.95); backdrop-filter: blur(12px);
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0 24px; flex-shrink: 0;
+    height: 64px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(9, 10, 15, 0.8);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    flex-shrink: 0;
+    z-index: 100;
   }
-  .brand { display: flex; align-items: center; gap: 10px; }
+  
+  .brand { display: flex; align-items: center; gap: 12px; }
   .brand-icon {
-    width: 30px; height: 30px; background: var(--accent); border-radius: 7px;
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent) 0%, #ff8a00 100%);
+    border-radius: 10px;
     display: flex; align-items: center; justify-content: center;
-    font-weight: 800; color: #fff; font-size: 15px;
+    font-weight: 800; color: #fff; font-size: 18px;
+    box-shadow: 0 0 20px var(--accent-glow);
   }
-  .brand h1 { font-size: 16px; font-weight: 700; }
-  .brand p { font-size: 12px; color: var(--muted); margin-left: 6px; }
+  .brand-text { display: flex; flex-direction: column; justify-content: center; }
+  .brand h1 { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
+  .brand p { font-size: 12px; color: var(--muted); font-weight: 500; }
+
+  /* Navigation Tabs */
+  .tabs {
+    display: flex;
+    background: var(--surface);
+    padding: 4px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+  .tab-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 14px;
+    padding: 8px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .tab-btn:hover { color: var(--ink); }
+  .tab-btn.active {
+    background: var(--surface-3);
+    color: var(--ink);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
 
   .ctrl-group { display: flex; align-items: center; gap: 8px; }
   .ctrl-btn {
-    width: 34px; height: 34px; border-radius: 8px;
+    width: 36px; height: 36px; border-radius: 10px;
     border: 1px solid var(--border); background: var(--surface);
-    color: var(--muted); font-size: 16px; font-weight: 700;
+    color: var(--muted); font-size: 18px; font-weight: 600;
     display: flex; align-items: center; justify-content: center;
-    cursor: pointer; transition: all .12s;
+    cursor: pointer; transition: all 0.2s;
   }
-  .ctrl-btn:hover { color: var(--ink); border-color: var(--accent); }
-  .ctrl-label { font-size: 12px; color: var(--muted); }
+  .ctrl-btn:hover { color: var(--ink); border-color: var(--accent); background: var(--surface-2); }
+  .ctrl-label { font-size: 13px; color: var(--muted); font-weight: 500; margin-right: 4px; }
 
+  /* Main Container */
+  .main-content {
+    flex: 1;
+    position: relative;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* Tab Sections */
+  .view-section {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .view-section.active {
+    display: flex;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* --- VIEW 1: CORE FLOW --- */
   .canvas-wrap {
-    flex: 1; overflow: auto; padding: 24px;
+    flex: 1; overflow: auto; padding: 40px;
     display: flex; justify-content: center; align-items: flex-start;
+    background: radial-gradient(circle at center, var(--surface) 0%, var(--bg) 100%);
   }
   #flowCanvas {
-    background: var(--surface);
+    background: rgba(17, 20, 28, 0.6);
+    backdrop-filter: blur(20px);
     border: 1px solid var(--border);
-    border-radius: 16px;
-    box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+    border-radius: 24px;
+    box-shadow: 0 30px 100px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.05);
   }
 
   .legend {
-    position: fixed; left: 20px; bottom: 20px;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 10px; padding: 14px 18px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    position: fixed; left: 32px; bottom: 32px;
+    background: rgba(17, 20, 28, 0.8); backdrop-filter: blur(16px);
+    border: 1px solid var(--border); border-radius: 16px; padding: 20px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    z-index: 10;
   }
-  .legend h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 10px; }
-  .legend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; color: var(--muted); }
-  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .legend h4 { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 12px; }
+  .legend-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; font-weight: 500; color: var(--muted); }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 10px currentColor; }
 
-  .footer {
-    border-top: 1px solid var(--border); padding: 16px 24px;
-    text-align: center; color: var(--muted); font-size: 12px; flex-shrink: 0;
+  /* Quick Start Overlay */
+  .quick-start {
+    position: fixed; right: 32px; top: 96px; width: 340px;
+    background: rgba(17, 20, 28, 0.85); backdrop-filter: blur(24px);
+    border: 1px solid var(--border); border-radius: 20px; padding: 24px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5); z-index: 10;
   }
+  .quick-start h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .quick-start h3::before { content: '⚡'; }
+  .qs-step { margin-bottom: 16px; }
+  .qs-step-title { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 6px; display: flex; gap: 8px; align-items: center; }
+  .qs-step-num { background: var(--surface-3); color: var(--accent); width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 11px; }
+  .qs-code { background: #000; color: var(--info); font-family: var(--font-mono); font-size: 12px; padding: 10px; border-radius: 8px; border: 1px solid var(--border); }
 
+  /* Tooltip */
   .tooltip {
-    position: fixed; background: var(--surface-2); border: 1px solid var(--border);
-    border-radius: 12px; padding: 20px; width: 380px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
-    opacity: 0; pointer-events: none; transform: translateY(8px);
-    transition: all .2s ease; z-index: 100;
+    position: fixed; background: rgba(26, 29, 40, 0.95); backdrop-filter: blur(20px);
+    border: 1px solid var(--border); border-radius: 16px; padding: 24px; width: 400px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.8);
+    opacity: 0; pointer-events: none; transform: translateY(12px);
+    transition: all .25s cubic-bezier(0.16, 1, 0.3, 1); z-index: 100;
   }
   .tooltip.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
-  .tooltip h4 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
-  .tooltip p { font-size: 13px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
+  .tooltip h4 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .tooltip p { font-size: 14px; color: var(--muted); margin-bottom: 16px; line-height: 1.6; }
   .tooltip code {
-    display: block; background: var(--bg); padding: 10px 14px;
-    border-radius: 8px; font-family: "SFMono-Regular", monospace;
-    font-size: 12px; border: 1px solid var(--border); margin-bottom: 6px;
-    color: var(--ink);
+    display: block; background: #000; padding: 14px;
+    border-radius: 10px; font-family: var(--font-mono);
+    font-size: 13px; border: 1px solid var(--border); margin-bottom: 8px;
+    color: var(--ink); white-space: pre; overflow-x: auto;
   }
   .tooltip .tag {
-    display: inline-block; font-size: 10px; font-weight: 700;
-    padding: 3px 10px; border-radius: 4px; margin-bottom: 12px;
+    display: inline-block; font-size: 11px; font-weight: 800;
+    padding: 4px 12px; border-radius: 6px; margin-bottom: 16px; letter-spacing: 0.05em;
+  }
+
+  /* --- VIEW 2: WORKFLOWS --- */
+  .workflows-layout {
+    display: flex; height: 100%; width: 100%;
+  }
+  
+  .wf-sidebar {
+    width: 320px; background: var(--surface); border-right: 1px solid var(--border);
+    padding: 24px; display: flex; flex-direction: column; gap: 12px;
+    overflow-y: auto; z-index: 5;
+  }
+  
+  .wf-sidebar h2 { font-size: 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+  
+  .wf-nav-item {
+    padding: 16px; background: var(--surface-2); border: 1px solid transparent;
+    border-radius: 12px; cursor: pointer; transition: all 0.2s;
+  }
+  .wf-nav-item:hover { background: var(--surface-3); border-color: var(--border); }
+  .wf-nav-item.active { background: rgba(255, 90, 43, 0.1); border-color: var(--accent); }
+  .wf-nav-item h3 { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .wf-nav-item p { font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .wf-tags { display: flex; gap: 6px; margin-top: 10px; }
+  .wf-tag { font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: 600; text-transform: uppercase; background: var(--border); color: var(--muted); }
+  .wf-tag.mode-continuous { background: rgba(59, 130, 246, 0.2); color: var(--info); }
+  .wf-tag.mode-project { background: rgba(16, 185, 129, 0.2); color: var(--good); }
+  .wf-tag.profile-aggressive { background: rgba(245, 158, 11, 0.2); color: var(--warn); }
+  .wf-tag.profile-cautious { background: rgba(148, 163, 184, 0.2); color: var(--muted); }
+
+  .wf-main {
+    flex: 1; padding: 40px; overflow-y: auto; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center;
+  }
+  
+  .wf-content { max-width: 1000px; width: 100%; display: none; animation: fadeIn 0.3s ease; }
+  .wf-content.active { display: block; }
+  
+  .wf-header { margin-bottom: 40px; border-bottom: 1px solid var(--border); padding-bottom: 32px; }
+  .wf-header h1 { font-size: 32px; font-weight: 800; margin-bottom: 12px; }
+  .wf-header p { font-size: 16px; color: var(--muted); line-height: 1.6; max-width: 800px; }
+  .wf-meta { display: flex; gap: 16px; margin-top: 24px; }
+  .wf-meta-item { display: flex; flex-direction: column; gap: 4px; }
+  .wf-meta-label { font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 700; letter-spacing: 0.05em; }
+  .wf-meta-value { font-size: 14px; font-weight: 600; background: var(--surface-2); padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); }
+
+  /* Flow DAG Visualization */
+  .dag-container {
+    display: flex; gap: 40px; align-items: stretch; overflow-x: auto; padding-bottom: 20px;
+    zoom: 0.8;
+  }
+  .dag-depth {
+    display: flex; flex-direction: column; gap: 20px; min-width: 280px; position: relative;
+  }
+  .dag-depth-label {
+    font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--muted); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .dag-depth-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  
+  .dag-node {
+    --n-color: var(--info);
+    --n-bg: rgba(59, 130, 246, 0.1);
+    --n-border: rgba(59, 130, 246, 0.2);
+    --n-shadow: rgba(59, 130, 246, 0.1);
+    
+    background: rgba(26, 29, 40, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 24px 20px 20px 20px;
+    position: relative;
+    transition: all 0.2s;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    backdrop-filter: blur(20px);
+    min-width: 280px;
+  }
+  .dag-node:hover {
+    transform: translateY(-2px);
+    border-color: var(--n-color);
+    box-shadow: 0 15px 40px var(--n-shadow);
+  }
+  .dag-node:has(.merge) {
+    --n-color: var(--warn);
+    --n-bg: rgba(245, 158, 11, 0.1);
+    --n-border: rgba(245, 158, 11, 0.2);
+    --n-shadow: rgba(245, 158, 11, 0.1);
+  }
+  .dag-node::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 6px;
+    background: var(--n-color);
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+  }
+  
+  .dag-node-header { display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 12px; }
+  .dag-node-tool {
+    position: absolute;
+    top: 24px;
+    left: 20px;
+    font-size: 10px; font-weight: 800; text-transform: uppercase;
+    background: var(--n-bg);
+    color: var(--n-color);
+    border: 1px solid var(--n-border);
+    padding: 4px 12px; border-radius: 6px;
+  }
+  .dag-node-id { margin-top: 36px; font-family: var(--font-sans); font-size: 14px; font-weight: 700; color: var(--ink); }
+  
+  .dag-node-details { display: flex; flex-direction: column; gap: 8px; font-size: 11px; }
+  .dag-param { display: flex; }
+  .dag-param-key { width: 60px; color: var(--muted); font-weight: 600; }
+  .dag-param-val { flex: 1; font-family: var(--font-mono); color: var(--info); word-break: break-all; }
+
+  /* Connecting Lines (CSS based for simplicity in grid) */
+  .dag-arrow {
+    position: absolute; right: -25px; top: 50%; transform: translateY(-50%);
+    width: 20px; height: 2px; background: var(--border);
+  }
+  .dag-arrow::after {
+    content: ''; position: absolute; right: 0; top: -4px;
+    border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 5px solid var(--border);
+  }
+
+  .footer {
+    border-top: 1px solid var(--border); padding: 16px 32px; background: var(--bg);
+    display: flex; justify-content: space-between; align-items: center;
+    color: var(--muted); font-size: 13px; font-weight: 500; flex-shrink: 0; z-index: 100;
   }
 </style>
 </head>
@@ -102,29 +325,319 @@
 <header class="header">
   <div class="brand">
     <div class="brand-icon">R</div>
-    <h1>RedSploit</h1>
-    <p>How to Use — Flow Canvas</p>
+    <div class="brand-text">
+      <h1>RedSploit</h1>
+      <p>Documentation & Visualizer</p>
+    </div>
   </div>
-  <div class="ctrl-group">
+  
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('core-flow')">Interactive Map</button>
+    <button class="tab-btn" onclick="switchTab('workflows')">Automated Workflows</button>
+  </div>
+  
+  <div class="ctrl-group" id="canvas-controls">
     <span class="ctrl-label">Zoom</span>
     <button class="ctrl-btn" onclick="changeZoom(-0.1)">&minus;</button>
     <button class="ctrl-btn" onclick="changeZoom(0.1)">+</button>
-    <button class="ctrl-btn" onclick="resetZoom()" style="font-size:12px;width:auto;padding:0 12px;">100%</button>
+    <button class="ctrl-btn" onclick="resetZoom()" style="font-size:13px;width:auto;padding:0 12px;">70%</button>
   </div>
 </header>
 
-<div class="canvas-wrap">
-  <canvas id="flowCanvas" width="1600" height="1800"></canvas>
-</div>
+<main class="main-content">
+  
+  <!-- VIEW 1: CORE FLOW -->
+  <section id="core-flow" class="view-section active">
+    <div class="canvas-wrap">
+      <canvas id="flowCanvas" width="1600" height="1800"></canvas>
+    </div>
 
-<div class="legend">
-  <h4>Modules</h4>
-  <div class="legend-row"><div class="legend-dot" style="background:#e05a2f"></div> Core / Setup</div>
-  <div class="legend-row"><div class="legend-dot" style="background:#3ddc84"></div> Infrastructure</div>
-  <div class="legend-row"><div class="legend-dot" style="background:#4aa8ff"></div> Web</div>
-  <div class="legend-row"><div class="legend-dot" style="background:#f5c542"></div> Active Directory</div>
-  <div class="legend-row"><div class="legend-dot" style="background:#e05a2f;opacity:.5"></div> File Transfer</div>
-</div>
+    <div class="quick-start">
+      <h3>Quick Start Guide</h3>
+      <div class="qs-step">
+        <div class="qs-step-title"><span class="qs-step-num">1</span> Clone & Install</div>
+        <div class="qs-code">git clone https://github.com/Thongheng/RedSploit.git<br>cd RedSploit<br>./setup.sh</div>
+      </div>
+      <div class="qs-step">
+        <div class="qs-step-title"><span class="qs-step-num">2</span> Start Shell</div>
+        <div class="qs-code">red</div>
+      </div>
+      <div class="qs-step">
+        <div class="qs-step-title"><span class="qs-step-num">3</span> Set Target & Run</div>
+        <div class="qs-code">set target 10.10.10.1<br>use infra<br>nmap -sV -sC {target}</div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <h4>Modules</h4>
+      <div class="legend-row"><div class="legend-dot" style="color:var(--accent)"></div> Core / Setup</div>
+      <div class="legend-row"><div class="legend-dot" style="color:var(--good)"></div> Infrastructure</div>
+      <div class="legend-row"><div class="legend-dot" style="color:var(--info)"></div> Web Application</div>
+      <div class="legend-row"><div class="legend-dot" style="color:var(--warn)"></div> Active Directory</div>
+      <div class="legend-row"><div class="legend-dot" style="color:var(--muted)"></div> File Transfer</div>
+    </div>
+  </section>
+
+  <!-- VIEW 2: WORKFLOWS -->
+  <section id="workflows" class="view-section">
+    <div class="workflows-layout">
+      <!-- Sidebar -->
+      <div class="wf-sidebar">
+        <h2>Available Workflows</h2>
+        
+        <div class="wf-nav-item active" onclick="showWorkflow('wf-ext-cont', this)">
+          <h3>External Monthly</h3>
+          <p>Recurring external assessment focused on live subdomains.</p>
+          <div class="wf-tags">
+            <span class="wf-tag mode-continuous">Continuous</span>
+            <span class="wf-tag profile-cautious">Cautious</span>
+          </div>
+        </div>
+        
+        <div class="wf-nav-item" onclick="showWorkflow('wf-ext-proj', this)">
+          <h3>External Project</h3>
+          <p>One-time assessment against a single scoped target URL.</p>
+          <div class="wf-tags">
+            <span class="wf-tag mode-project">Project</span>
+            <span class="wf-tag profile-cautious">Cautious</span>
+          </div>
+        </div>
+        
+        <div class="wf-nav-item" onclick="showWorkflow('wf-int-proj', this)">
+          <h3>Internal Blackbox</h3>
+          <p>Aggressive full-scale scan for internal targets.</p>
+          <div class="wf-tags">
+            <span class="wf-tag mode-project">Project</span>
+            <span class="wf-tag profile-aggressive">Aggressive</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Main Content -->
+      <div class="wf-main">
+        
+        <!-- Workflow 1: External Continuous -->
+        <div id="wf-ext-cont" class="wf-content active">
+          <div class="dag-container">
+            <div class="dag-depth">
+              <div class="dag-depth-label">Phase 1: Reconnaissance</div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">subfinder_enum</span><span class="dag-node-tool">subfinder</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">subfinder_subs</span></div>
+                </div>
+              </div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">assetfinder_enum</span><span class="dag-node-tool">assetfinder</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">assetfinder_subs</span></div>
+                </div>
+              </div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">crtsh_enum</span><span class="dag-node-tool">crtsh</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">crtsh_subs</span></div>
+                </div>
+              </div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">axfr_attempt</span><span class="dag-node-tool">dig</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">axfr_result</span></div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="dag-depth">
+              <div class="dag-depth-label">Phase 2: Aggregate</div>
+              <div class="dag-node" style="margin-top: 100px;">
+                <div class="dag-node-header"><span class="dag-node-id">merge_subdomains</span><span class="dag-node-tool merge">merge</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">4 lists</span></div>
+                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">all_subdomains</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="dag-depth">
+              <div class="dag-depth-label">Phase 3: Probe</div>
+              <div class="dag-node" style="margin-top: 100px;">
+                <div class="dag-node-header"><span class="dag-node-id">httpx_probe</span><span class="dag-node-tool">httpx</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{all_subdomains}}</span></div>
+                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">confirmed_live</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="dag-depth">
+              <div class="dag-depth-label">Phase 4: Vulnerability Scan (Per Host)</div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">nuclei_takeover</span><span class="dag-node-tool">nuclei</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{confirmed_live}}</span></div>
+                </div>
+              </div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">exposure_scan</span><span class="dag-node-tool">nuclei</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{confirmed_live}}</span></div>
+                </div>
+              </div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">header_scan</span><span class="dag-node-tool">shcheck</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{confirmed_live}}</span></div>
+                </div>
+              </div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">tls_audit</span><span class="dag-node-tool">testssl</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{confirmed_live}}</span></div>
+                </div>
+              </div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">passive_urls</span><span class="dag-node-tool">waymore</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{TARGET_DOMAIN}}</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Workflow 2: External Project -->
+        <div id="wf-ext-proj" class="wf-content">
+          <div class="dag-container">
+            <div class="dag-depth">
+              <div class="dag-depth-label">Depth 0 (Parallel Execution)</div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">tls_audit</span><span class="dag-node-tool">testssl</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{TARGET}}</span></div>
+                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">tls_findings</span></div>
+                </div>
+              </div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">header_scan</span><span class="dag-node-tool">shcheck</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{TARGET}}</span></div>
+                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">header_findings</span></div>
+                </div>
+              </div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">exposure_scan</span><span class="dag-node-tool">nuclei</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{TARGET}}</span></div>
+                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">exposure_findings</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Workflow 3: Internal Project -->
+        <div id="wf-int-proj" class="wf-content">
+          <div class="dag-container">
+            <div class="dag-depth">
+              <div class="dag-depth-label">Depth 0</div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">probe_http</span><span class="dag-node-tool">httpx</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{scope.domains}}</span></div>
+                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">live_host</span></div>
+                </div>
+              </div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">service_scan</span><span class="dag-node-tool">nmap</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{TARGET}}</span></div>
+                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">service_findings</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="dag-depth">
+              <div class="dag-depth-label">Depth 1</div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">crawl</span><span class="dag-node-tool">katana</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{live_host}}</span></div>
+                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">crawled_endpoints</span></div>
+                </div>
+              </div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">fuzz_content</span><span class="dag-node-tool">dirsearch</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{live_host}}</span></div>
+                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">fuzz_paths</span></div>
+                </div>
+              </div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">nuclei_host</span><span class="dag-node-tool">nuclei</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{live_host}}</span></div>
+                </div>
+              </div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">tls_audit</span><span class="dag-node-tool">testssl</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{live_host}}</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="dag-depth">
+              <div class="dag-depth-label">Depth 2</div>
+              <div class="dag-node" style="margin-top:30px;">
+                <div class="dag-node-header"><span class="dag-node-id">merge_paths</span><span class="dag-node-tool merge">merge</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{crawled_endpoints}}<br>+ fuzz_paths</span></div>
+                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">all_paths</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="dag-depth">
+              <div class="dag-depth-label">Depth 3</div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">param_discover</span><span class="dag-node-tool">arjun</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{all_paths}}</span></div>
+                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">param_endpoints</span></div>
+                </div>
+              </div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">nuclei_paths</span><span class="dag-node-tool">nuclei</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{all_paths}}</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="dag-depth">
+              <div class="dag-depth-label">Depth 4</div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">xss_confirm</span><span class="dag-node-tool">dalfox</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{param_endpoints}}</span></div>
+                </div>
+              </div>
+              <div class="dag-node">
+                <div class="dag-node-header"><span class="dag-node-id">sqli_confirm</span><span class="dag-node-tool">sqlmap</span></div>
+                <div class="dag-node-details">
+                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{param_endpoints}}</span></div>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</main>
 
 <div class="tooltip" id="tooltip">
   <div class="tag" id="ttTag">CORE</div>
@@ -134,10 +647,32 @@
 </div>
 
 <footer class="footer">
-  RedSploit — Red Team Pentest Helper · MIT License
+  <div>RedSploit — Open Source Red Team Pentest Engine</div>
+  <div>MIT License</div>
 </footer>
 
 <script>
+// --- Tab Switching Logic ---
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
+  
+  event.target.classList.add('active');
+  document.getElementById(tabId).classList.add('active');
+  
+  // Toggle zoom controls visibility
+  document.getElementById('canvas-controls').style.display = tabId === 'core-flow' ? 'flex' : 'none';
+}
+
+function showWorkflow(wfId, el) {
+  document.querySelectorAll('.wf-nav-item').forEach(item => item.classList.remove('active'));
+  document.querySelectorAll('.wf-content').forEach(content => content.classList.remove('active'));
+  
+  el.classList.add('active');
+  document.getElementById(wfId).classList.add('active');
+}
+
+// --- Canvas Flow Logic ---
 const canvas = document.getElementById('flowCanvas');
 const ctx = canvas.getContext('2d');
 const dpr = window.devicePixelRatio || 1;
@@ -152,71 +687,69 @@ canvas.height = CSS_H * dpr;
 ctx.scale(dpr, dpr);
 
 const C = {
-  accent: '#e05a2f', good: '#3ddc84', info: '#4aa8ff', warn: '#f5c542',
-  bg: '#13161c', border: '#2a2e38', ink: '#e4e7ec', muted: '#8b92a3',
+  accent: '#ff5a2b', good: '#10b981', info: '#3b82f6', warn: '#f59e0b',
+  bg: '#11141c', border: '#262b3a', ink: '#f8fafc', muted: '#94a3b8',
 };
 
-let zoom = 1.0;
-const CARD_W = 260;
-const PAD_X = 18;
-const PAD_Y = 16;
-const GAP_Y = 55;
-const GAP_COL = 60;
-const GAP_SECTION = 100;
+let zoom = 0.7;
+const CARD_W = 280;
+const PAD_X = 20;
+const PAD_Y = 20;
+const GAP_Y = 60;
+const GAP_COL = 70;
+const GAP_SECTION = 110;
 
 function makeCard(flow, color, tag, title, desc, code) {
   return { flow, w: CARD_W, color, tag, title, desc, code, h: 0, x: 0, y: 0 };
 }
 
 // ─── ALL CARDS ───
-
 const setupCards = [
-  makeCard('core', C.accent, 'SETUP', 'Clone & Setup', 'Clone the repo and run the single setup script. It installs dependencies, the binary, shell completion, and optional AI summary API keys.', 'git clone https://github.com/Thongheng/RedSploit.git\ncd RedSploit\n./setup.sh\n./setup.sh --test'),
-  makeCard('core', C.accent, 'SETUP', 'Configure', 'Edit config.yaml for wordlist paths, payload defaults, and transfer port. Set your AI provider API keys.', 'export OPENROUTER_API_KEY="..."\nexport CHATANYWHERE_API_KEY="..."\nsource ~/.zshrc'),
+  makeCard('core', C.accent, 'SETUP', 'Clone & Setup', 'Clone the repo and run the single setup script. It installs dependencies, the binary, and shell completion.', 'git clone https://github.com/Thongheng/RedSploit.git\ncd RedSploit\n./setup.sh'),
+  makeCard('core', C.accent, 'SETUP', 'Configure', 'Edit config.yaml for wordlist paths, payload defaults, and API keys.', 'export OPENROUTER_API_KEY="..."\nvi config.yaml'),
 ];
 
 const coreCards = [
-  makeCard('core', C.accent, 'START', 'Start RedSploit', 'Launch the interactive shell or run commands directly from CLI.', 'red\nred -set -T 10.10.10.10\nred -h'),
-  makeCard('core', C.accent, 'CORE', 'Set Target', 'Define the IP, hostname, CIDR, or URL you want to test against.', 'set target 10.10.10.10\nset target https://example.com\nset target corp.local'),
-  makeCard('core', C.accent, 'CORE', 'Set Credentials', 'Set username:password. Auto-splits on colon. Supports hashes too.', 'set user admin:password\nset domain corp.local\nset hash aad3b435b51404ee...'),
-  makeCard('core', C.accent, 'CORE', 'Set Options', 'Configure listener port, network interface, and workspace name.', 'set lport 4444\nset interface tun0\nset workspace engagement-a'),
+  makeCard('core', C.accent, 'START', 'Start RedSploit', 'Launch the interactive shell or run commands directly from CLI.', 'red\nred -set -T 10.10.10.10'),
+  makeCard('core', C.accent, 'CORE', 'Set Target', 'Define the IP, hostname, CIDR, or URL you want to test against.', 'set target 10.10.10.10\nset target https://example.com'),
+  makeCard('core', C.accent, 'CORE', 'Set Credentials', 'Set username:password. Auto-splits on colon. Supports hashes too.', 'set user admin:password\nset hash aad3b435b51...'),
+  makeCard('core', C.accent, 'CORE', 'Set Options', 'Configure listener port, network interface, and workspace name.', 'set lport 4444\nset interface tun0'),
   makeCard('core', C.accent, 'CORE', 'Choose Module', 'Switch to a module matching your engagement type.', 'use infra\nuse web\nuse ad\nuse file'),
 ];
 
 const infraCards = [
   makeCard('infra', C.good, 'INFRA', 'nmap', 'Service and version scan with default NSE scripts. The go-to first step.', 'nmap -sV -sC -Pn -v {target}'),
   makeCard('infra', C.good, 'INFRA', 'rustscan', 'Fast async port scanner. Use before nmap for quick host discovery.', 'rustscan -a {target} --ulimit 5000'),
-  makeCard('infra', C.good, 'INFRA', 'smbmap / smbclient', 'Enumerate SMB shares and permissions. Supports NULL sessions and creds.', 'smbmap -H {target} {auth} --no-banner\nsmbclient -L //{target}/ {auth}'),
+  makeCard('infra', C.good, 'INFRA', 'smbmap', 'Enumerate SMB shares and permissions. Supports NULL sessions and creds.', 'smbmap -H {target} {auth} --no-banner'),
   makeCard('infra', C.good, 'INFRA', 'enum4linux', 'SMB/NetBIOS enumeration. Good for older Windows domains.', 'enum4linux-ng -A {auth} {target}'),
-  makeCard('infra', C.good, 'INFRA', 'Remote Access', 'Connect via SSH, RDP, or FTP using session credentials.', 'ssh {user}@{target}\nrdp {target}\nftp {target}'),
-  makeCard('infra', C.good, 'INFRA', 'msfvenom + msf', 'Generate a matching payload and start a Metasploit handler.', 'msfvenom -p {payload} LHOST={lhost} LPORT={lport}\nmsfconsole -q -x "use exploit/multi/handler; ..."'),
+  makeCard('infra', C.good, 'INFRA', 'msfvenom', 'Generate a matching payload and start a Metasploit handler.', 'msfvenom -p {payload} LHOST={lhost}'),
 ];
 
 const webCards = [
-  makeCard('web', C.info, 'WEB', 'headerscan', 'Scan HTTP security headers. Grades the response and flags missing protections.', 'headerscan --json\nheaderscan --detailed\nheaderscan https://example.com'),
-  makeCard('web', C.info, 'WEB', 'subfinder / gobuster', 'Discover subdomains passively or via active DNS brute-force.', 'subfinder -d {domain}\ngobuster dns -d {domain} -w {wordlist}\ndnsrecon -d {domain} -t brf'),
-  makeCard('web', C.info, 'WEB', 'dir_ferox / ffuf', 'Directory and file fuzzing with multiple engines and wordlists.', 'feroxbuster -u {url}\nffuf -u {url}/FUZZ -w {wordlist}\ndirsearch -u {url}'),
-  makeCard('web', C.info, 'WEB', 'nuclei / wpscan', 'Vulnerability scanning with templates or WordPress-specific audits.', 'nuclei -u {url}\nwpscan --url {url} --enumerate\nwafw00f {url}'),
+  makeCard('web', C.info, 'WEB', 'headerscan', 'Scan HTTP security headers. Grades the response and flags protections.', 'headerscan --json\nheaderscan https://example.com'),
+  makeCard('web', C.info, 'WEB', 'subfinder', 'Discover subdomains passively or via active DNS brute-force.', 'subfinder -d {domain}\ngobuster dns -d {domain}'),
+  makeCard('web', C.info, 'WEB', 'feroxbuster', 'Directory and file fuzzing with multiple engines and wordlists.', 'feroxbuster -u {url}\nffuf -u {url}/FUZZ'),
+  makeCard('web', C.info, 'WEB', 'nuclei', 'Vulnerability scanning with templates or WordPress-specific audits.', 'nuclei -u {url}\nwpscan --url {url}'),
   makeCard('web', C.info, 'WEB', 'screenshots', 'Capture visual screenshots of discovered endpoints.', 'screenshots\ngowitness scan --single {url}'),
 ];
 
 const adCards = [
-  makeCard('ad', C.warn, 'AD', 'bloodhound', 'Collect Active Directory graph data. Import ZIP into BloodHound CE for attack paths.', 'bloodhound-ce-python {auth} -ns {ip} -d {domain} -c all'),
-  makeCard('ad', C.warn, 'AD', 'nxc / kerbrute', 'Test credentials and enumerate SMB. Kerbrute for user enumeration without creds.', 'nxc smb {target} {auth}\nkerbrute userenum --dc {target} -d {domain} users.txt'),
-  makeCard('ad', C.warn, 'AD', 'secretsdump', 'Extract domain hashes via DRSUAPI or SAM. Enables Pass-the-Hash attacks.', 'impacket-secretsdump {impacket_args}'),
-  makeCard('ad', C.warn, 'AD', 'evil_winrm / psexec', 'Get interactive shell or execute commands remotely via WinRM or SMB.', 'evil-winrm-py -i {target} {auth}\nimpacket-psexec {impacket_args}\nimpacket-wmiexec {impacket_args}'),
+  makeCard('ad', C.warn, 'AD', 'bloodhound', 'Collect Active Directory graph data. Import ZIP into BloodHound CE.', 'bloodhound-ce-python {auth} -ns {ip} -d {domain}'),
+  makeCard('ad', C.warn, 'AD', 'nxc / kerbrute', 'Test credentials and enumerate SMB. Kerbrute for user enumeration.', 'nxc smb {target} {auth}\nkerbrute userenum'),
+  makeCard('ad', C.warn, 'AD', 'secretsdump', 'Extract domain hashes via DRSUAPI or SAM. Enables Pass-the-Hash.', 'impacket-secretsdump {args}'),
+  makeCard('ad', C.warn, 'AD', 'evil_winrm', 'Get interactive shell or execute commands remotely via WinRM.', 'evil-winrm-py -i {target} {auth}'),
 ];
 
 const fileCards = [
-  makeCard('file', C.accent, 'FILE', 'download', 'Generate download commands for the target machine. Auto-starts HTTP server.', 'download linpeas.sh\ndownload payload.exe curl\ndownload file.ps1 iwr\ndownload beacon.bin certutil'),
-  makeCard('file', C.accent, 'FILE', 'server', 'Start HTTP or SMB file server from the current directory.', 'server http\nserver smb\npython3 -m http.server {port}'),
-  makeCard('file', C.accent, 'FILE', 'base64', 'Encode files to base64 for manual copy-paste when direct download fails.', 'base64 payload.exe\nbase64 exploit.sh > b64.txt'),
+  makeCard('file', C.muted, 'FILE', 'download', 'Generate download commands for the target machine. Auto-starts server.', 'download linpeas.sh\ndownload payload.exe curl'),
+  makeCard('file', C.muted, 'FILE', 'server', 'Start HTTP or SMB file server from the current directory.', 'server http\nserver smb'),
+  makeCard('file', C.muted, 'FILE', 'base64', 'Encode files to base64 for manual copy-paste.', 'base64 payload.exe > b64.txt'),
 ];
 
 const bottomCards = [
-  makeCard('core', C.accent, 'CORE', 'Loot Locker', 'Store credentials and hashes found during engagement. Load them back into session variables anytime.', 'loot add admin:Secret123 smb cred\nloot show\nloot use 1\nloot rm 1'),
-  makeCard('core', C.accent, 'CORE', 'Playbooks', 'Run YAML-defined semi-automated workflows. Human-in-the-loop control.', 'playbook list\nplaybook run recon\nplaybook run web_enum\nplaybook run ad_enum'),
-  makeCard('core', C.accent, 'CORE', 'Runtime Flags', 'Modify command behavior on the fly without changing configuration.', '-p  Preview command\n-c  Copy to clipboard\n-e  Edit before run\n-nosummary  Disable AI summary\n-noauth  Skip credentials'),
+  makeCard('core', C.accent, 'CORE', 'Loot Locker', 'Store credentials and hashes found during engagement.', 'loot add admin:Secret123 smb cred\nloot show'),
+  makeCard('core', C.accent, 'CORE', 'Playbooks', 'Run YAML-defined semi-automated workflows.', 'playbook list\nplaybook run recon'),
+  makeCard('core', C.accent, 'CORE', 'Runtime Flags', 'Modify command behavior on the fly.', '-p Preview\n-c Copy\n-e Edit'),
 ];
 
 // ── measure ──
@@ -226,9 +759,8 @@ function wrap(text, maxW) {
   let cur = '';
   for (const w of words) {
     const test = cur ? cur + ' ' + w : w;
-    if (ctx.measureText(test).width > maxW && cur) {
-      lines.push(cur); cur = w;
-    } else { cur = test; }
+    if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = w; }
+    else { cur = test; }
   }
   if (cur) lines.push(cur);
   return lines;
@@ -237,20 +769,13 @@ function wrap(text, maxW) {
 function measure(c) {
   const innerW = c.w - PAD_X * 2;
   let h = PAD_Y;
-
-  // tag
-  h += 18 + 6;
-
-  // title
-  ctx.font = '700 14px -apple-system, sans-serif';
+  h += 24; // tag
+  ctx.font = '700 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   const titleLines = wrap(c.title, innerW);
-  h += titleLines.length * 18 + 6;
-
-  // desc
-  ctx.font = '12px -apple-system, sans-serif';
+  h += titleLines.length * 20 + 8;
+  ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   const descLines = wrap(c.desc, innerW);
-  h += descLines.length * 17 + 4;
-
+  h += descLines.length * 18 + 4;
   h += PAD_Y;
   c.h = h;
   c._titleLines = titleLines;
@@ -267,14 +792,11 @@ function stack(cards, startY) {
 }
 
 const coreX = (CSS_W - CARD_W) / 2;
-
-// Setup column (left of core)
 setupCards.forEach(c => c.x = coreX - CARD_W - GAP_COL);
-const setupBottom = stack(setupCards, 40);
+const setupBottom = stack(setupCards, 60);
 
-// Core spine
 coreCards.forEach(c => c.x = coreX);
-const coreBottom = stack(coreCards, 40);
+const coreBottom = stack(coreCards, 60);
 
 const branchTop = Math.max(setupBottom, coreBottom) + GAP_SECTION;
 const cols = [infraCards, webCards, adCards, fileCards];
@@ -297,39 +819,21 @@ for (const c of bottomCards) {
   bx += CARD_W + GAP_COL;
 }
 
-const allCards = [
-  ...setupCards, ...coreCards, ...infraCards, ...webCards,
-  ...adCards, ...fileCards, ...bottomCards,
+const allCards = [...setupCards, ...coreCards, ...infraCards, ...webCards, ...adCards, ...fileCards, ...bottomCards];
+
+const edges = [
+  [1, 2], [2,3],[3,4],[4,5],[5,6],
+  [6,7],[6,12],[6,17],[6,21],
+  [7,8],[8,9],[9,10],[10,11],
+  [12,13],[13,14],[14,15],[15,16],
+  [17,18],[18,19],[19,20],
+  [21,22],[22,23],
+  [11,24],[16,24],[20,24],[23,24],
+  [24,25],[25,26]
 ];
 
-// edge indices must match allCards order
-// setup: 0,1
-// core: 2,3,4,5,6
-// infra: 7,8,9,10,11,12
-// web: 13,14,15,16,17
-// ad: 18,19,20,21
-// file: 22,23,24
-// bottom: 25,26,27
-const edges = [
-  // setup -> core start
-  [1, 2],
-  // core spine
-  [2,3],[3,4],[4,5],[5,6],
-  // branches from Choose Module
-  [6,7],[6,13],[6,18],[6,22],
-  // infra chain
-  [7,8],[8,9],[9,10],[10,11],[11,12],
-  // web chain
-  [13,14],[14,15],[15,16],[16,17],
-  // ad chain
-  [18,19],[19,20],[20,21],
-  // file chain
-  [22,23],[23,24],
-  // branches to loot
-  [12,25],[17,25],[21,25],[24,25],
-  // bottom
-  [25,26],[26,27],
-];
+// ── animation ──
+let time = 0;
 
 // ── draw ──
 function rr(x, y, w, h, r) {
@@ -343,76 +847,68 @@ function rr(x, y, w, h, r) {
 
 function drawCard(c) {
   const { x, y, w, h, color } = c;
-
-  // shadow
+  
+  // Shadow/Glow
   ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.35)';
-  ctx.shadowBlur = 20;
-  ctx.shadowOffsetY = 8;
-  rr(x, y, w, h, 12);
-  ctx.fillStyle = '#181b22';
+  ctx.shadowColor = color + '40';
+  ctx.shadowBlur = 30;
+  ctx.shadowOffsetY = 10;
+  rr(x, y, w, h, 16);
+  ctx.fillStyle = C.surface;
   ctx.fill();
   ctx.restore();
 
-  // bg fill
-  rr(x, y, w, h, 12);
-  ctx.fillStyle = '#181b22';
+  // Bg fill
+  rr(x, y, w, h, 16);
+  ctx.fillStyle = 'rgba(26, 29, 40, 0.8)';
   ctx.fill();
 
-  // border
-  rr(x, y, w, h, 12);
-  ctx.strokeStyle = color + '30';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // top accent bar
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.moveTo(x + 12, y);
-  ctx.lineTo(x + w - 12, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + 12);
-  ctx.lineTo(x + w, y + 4);
-  ctx.quadraticCurveTo(x + w, y, x + w - 12, y);
-  ctx.lineTo(x + 12, y);
-  ctx.quadraticCurveTo(x, y, x, y + 12);
-  ctx.lineTo(x, y + 4);
-  ctx.quadraticCurveTo(x, y, x + 12, y);
-  ctx.closePath();
-  ctx.fill();
-
-  let cy = y + PAD_Y + 4;
-  const left = x + PAD_X;
-  const innerW = w - PAD_X * 2;
-
-  // tag pill
-  ctx.font = '600 9px -apple-system, sans-serif';
-  const tagW = Math.max(40, ctx.measureText(c.tag).width + 12);
-  rr(left, cy, tagW, 18, 5);
-  ctx.fillStyle = color + '15';
-  ctx.fill();
-  ctx.strokeStyle = color + '25';
+  // Border
+  rr(x, y, w, h, 16);
+  ctx.strokeStyle = color + '50';
   ctx.lineWidth = 1;
   ctx.stroke();
-  ctx.fillStyle = color;
-  ctx.textBaseline = 'middle';
-  ctx.fillText(c.tag, left + 6, cy + 9);
-  cy += 26;
 
-  // title
-  ctx.font = '700 14px -apple-system, sans-serif';
+  // Top accent bar
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x + 16, y); ctx.lineTo(x + w - 16, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + 16); ctx.lineTo(x + w, y + 4);
+  ctx.quadraticCurveTo(x + w, y, x + w - 16, y); ctx.lineTo(x + 16, y);
+  ctx.quadraticCurveTo(x, y, x, y + 16); ctx.lineTo(x, y + 4);
+  ctx.quadraticCurveTo(x, y, x + 16, y); ctx.closePath();
+  ctx.fill();
+
+  let cy = y + PAD_Y + 6;
+  const left = x + PAD_X;
+
+  // Tag
+  ctx.font = '800 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  const tagW = Math.max(50, ctx.measureText(c.tag).width + 16);
+  rr(left, cy, tagW, 22, 6);
+  ctx.fillStyle = color + '20'; ctx.fill();
+  ctx.strokeStyle = color + '40'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = color; ctx.textBaseline = 'middle';
+  ctx.fillText(c.tag, left + 8, cy + 12);
+  cy += 32;
+
+  ctx.font = '700 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = C.ink;
   ctx.textBaseline = 'top';
-  c._titleLines.forEach((line, i) => {
-    ctx.fillText(line, left, cy + i * 18);
-  });
-  cy += c._titleLines.length * 18 + 6;
+  c._titleLines.forEach((line, i) => { ctx.fillText(line, left, cy + i * 20); });
+  cy += c._titleLines.length * 20 + 8;
 
-  // desc
-  ctx.font = '12px -apple-system, sans-serif';
+  ctx.font = '500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = C.muted;
-  c._descLines.forEach((line, i) => {
-    ctx.fillText(line, left, cy + i * 17);
-  });
+  c._descLines.forEach((line, i) => { ctx.fillText(line, left, cy + i * 18); });
+}
+
+function getPointOnBezier(p0, p1, p2, p3, t) {
+  const mt = 1 - t;
+  return {
+    x: mt*mt*mt*p0.x + 3*mt*mt*t*p1.x + 3*mt*t*t*p2.x + t*t*t*p3.x,
+    y: mt*mt*mt*p0.y + 3*mt*mt*t*p1.y + 3*mt*t*t*p2.y + t*t*t*p3.y
+  };
 }
 
 function drawEdge(e) {
@@ -420,20 +916,38 @@ function drawEdge(e) {
   const fx = f.x + f.w/2, fy = f.y + f.h;
   const tx = t.x + t.w/2, ty = t.y;
 
-  ctx.beginPath();
-  ctx.moveTo(fx, fy);
+  const p0 = {x: fx, y: fy};
   const my = (fy + ty) / 2;
-  ctx.bezierCurveTo(fx, my, tx, my, tx, ty);
+  const p1 = {x: fx, y: my};
+  const p2 = {x: tx, y: my};
+  const p3 = {x: tx, y: ty};
 
+  // Base line
+  ctx.beginPath();
+  ctx.moveTo(p0.x, p0.y);
+  ctx.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
   const grad = ctx.createLinearGradient(fx, fy, tx, ty);
-  grad.addColorStop(0, f.color + '50');
-  grad.addColorStop(1, t.color + '50');
+  grad.addColorStop(0, f.color + '40');
+  grad.addColorStop(1, t.color + '40');
   ctx.strokeStyle = grad;
   ctx.lineWidth = 2;
   ctx.stroke();
 
+  // Animated particle
+  const pTime = (time * 0.5 + (e[0] * 0.1)) % 1;
+  const pt = getPointOnBezier(p0, p1, p2, p3, pTime);
+  
   ctx.beginPath();
-  ctx.arc(tx, ty, 3.5, 0, Math.PI*2);
+  ctx.arc(pt.x, pt.y, 3, 0, Math.PI*2);
+  ctx.fillStyle = t.color;
+  ctx.shadowColor = t.color;
+  ctx.shadowBlur = 10;
+  ctx.fill();
+  ctx.shadowBlur = 0; // reset
+
+  // End dot
+  ctx.beginPath();
+  ctx.arc(tx, ty, 4, 0, Math.PI*2);
   ctx.fillStyle = t.color;
   ctx.fill();
 }
@@ -441,27 +955,33 @@ function drawEdge(e) {
 function draw() {
   ctx.clearRect(0, 0, CSS_W, CSS_H);
 
-  // grid dots
-  ctx.fillStyle = C.border + '25';
+  // Grid
+  ctx.fillStyle = C.border + '30';
   for (let x = 0; x < CSS_W; x += 40) {
     for (let y = 0; y < CSS_H; y += 40) {
-      ctx.beginPath();
-      ctx.arc(x, y, 1, 0, Math.PI*2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, 1, 0, Math.PI*2); ctx.fill();
     }
   }
 
   ctx.save();
   const cx = CSS_W/2, cy = CSS_H/2;
-  ctx.translate(cx, cy);
-  ctx.scale(zoom, zoom);
-  ctx.translate(-cx, -cy);
+  ctx.translate(cx, cy); ctx.scale(zoom, zoom); ctx.translate(-cx, -cy);
 
   edges.forEach(drawEdge);
   allCards.forEach(drawCard);
 
   ctx.restore();
 }
+
+function animateLoop() {
+  time += 0.01;
+  // Only draw if flowCanvas is visible
+  if (document.getElementById('core-flow').classList.contains('active')) {
+    draw();
+  }
+  requestAnimationFrame(animateLoop);
+}
+requestAnimationFrame(animateLoop);
 
 // ── tooltip ──
 let hovered = null;
@@ -481,7 +1001,6 @@ canvas.addEventListener('mousemove', e => {
   if (found !== hovered) {
     hovered = found;
     canvas.style.cursor = hovered ? 'pointer' : 'default';
-    draw();
     if (hovered) showTooltip(hovered, e.clientX, e.clientY);
     else hideTooltip();
   } else if (hovered) {
@@ -490,57 +1009,33 @@ canvas.addEventListener('mousemove', e => {
 });
 
 canvas.addEventListener('mouseleave', () => {
-  hovered = null;
-  hideTooltip();
-  draw();
+  hovered = null; hideTooltip();
 });
 
 function showTooltip(c, mx, my) {
-  const tagColors = {
-    core: 'background:'+C.accent+'20;color:'+C.accent,
-    infra: 'background:'+C.good+'20;color:'+C.good,
-    web: 'background:'+C.info+'20;color:'+C.info,
-    ad: 'background:'+C.warn+'20;color:'+C.warn,
-    file: 'background:'+C.accent+'20;color:'+C.accent,
-  };
-  const labels = { core:'CORE / SETUP', infra:'INFRASTRUCTURE', web:'WEB', ad:'ACTIVE DIRECTORY', file:'FILE TRANSFER' };
-
-  document.getElementById('ttTag').style.cssText = tagColors[c.flow];
+  const labels = { core:'CORE / SETUP', infra:'INFRASTRUCTURE', web:'WEB APP', ad:'ACTIVE DIRECTORY', file:'FILE TRANSFER' };
+  document.getElementById('ttTag').style.cssText = `background:${c.color}20;color:${c.color};border:1px solid ${c.color}40`;
   document.getElementById('ttTag').textContent = labels[c.flow];
   document.getElementById('ttTitle').textContent = c.title;
   document.getElementById('ttDesc').textContent = c.desc;
-
-  const codeEl = document.getElementById('ttCode');
-  codeEl.innerHTML = c.code.split('\n').map(l => `<code>${l}</code>`).join('');
-
+  document.getElementById('ttCode').innerHTML = c.code;
   tooltip.classList.add('show');
   positionTooltip(mx, my);
 }
 
 function positionTooltip(mx, my) {
   const rect = tooltip.getBoundingClientRect();
-  let left = mx + 24;
-  let top = my + 24;
+  let left = mx + 24; let top = my + 24;
   if (left + rect.width > window.innerWidth - 20) left = mx - rect.width - 24;
   if (top + rect.height > window.innerHeight - 20) top = my - rect.height - 24;
-  tooltip.style.left = left + 'px';
-  tooltip.style.top = top + 'px';
+  tooltip.style.left = left + 'px'; tooltip.style.top = top + 'px';
 }
 
-function hideTooltip() {
-  tooltip.classList.remove('show');
-}
+function hideTooltip() { tooltip.classList.remove('show'); }
 
-function changeZoom(d) {
-  zoom = Math.max(0.5, Math.min(1.5, zoom + d));
-  draw();
-}
-function resetZoom() {
-  zoom = 1.0;
-  draw();
-}
+function changeZoom(d) { zoom = Math.max(0.5, Math.min(1.5, zoom + d)); draw(); }
+function resetZoom() { zoom = 0.7; draw(); }
 
-draw();
 </script>
 </body>
 </html>
