@@ -252,11 +252,7 @@ class BaseShell(cmd.Cmd):
         return " ".join(parts) if parts else "none"
 
     def update_prompt(self):
-        module_part = (
-            f" {Colors.DIM}({Colors.ENDC}{Colors.FAIL}{self.module_name}{Colors.ENDC}{Colors.DIM}){Colors.ENDC}"
-            if self.module_name else ""
-        )
-        self.prompt = f"{Colors.FAIL}{Colors.BOLD}redsploit{Colors.ENDC}{module_part} > "
+        self.prompt = f"{Colors.FAIL}{Colors.BOLD}redsploit{Colors.ENDC} > "
 
     def parse_common_options(self, arg):
         """Parse shared runtime flags from argument string."""

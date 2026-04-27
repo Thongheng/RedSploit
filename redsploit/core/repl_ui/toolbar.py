@@ -14,22 +14,22 @@ def make_toolbar_func(session) -> Callable[[], HTML]:
         domain = session.get("domain") or ""
         user = session.get("username") or ""
         workspace = session.get("workspace") or "default"
-        module = getattr(session, "_current_module", "main")
 
         display_target = domain or target
-        if len(display_target) > 40:
-            display_target = display_target[:37] + "..."
+        if len(display_target) > 45:
+            display_target = display_target[:42] + "..."
 
         parts: list[str] = []
         if display_target:
-            parts.append(f"<ansigreen>{display_target}</ansigreen>")
+            parts.append(display_target)
         if user:
-            parts.append(f"<ansigray>user:</ansigray><ansiwhite>{user}</ansiwhite>")
+            parts.append(f"user:{user}")
         if workspace != "default":
-            parts.append(f"<ansigray>ws:</ansigray><ansiwhite>{workspace}</ansiwhite>")
-        if module and module != "main":
-            parts.append(f"<ansigray>mod:</ansigray><ansiwhite>{module}</ansiwhite>")
+            parts.append(f"ws:{workspace}")
 
-        return HTML("  <ansigray>·</ansigray>  ".join(parts)) if parts else HTML("")
+        if not parts:
+            return HTML("")
+        text = "  ·  ".join(parts)
+        return HTML(f"<ansigray>{text}</ansigray>")
 
     return _toolbar

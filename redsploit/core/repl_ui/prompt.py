@@ -21,13 +21,8 @@ def create_prompt_style() -> Style:
 
 def make_prompt_tokens(module_name: str | None, context_str: str) -> list[tuple[str, str]]:
     """Build prompt_toolkit formatted text tokens for the prompt.
-    Always shows just 'redsploit' (or 'redsploit(module)') — context lives in the toolbar.
+    Always shows just 'redsploit >' — all context lives in the toolbar.
     """
-    if module_name:
-        return [
-            ("class:prompt", f"redsploit({module_name})"),
-            ("", " > "),
-        ]
     return [
         ("class:prompt", "redsploit"),
         ("", " > "),
