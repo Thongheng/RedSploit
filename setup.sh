@@ -1344,7 +1344,7 @@ main() {
     choose_install_mode
     install_python_package
     install_redsploit
-    check_all_tools_before_install
+    check_all_tools_before_install || true
     ensure_workflow_tools
     setup_shell_completion
     print_step "Configure AI summaries"
