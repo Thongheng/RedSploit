@@ -269,9 +269,7 @@ workflow_install_command() {
             fi
             ;;
         testssl.sh)
-            local target_dir
-            target_dir="$(eval echo "~$REAL_USER")"
-            rm -rf "$target_dir/.local/share/testssl.sh" "$target_dir/.local/bin/testssl.sh" && mkdir -p "$target_dir/.local/share/testssl.sh" && git clone --depth 1 https://github.com/testssl/testssl.sh.git --branch 3.3dev "$target_dir/.local/share/testssl.sh" && mkdir -p "$target_dir/.local/bin" && ln -sf "$target_dir/.local/share/testssl.sh/testssl.sh" "$target_dir/.local/bin/testssl.sh"
+            rm -rf ~/.local/share/testssl.sh ~/.local/bin/testssl.sh && mkdir -p ~/.local/share/testssl.sh && git clone --depth 1 https://github.com/testssl/testssl.sh.git --branch 3.3dev ~/.local/share/testssl.sh && mkdir -p ~/.local/bin && ln -sf ~/.local/share/testssl.sh/testssl.sh ~/.local/bin/testssl.sh
             return 0
             ;;
         shcheck.py)
@@ -297,9 +295,7 @@ workflow_install_command() {
             fi
             ;;
         dirsearch)
-            local target_dir
-            target_dir="$(eval echo "~$REAL_USER")"
-            rm -rf "$target_dir/.local/share/dirsearch" "$target_dir/.local/bin/dirsearch" && mkdir -p "$target_dir/.local/share/dirsearch" && git clone --depth 1 https://github.com/maurosoria/dirsearch.git "$target_dir/.local/share/dirsearch" && chmod +x "$target_dir/.local/share/dirsearch/dirsearch.py" && mkdir -p "$target_dir/.local/bin" && ln -sf "$target_dir/.local/share/dirsearch/dirsearch.py" "$target_dir/.local/bin/dirsearch"
+            rm -rf ~/.local/share/dirsearch ~/.local/bin/dirsearch && mkdir -p ~/.local/share/dirsearch && git clone --depth 1 https://github.com/maurosoria/dirsearch.git ~/.local/share/dirsearch && chmod +x ~/.local/share/dirsearch/dirsearch.py && mkdir -p ~/.local/bin && ln -sf ~/.local/share/dirsearch/dirsearch.py ~/.local/bin/dirsearch
             return 0
             ;;
         sqlmap)
@@ -309,9 +305,7 @@ workflow_install_command() {
             fi
             ;;
         secretfinder)
-            local target_dir
-            target_dir="$(eval echo "~$REAL_USER")"
-            rm -rf "$target_dir/.local/share/SecretFinder" "$target_dir/.local/bin/secretfinder" && mkdir -p "$target_dir/.local/share/SecretFinder" && git clone --depth 1 https://github.com/m4ll0k/SecretFinder.git "$target_dir/.local/share/SecretFinder" && chmod +x "$target_dir/.local/share/SecretFinder/SecretFinder.py" && mkdir -p "$target_dir/.local/bin" && ln -sf "$target_dir/.local/share/SecretFinder/SecretFinder.py" "$target_dir/.local/bin/secretfinder"
+            rm -rf ~/.local/share/SecretFinder ~/.local/bin/secretfinder && mkdir -p ~/.local/share/SecretFinder && git clone --depth 1 https://github.com/m4ll0k/SecretFinder.git ~/.local/share/SecretFinder && chmod +x ~/.local/share/SecretFinder/SecretFinder.py && mkdir -p ~/.local/bin && ln -sf ~/.local/share/SecretFinder/SecretFinder.py ~/.local/bin/secretfinder
             return 0
             ;;
     esac
