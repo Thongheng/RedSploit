@@ -19,7 +19,7 @@ INSTALL_TARGET=""
 RC_FILE=""
 DETECTED_SHELL=""
 CURRENT_STEP=0
-TOTAL_STEPS=3
+TOTAL_STEPS=4
 TEST_ONLY=0
 OPENROUTER_TEST_URL="https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_TEST_MODEL="openrouter/free"
@@ -31,6 +31,278 @@ PATH_UPDATED=0
 COMPLETION_STATUS="pending"
 AI_STATUS="pending"
 RELOAD_REQUIRED=0
+
+WORKFLOW_REQUIRED_BINARIES=(
+    python3
+    dig
+    nmap
+    sqlmap
+    ffuf
+    dirsearch
+    feroxbuster
+    httpx
+    nuclei
+    katana
+    naabu
+    subfinder
+    assetfinder
+    gau
+    waymore
+    theHarvester
+    testssl.sh
+    shcheck.py
+    arjun
+    dalfox
+    secretfinder
+)
+
+list_missing_workflow_tools() {
+    local binary missing=()
+    for binary in "${WORKFLOW_REQUIRED_BINARIES[@]}"; do
+        if ! command -v "$binary" >/dev/null 2>&1; then
+            missing+=("$binary")
+        fi
+    done
+    printf '%s\n' "${missing[@]}"
+}
+
+run_as_root_or_sudo() {
+    if is_root_install; then
+        "$@"
+    else
+        sudo "$@"
+    fi
+}
+
+workflow_install_command() {
+    local binary="$1"
+
+    case "$binary" in
+        python3)
+            if command -v apt-get >/dev/null 2>&1; then
+                printf 'run_as_root_or_sudo apt-get install -y python3'
+                return 0
+            fi
+            if command -v brew >/dev/null 2>&1; then
+                printf 'brew install python3'
+                return 0
+            fi
+            ;;
+        dig)
+            if command -v apt-get >/dev/null 2>&1; then
+                printf 'run_as_root_or_sudo apt-get install -y dnsutils'
+                return 0
+            fi
+            if command -v brew >/dev/null 2>&1; then
+                printf 'brew install bind'
+                return 0
+            fi
+            ;;
+        nmap)
+            if command -v apt-get >/dev/null 2>&1; then
+                printf 'run_as_root_or_sudo apt-get install -y nmap'
+                return 0
+            fi
+            if command -v brew >/dev/null 2>&1; then
+                printf 'brew install nmap'
+                return 0
+            fi
+            ;;
+        feroxbuster)
+            if command -v apt-get >/dev/null 2>&1; then
+                printf 'run_as_root_or_sudo apt-get install -y feroxbuster'
+                return 0
+            fi
+            if command -v brew >/dev/null 2>&1; then
+                printf 'brew install feroxbuster'
+                return 0
+            fi
+            if command -v curl >/dev/null 2>&1; then
+                printf 'curl -sL https://raw.githubusercontent.com/epi052/feroxbuster/main/install-nix.sh | bash -s "$HOME/.local/bin"'
+                return 0
+            fi
+            ;;
+        httpx)
+            if command -v brew >/dev/null 2>&1; then
+                printf 'brew install httpx'
+                return 0
+            fi
+            if command -v go >/dev/null 2>&1; then
+                printf 'go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest'
+                return 0
+            fi
+            ;;
+        nuclei)
+            if command -v brew >/dev/null 2>&1; then
+                printf 'brew install nuclei'
+                return 0
+            fi
+            if command -v go >/dev/null 2>&1; then
+                printf 'go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest'
+                return 0
+            fi
+            ;;
+        katana)
+            if command -v go >/dev/null 2>&1; then
+                printf 'go install github.com/projectdiscovery/katana/cmd/katana@latest'
+                return 0
+            fi
+            ;;
+        naabu)
+            if command -v go >/dev/null 2>&1; then
+                printf 'go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest'
+                return 0
+            fi
+            ;;
+        subfinder)
+            if command -v brew >/dev/null 2>&1; then
+                printf 'brew install subfinder'
+                return 0
+            fi
+            if command -v go >/dev/null 2>&1; then
+                printf 'go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest'
+                return 0
+            fi
+            ;;
+        assetfinder)
+            if command -v go >/dev/null 2>&1; then
+                printf 'go install github.com/tomnomnom/assetfinder@latest'
+                return 0
+            fi
+            ;;
+        ffuf)
+            if command -v brew >/dev/null 2>&1; then
+                printf 'brew install ffuf'
+                return 0
+            fi
+            if command -v go >/dev/null 2>&1; then
+                printf 'go install github.com/ffuf/ffuf/v2@latest'
+                return 0
+            fi
+            ;;
+        gau)
+            if command -v go >/dev/null 2>&1; then
+                printf 'go install github.com/lc/gau/v2/cmd/gau@latest'
+                return 0
+            fi
+            ;;
+        waymore)
+            if command -v pipx >/dev/null 2>&1; then
+                printf 'pipx install git+https://github.com/xnl-h4ck3r/waymore.git'
+                return 0
+            fi
+            ;;
+        theHarvester)
+            if command -v theHarvester >/dev/null 2>&1; then
+                printf ':'
+                return 0
+            fi
+            ;;
+        testssl.sh)
+            printf 'git clone --depth 1 https://github.com/testssl/testssl.sh.git --branch 3.3dev "$HOME/.local/share/testssl.sh" && ln -sf "$HOME/.local/share/testssl.sh/testssl.sh" "$HOME/.local/bin/testssl.sh"'
+            return 0
+            ;;
+        shcheck.py)
+            if command -v pipx >/dev/null 2>&1; then
+                printf 'pipx install shcheck'
+                return 0
+            fi
+            ;;
+        arjun)
+            if command -v pipx >/dev/null 2>&1; then
+                printf 'pipx install arjun'
+                return 0
+            fi
+            ;;
+        dalfox)
+            if command -v brew >/dev/null 2>&1; then
+                printf 'brew install dalfox'
+                return 0
+            fi
+            if command -v go >/dev/null 2>&1; then
+                printf 'go install Dalfox.com/hahwul/dalfox/v2@latest'
+                return 0
+            fi
+            ;;
+        sqlmap)
+            if command -v pipx >/dev/null 2>&1; then
+                printf 'pipx install sqlmap'
+                return 0
+            fi
+            ;;
+    esac
+
+    return 1
+}
+
+workflow_install_hint() {
+    local binary="$1"
+
+    case "$binary" in
+        httpx) printf 'Official: Go install, Homebrew, or release binary from ProjectDiscovery docs' ;;
+        nuclei) printf 'Official: Go install, Homebrew, Docker, or release binary from ProjectDiscovery docs' ;;
+        katana) printf 'Official: Go install or release binary from ProjectDiscovery docs' ;;
+        naabu) printf 'Official: Go install or release binary from ProjectDiscovery docs (libpcap required on Linux)' ;;
+        subfinder) printf 'Official: Go install, Homebrew, Docker, or release binary from ProjectDiscovery docs' ;;
+        assetfinder) printf 'Official: go get/go install from tomnomnom/assetfinder or download a release binary' ;;
+        ffuf) printf 'Official: release binary, Homebrew, or go install from ffuf/ffuf' ;;
+        feroxbuster) printf 'Official: Kali apt, Homebrew, or install-nix.sh from epi052/feroxbuster' ;;
+        arjun) printf 'Official: pipx install arjun' ;;
+        waymore) printf 'Official: pipx install git+https://github.com/xnl-h4ck3r/waymore.git' ;;
+        shcheck.py) printf 'Official source uses pip; installer uses pipx install shcheck for isolated CLI install' ;;
+        testssl.sh) printf 'Official: git clone testssl/testssl.sh and run from the cloned directory' ;;
+        theHarvester) printf 'Official: Kali package, pipx in a repo clone, Docker, or uv source install' ;;
+        sqlmap) printf 'Official source uses pip; installer uses pipx install sqlmap for isolated CLI install' ;;
+        dirsearch) printf 'Official: git clone maurosoria/dirsearch and run it, or install it in an isolated environment' ;;
+        dig) printf 'Install DNS utilities from your OS package manager' ;;
+        nmap) printf 'Install nmap from your OS package manager' ;;
+        python3) printf 'Install Python 3 from your OS package manager' ;;
+        *) printf "Install from the tool's official repository or release page" ;;
+    esac
+}
+
+install_missing_workflow_tools() {
+    local binary install_cmd
+    local failed=0
+
+    for binary in "$@"; do
+        if install_cmd="$(workflow_install_command "$binary" 2>/dev/null)"; then
+            log_info "Installing $binary using official method"
+            if ! bash -lc "$install_cmd"; then
+                log_warn "Auto-install failed for $binary. $(workflow_install_hint "$binary")"
+                failed=1
+            fi
+        else
+            log_warn "No safe auto-install path for $binary. $(workflow_install_hint "$binary")"
+            failed=1
+        fi
+    done
+
+    return "$failed"
+}
+
+ensure_workflow_tools() {
+    print_step "Install workflow tool dependencies"
+    local missing_tools
+    mapfile -t missing_tools < <(list_missing_workflow_tools)
+
+    if [ "${#missing_tools[@]}" -eq 0 ]; then
+        log_success "Workflow tools already available on PATH"
+        return 0
+    fi
+
+    log_info "Missing workflow tools: ${missing_tools[*]}"
+    install_missing_workflow_tools "${missing_tools[@]}" || true
+
+    mapfile -t missing_tools < <(list_missing_workflow_tools)
+    if [ "${#missing_tools[@]}" -eq 0 ]; then
+        log_success "Workflow tool dependencies installed"
+        return 0
+    fi
+
+    log_warn "Some workflow tools are still missing: ${missing_tools[*]}"
+    return 0
+}
 
 setup_colors() {
     if is_interactive_terminal; then
@@ -938,6 +1210,7 @@ main() {
     choose_install_mode
     install_python_package
     install_redsploit
+    ensure_workflow_tools
     setup_shell_completion
     print_step "Configure AI summaries"
     configure_api_keys_interactive
