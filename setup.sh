@@ -269,7 +269,7 @@ workflow_install_command() {
             fi
             ;;
         testssl.sh)
-            printf 'git clone --depth 1 https://github.com/testssl/testssl.sh.git --branch 3.3dev "$HOME/.local/share/testssl.sh" && ln -sf "$HOME/.local/share/testssl.sh/testssl.sh" "$HOME/.local/bin/testssl.sh"'
+            printf 'mkdir -p "%s/.local/share/testssl.sh" && git clone --depth 1 https://github.com/testssl/testssl.sh.git --branch 3.3dev "%s/.local/share/testssl.sh" && mkdir -p "%s/.local/bin" && ln -sf "%s/.local/share/testssl.sh/testssl.sh" "%s/.local/bin/testssl.sh"' "$REAL_HOME" "$REAL_HOME" "$REAL_HOME" "$REAL_HOME" "$REAL_HOME"
             return 0
             ;;
         shcheck.py)
@@ -295,7 +295,7 @@ workflow_install_command() {
             fi
             ;;
         dirsearch)
-            printf 'git clone --depth 1 https://github.com/maurosoria/dirsearch.git "$HOME/.local/share/dirsearch" && ln -sf "$HOME/.local/share/dirsearch/dirsearch.py" "$HOME/.local/bin/dirsearch"'
+            printf 'mkdir -p "%s/.local/share/dirsearch" && git clone --depth 1 https://github.com/maurosoria/dirsearch.git "%s/.local/share/dirsearch" && mkdir -p "%s/.local/bin" && ln -sf "%s/.local/share/dirsearch/dirsearch.py" "%s/.local/bin/dirsearch"' "$REAL_HOME" "$REAL_HOME" "$REAL_HOME" "$REAL_HOME" "$REAL_HOME"
             return 0
             ;;
         sqlmap)
@@ -305,7 +305,7 @@ workflow_install_command() {
             fi
             ;;
         secretfinder)
-            printf 'git clone https://github.com/momenon/SecretFinder.git "$HOME/.local/share/SecretFinder" && ln -sf "$HOME/.local/share/SecretFinder/SecretFinder.py" "$HOME/.local/bin/secretfinder"'
+            printf 'mkdir -p "%s/.local/share/SecretFinder" && git clone --depth 1 https://github.com/momenon/SecretFinder.git "%s/.local/share/SecretFinder" && mkdir -p "%s/.local/bin" && ln -sf "%s/.local/share/SecretFinder/SecretFinder.py" "%s/.local/bin/secretfinder"' "$REAL_HOME" "$REAL_HOME" "$REAL_HOME" "$REAL_HOME" "$REAL_HOME"
             return 0
             ;;
     esac
