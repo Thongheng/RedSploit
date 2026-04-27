@@ -269,7 +269,7 @@ workflow_install_command() {
             fi
             ;;
         testssl.sh)
-            printf 'mkdir -p "%s/.local/share/testssl.sh" && git clone --depth 1 https://github.com/testssl/testssl.sh.git --branch 3.3dev "%s/.local/share/testssl.sh" && mkdir -p "%s/.local/bin" && ln -sf "%s/.local/share/testssl.sh/testssl.sh" "%s/.local/bin/testssl.sh"' "$REAL_HOME" "$REAL_HOME" "$REAL_HOME" "$REAL_HOME" "$REAL_HOME"
+            rm -rf "$HOME/.local/share/testssl.sh" "$HOME/.local/bin/testssl.sh" && mkdir -p "$HOME/.local/share/testssl.sh" && git clone --depth 1 https://github.com/testssl/testssl.sh.git --branch 3.3dev "$HOME/.local/share/testssl.sh" && mkdir -p "$HOME/.local/bin" && ln -sf "$HOME/.local/share/testssl.sh/testssl.sh" "$HOME/.local/bin/testssl.sh"
             return 0
             ;;
         shcheck.py)
@@ -295,7 +295,7 @@ workflow_install_command() {
             fi
             ;;
         dirsearch)
-            printf 'mkdir -p "%s/.local/share/dirsearch" && git clone --depth 1 https://github.com/maurosoria/dirsearch.git "%s/.local/share/dirsearch" && mkdir -p "%s/.local/bin" && ln -sf "%s/.local/share/dirsearch/dirsearch.py" "%s/.local/bin/dirsearch"' "$REAL_HOME" "$REAL_HOME" "$REAL_HOME" "$REAL_HOME" "$REAL_HOME"
+            rm -rf "$HOME/.local/share/dirsearch" "$HOME/.local/bin/dirsearch" && mkdir -p "$HOME/.local/share/dirsearch" && git clone --depth 1 https://github.com/maurosoria/dirsearch.git "$HOME/.local/share/dirsearch" && chmod +x "$HOME/.local/share/dirsearch/dirsearch.py" && mkdir -p "$HOME/.local/bin" && ln -sf "$HOME/.local/share/dirsearch/dirsearch.py" "$HOME/.local/bin/dirsearch"
             return 0
             ;;
         sqlmap)
@@ -305,7 +305,7 @@ workflow_install_command() {
             fi
             ;;
         secretfinder)
-            printf 'mkdir -p "%s/.local/share/SecretFinder" && git clone --depth 1 https://github.com/m4ll0k/SecretFinder.git "%s/.local/share/SecretFinder" && chmod +x "%s/.local/share/SecretFinder/SecretFinder.py" && ln -sf "%s/.local/share/SecretFinder/SecretFinder.py" "%s/.local/bin/secretfinder"' "$REAL_HOME" "$REAL_HOME" "$REAL_HOME" "$REAL_HOME"
+            rm -rf "$HOME/.local/share/SecretFinder" "$HOME/.local/bin/secretfinder" && mkdir -p "$HOME/.local/share/SecretFinder" && git clone --depth 1 https://github.com/m4ll0k/SecretFinder.git "$HOME/.local/share/SecretFinder" && chmod +x "$HOME/.local/share/SecretFinder/SecretFinder.py" && mkdir -p "$HOME/.local/bin" && ln -sf "$HOME/.local/share/SecretFinder/SecretFinder.py" "$HOME/.local/bin/secretfinder"
             return 0
             ;;
     esac
