@@ -354,11 +354,12 @@ install_missing_workflow_tools() {
         if install_cmd="$(workflow_install_command "$binary" 2>/dev/null)"; then
             log_info "Running: $install_cmd"
             if bash -lc "$install_cmd"; then
-                if command -v "$binary" >/dev/null 2>&1; then
+                export PATH="$HOME/.local/bin:$PATH"
+                if command -v "$binary" >/dev/null 2>&1 || [ -f "$HOME/.local/bin/$binary" ]; then
                     log_success "$binary installed successfully"
                     installed=$((installed + 1))
                 else
-                    log_warn "$binary install command ran but binary not found in PATH"
+                    log_warn "$binary install command ran but binary not found"
                     failed=$((failed + 1))
                 fi
             else
