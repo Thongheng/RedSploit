@@ -263,6 +263,22 @@ class RedShell(BaseShell):
             return [c for c in commands if c.startswith(text)]
         return commands
 
+    def do_list(self, arg):
+        """Shortcut to list available workflows."""
+        self.do_workflow("list")
+
+    def do_run(self, arg):
+        """
+        Shortcut to run a workflow.
+        Usage: run <name> [--target <target>]
+        Example: run external-project.yaml --target https://example.com
+        """
+        if not arg:
+            from .colors import log_error
+            log_error("Usage: run <name> [--target <target>]")
+            return
+        self.do_workflow(f"run {arg}")
+
     def do_workflow(self, arg):
         """
         Run workflow commands or enter workflow module.

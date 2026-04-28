@@ -13,8 +13,11 @@ class WorkflowModule(BaseModule):
         from ..workflow.manager import WorkflowManager
         from ..workflow.adapters.registry import available_adapters
         self.manager = WorkflowManager(session)
-        # For display in the shell context panel
-        self.TOOLS = available_adapters()
+        # For display in the shell context panel and help
+        self.TOOLS = {
+            name: {"desc": adapter.description, "category": "Workflow Adapters"}
+            for name, adapter in available_adapters().items()
+        }
         self._check_httpx()
 
     def _check_httpx(self):

@@ -5,7 +5,7 @@ import subprocess
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.shortcuts import CompleteStyle
-from prompt_toolkit.history import FileHistory
+from prompt_toolkit.history import FileHistory, InMemoryHistory
 from prompt_toolkit.auto_suggest import AutoSuggest, Suggestion
 # ANSI removed: prompt_toolkit handles color formatting natively
 from .colors import Colors, log_warn, log_error, log_success
@@ -169,9 +169,17 @@ class BaseShell(cmd.Cmd):
 
             try:
                 history_path = os.path.expanduser("~/.redsploit_history")
+                # Proactive check for permissions
+                if os.path.exists(history_path):
+                    if not os.access(history_path, os.R_OK | os.W_OK):
+                        raise PermissionError("No read/write access to history file")
+                else:
+                    # Try to create it to check permissions
+                    with open(history_path, "a"):
+                        pass
                 history = FileHistory(history_path)
             except Exception:
-                history = None
+                history = InMemoryHistory()
 
             current_text = [""]
             kb = create_key_bindings(current_text)
@@ -768,8 +776,12 @@ class ModuleShell(BaseShell):
     def __init__(self, session, module_name):
         super().__init__(session, module_name)
         self.module = self.MODULE_CLASS(session)
+        if not hasattr(self, "COMMAND_CATEGORIES") or self.COMMAND_CATEGORIES is None:
+            self.COMMAND_CATEGORIES = {}
 
         for name, data in self.module.TOOLS.items():
+            if not isinstance(data, dict):
+                continue
             self.COMMAND_CATEGORIES[name] = data.get("category", "Uncategorized")
             method = self._create_do_method(name)
             method.__doc__ = data.get("desc", f"Run {name}")

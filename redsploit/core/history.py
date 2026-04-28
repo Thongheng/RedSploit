@@ -42,8 +42,9 @@ class CommandHistory:
             with open(self.path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
             os.chmod(self.path, 0o600)
-        except OSError as e:
-            log_warn(f"Failed to save command history: {e}")
+        except OSError:
+            # Silently fail if we can't write history (e.g. permission issues)
+            pass
 
     def add(self, cmd: str) -> None:
         cmd = cmd.strip()
