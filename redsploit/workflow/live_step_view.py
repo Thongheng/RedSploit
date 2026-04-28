@@ -33,9 +33,8 @@ class LiveStepView:
             self._build_table(),
             console=self._console,
             refresh_per_second=10,
-            transient=True,  # Clear live display on exit
+            transient=True,
             auto_refresh=True,
-            reflow=False,  # Disable reflow for better table rendering
         )
         self._live.__enter__()
         self._live.refresh()
