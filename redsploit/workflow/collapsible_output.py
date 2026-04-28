@@ -124,10 +124,17 @@ class CollapsibleOutputManager:
             return self._outputs[step_id]
     
     def reset_step(self, step_id: str) -> None:
-        """Reset output for a specific step."""
+        """Prepare tracking for a new step.
+
+        Intentionally does NOT wipe the existing buffer for step_id so that
+        all tool output stays available for the centralized Ctrl+O pager.
+        A fresh CollapsibleOutput is created only if this step_id is new.
+        """
         with self._lock:
-            if step_id in self._outputs:
-                self._outputs[step_id].reset()
+            if step_id not in self._outputs:
+                self._outputs[step_id] = CollapsibleOutput(
+                    max_preview_lines=self.max_preview_lines
+                )
             self._current_step_id = step_id
     
     def finalize_step(self, step_id: str) -> None:
@@ -141,6 +148,24 @@ class CollapsibleOutputManager:
         """Get the output handler for a step."""
         with self._lock:
             return self._outputs.get(step_id)
+
+    def get_all_output(self) -> str:
+        """Return the combined output of every step in insertion order.
+
+        Each step block is prefixed with a separator so the pager is easy
+        to navigate.  This is what Ctrl+O shows.
+        """
+        with self._lock:
+            parts: list[str] = []
+            for step_id, output in self._outputs.items():
+                lines = output.get_full_output()
+                if not lines:
+                    continue
+                parts.append(f"{'─' * 60}")
+                parts.append(f"  step: {step_id}")
+                parts.append(f"{'─' * 60}")
+                parts.append(lines)
+            return "\n".join(parts)
     
     def _start_keyboard_listener(self, step_id: str) -> None:
         """Start listening for Ctrl+O keyboard shortcut."""

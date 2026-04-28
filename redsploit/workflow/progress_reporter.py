@@ -277,10 +277,10 @@ class ProgressReporter:
 
                         # ---- open pager ----
                         publisher = reporter._current_publisher
-                        step_id = reporter._current_step_id
-                        if publisher is None or step_id is None:
+                        if publisher is None:
                             continue
-                        full_output = publisher.get_step_full_output(step_id)
+                        # Collect ALL steps, not just the current one
+                        full_output = publisher.get_all_output()
                         if not full_output:
                             continue
 
@@ -302,9 +302,12 @@ class ProgressReporter:
                             pager = os.environ.get("PAGER", "less")
                             # Open /dev/tty fresh for pager I/O — completely
                             # independent of sys.stdin/stdout/stderr.
+                            # +1  → start at line 1 (top), not EOF
+                            # -R  → pass ANSI colour codes through
+                            # -S  → chop long lines instead of wrapping
                             with open("/dev/tty", "rb") as tin, open("/dev/tty", "wb") as tout:
                                 subprocess.run(
-                                    [pager, "-R", tmp_path],
+                                    [pager, "+1", "-R", "-S", tmp_path],
                                     stdin=tin,
                                     stdout=tout,
                                     stderr=tout,

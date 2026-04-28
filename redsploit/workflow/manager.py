@@ -88,6 +88,10 @@ class CliLogPublisher(LogPublisher):
         """Get the full buffered output for a step."""
         output = self._output_manager.get_step_output(step_id)
         return output.get_full_output() if output else None
+
+    def get_all_output(self) -> str:
+        """Get the combined output of all steps — used by the Ctrl+O pager."""
+        return self._output_manager.get_all_output()
     
     def view_step_in_pager(self, step_id: str) -> None:
         """View step output in pager (like less)."""
