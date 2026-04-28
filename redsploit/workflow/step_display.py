@@ -85,40 +85,24 @@ class StepDisplay:
         self.theme = theme
     
     def render_step_header(self, step: StepRun) -> None:
-        """Render step start header with card layout.
-        
-        Displays a card-style panel with step ID, tool name, and configuration
-        at the start of step execution.
-        
-        Args:
-            step: StepRun object containing step metadata
-        """
-        # Get status icon and color
+        """Render compact step start — just a rule line with step info."""
         icon = self.theme.get_status_icon("running")
         color = self.theme.get_status_color("running")
-        
-        # Build card content
-        content_lines = []
-        
-        # Header with icon and step ID
-        header = f"[{color}]{icon}[/{color}] [bold]{step.id}[/bold]"
-        content_lines.append(header)
-        
-        # Tool name
         tool_name = step.tool or step.kind
-        content_lines.append(f"[dim]Tool: {tool_name}[/dim]")
-        
-        # Configuration (if available)
+
+        # Compact single-line rule style: ── ▶ step_id  Tool: nmap ────
+        self.formatter.console.rule(
+            f"[{color}]{icon}[/{color}] [{color}]{step.id}[/{color}]  [dim]Tool: {tool_name}[/dim]",
+            style="dim",
+            align="left",
+        )
+        # Show first few args only (the binary + first flags) to hint what's running
         if step.args:
-            # Format args as key=value pairs or just values
-            args_str = " ".join(step.args)
-            if args_str:
-                content_lines.append(f"[dim]{args_str}[/dim]")
-        
-        # Render card
-        separator = self.theme.separator_char * self.theme.separator_width
-        self.formatter.console.print(f"\n[dim]{separator}[/dim]")
-        self.formatter.console.print("\n".join(content_lines))
+            # Join up to 3 args or 100 chars
+            hint = " ".join(step.args[:3])
+            if len(hint) > 100:
+                hint = hint[:97] + "..."
+            self.formatter.console.print(f"[dim]$ {hint}[/dim]")
     
     def render_step_footer(self, step: StepRun) -> None:
         """Render step completion footer with timing and output count.

@@ -4,6 +4,7 @@ import sys
 import threading
 from pathlib import Path
 from time import monotonic
+from typing import Callable
 
 from redsploit.core.colors import Colors, log_error, log_warn
 
@@ -37,10 +38,15 @@ class CliLogPublisher(LogPublisher):
         self._indent = indent
         self._activity_lock = threading.Lock()
         self._step_activity: dict[str, dict[str, object]] = {}
+        self._live_callbacks: dict[str, Callable[[str, str], None]] = {}
         
         # Use provided max_lines or default
         max_lines = max_lines_per_step if max_lines_per_step is not None else self.DEFAULT_MAX_LINES_PER_STEP
         self._output_manager = CollapsibleOutputManager(max_preview_lines=max_lines)
+
+    def set_live_view_callback(self, step_id: str, callback: Callable[[str, str], None]) -> None:
+        """Register callback(step_id, line) for live view updates."""
+        self._live_callbacks[step_id] = callback
 
     def publish(self, scan_id: str, level: str, message: str) -> None:
         super().publish(scan_id, level, message)
@@ -57,6 +63,10 @@ class CliLogPublisher(LogPublisher):
             # Use collapsible output manager
             output = self._output_manager.get_or_create(step_id)
             output.add_line(raw)
+            # Fire live view callback — do not print to stderr (live view shows it)
+            cb = self._live_callbacks.get(step_id)
+            if cb:
+                cb(step_id, raw)
         else:
             # Non-tool messages (warnings, errors) always show
             print(raw, file=sys.stderr, flush=True)
@@ -366,7 +376,7 @@ class WorkflowManager:
         generated = self._build_generated_if_requested(options, target)
         if generated is not None:
             plan = build_scan_plan_from_text(generated.content, target) if generated.content else build_scan_plan_from_path(generated.workflow_file, target)
-            run = store.create_run_from_plan(plan, generated.workflow_file)
+            run = store.create_run_from_plan(plan, generated.workflow_file, generated_content=generated.content)
             run.technology_profile = options.get("tech")
             run.test_depth = options.get("depth")
             store.save_run(run)
@@ -443,7 +453,47 @@ class WorkflowManager:
                 log_warn(f"Workflow report: {warning}")
         except Exception as exc:
             log_warn(f"Failed to generate workflow report: {exc}")
+
+        # --- Part 2.4: Offer post-run pager for truncated output ---
+        if publisher is not None:
+            self._offer_output_pager(publisher, final_run)
+
         return 0 if final_run.status == "complete" else 1
+
+    def _offer_output_pager(self, publisher: CliLogPublisher, run: ScanRun) -> None:
+        """Prompts user to browse logs for steps that were truncated."""
+        truncated_steps = [
+            s.id for s in run.steps 
+            if publisher._output_manager.get_step_output(s.id) and publisher._output_manager.get_step_output(s.id).is_truncated()
+        ]
+        if not truncated_steps:
+            return
+
+        print(f"\n{Colors.DIM}Output truncated for: {', '.join(truncated_steps)}{Colors.ENDC}")
+        print(f"{Colors.HEADER}Press Ctrl+O to browse full logs, or Enter to continue...{Colors.ENDC}", end="", flush=True)
+        
+        # Listen for Ctrl+O (ASCII 15)
+        import termios, tty, select
+        fd = sys.stdin.fileno()
+        if not sys.stdin.isatty():
+            return
+            
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            r, _, _ = select.select([sys.stdin], [], [], 10.0)
+            if r:
+                char = sys.stdin.read(1)
+                if ord(char) == 15: # Ctrl+O
+                    # Restore terminal for pager
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                    # Pick the first truncated step to show (or let them pick if multiple? 
+                    # Simpler: just show them one by one if they want, or the "main" one)
+                    for sid in truncated_steps:
+                        publisher.view_step_in_pager(sid)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        print()
 
     def _build_generated_if_requested(self, options: dict[str, str], target: str):
         workflow_name = options.get("workflow")

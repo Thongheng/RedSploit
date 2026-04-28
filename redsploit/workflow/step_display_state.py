@@ -87,10 +87,8 @@ class StepDisplayState:
         if lines_shown < 0 or lines_total < 0:
             raise ValueError("Line counts must be non-negative")
         
-        if lines_shown > lines_total:
-            raise ValueError("lines_shown cannot exceed lines_total")
-        
-        self.output_lines_shown = lines_shown
+        # Clamp instead of raising — race conditions between counter updates are expected
+        self.output_lines_shown = min(lines_shown, lines_total)
         self.output_lines_total = lines_total
         
         # Update last_update timestamp

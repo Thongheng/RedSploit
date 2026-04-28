@@ -54,31 +54,18 @@ class CollapsibleOutput:
         """Add a line to the buffer.
         
         Args:
-            line: The line to add (will be sanitized before display)
+            line: The line to add
         """
         with self._lock:
             self._buffer.append(line)
             self._total_lines += 1
-            
-            # Show lines as they come in, up to the limit
-            if self._shown_lines < self.max_preview_lines:
-                # Sanitize output before displaying
-                sanitized_line = sanitize_terminal_output(line)
-                print(sanitized_line, file=self.output_stream, flush=True)
-                self._shown_lines += 1
+            self._shown_lines = min(self._shown_lines + 1, self.max_preview_lines)
     
     def finalize(self) -> None:
-        """Called when step completes - show truncation indicator if needed."""
+        """Called when step completes."""
         with self._lock:
             if self._total_lines > self.max_preview_lines:
                 self._is_truncated = True
-                hidden_count = self._total_lines - self.max_preview_lines
-                print(
-                    f"\n\033[2m... {hidden_count} more lines hidden. "
-                    f"Press Ctrl+O to view full output.\033[0m",
-                    file=self.output_stream,
-                    flush=True
-                )
     
     def get_full_output(self) -> str:
         """Get the complete buffered output."""
@@ -144,15 +131,11 @@ class CollapsibleOutputManager:
             self._current_step_id = step_id
     
     def finalize_step(self, step_id: str) -> None:
-        """Finalize output for a step (show truncation indicator if needed)."""
+        """Finalize output for a step."""
         with self._lock:
             if step_id in self._outputs:
                 output = self._outputs[step_id]
                 output.finalize()
-                
-                # Start keyboard listener if output was truncated
-                if output.is_truncated() and not self._keyboard_listener_active:
-                    self._start_keyboard_listener(step_id)
     
     def get_step_output(self, step_id: str) -> CollapsibleOutput | None:
         """Get the output handler for a step."""

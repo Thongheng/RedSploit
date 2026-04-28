@@ -152,6 +152,7 @@ class ScanRun(BaseModel):
     steps: list[StepRun] = Field(default_factory=list)
     technology_profile: str | None = None
     test_depth: str | None = None
+    generated_workflow_content: str | None = None
 
     def to_summary(self) -> ScanSummary:
         completed_steps = sum(1 for step in self.steps if step.status == "complete")

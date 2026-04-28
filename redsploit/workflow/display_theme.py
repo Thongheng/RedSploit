@@ -39,18 +39,18 @@ class DisplayTheme:
     
     # Color palette
     primary: str = "#e05a2f"  # Terracotta
-    success: str = "#00ff00"
-    warning: str = "#ffff00"
-    error: str = "#ff0000"
-    info: str = "#00ffff"
-    dim: str = "#666666"
+    success: str = "#8fbc8f"  # Softer Green
+    warning: str = "#e6c07b"  # Softer Gold
+    error: str = "#e06c75"    # Softer Red
+    info: str = "#61afef"     # Softer Blue
+    dim: str = "#5c6370"      # Softer Gray
     
     # Status icons
-    icon_running: str = "▶"
-    icon_complete: str = "✓"
-    icon_failed: str = "✗"
-    icon_skipped: str = "–"
-    icon_pending: str = "○"
+    icon_running: str = "●"
+    icon_complete: str = "✔"
+    icon_failed: str = "✘"
+    icon_skipped: str = "○"
+    icon_pending: str = "◌"
     
     # Layout configuration
     panel_padding: Tuple[int, int] = (0, 2)

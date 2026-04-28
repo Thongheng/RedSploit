@@ -113,7 +113,7 @@ steps:
       - "-t"
       - "{{NUCLEI_TEMPLATES_PATH}}/external/base-exposure.yaml"
       - "-t"
-      - "{{NUCLEI_TEMPLATES_PATH}}/external/tech/{{HOST_DETECTED_TECH}}"
+      - "{{NUCLEI_TEMPLATES_PATH}}/external/tech/{{HOST_DETECTED_TECH}}.yaml"
       - "-u"
       - "{{HOST}}"
     output: exposure_findings

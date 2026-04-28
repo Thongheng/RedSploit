@@ -27,7 +27,7 @@ class StepTransitionError(ValueError):
     """Raised when a step transition is invalid for the current state."""
 
 
-def materialize_scan_run(plan: ScanPlan, workflow_file: str) -> ScanRun:
+def materialize_scan_run(plan: ScanPlan, workflow_file: str, *, generated_content: str | None = None) -> ScanRun:
     steps: list[StepRun] = []
     current_step: str | None = None
 
@@ -84,6 +84,7 @@ def materialize_scan_run(plan: ScanPlan, workflow_file: str) -> ScanRun:
         scope_domains=plan.scope_domains,
         scope_exclude=plan.scope_exclude,
         steps=steps,
+        generated_workflow_content=generated_content,
     )
 
 
@@ -210,8 +211,8 @@ class ScanRunStore:
         plan = build_scan_plan_from_path(workflow_file, target, allow_local_paths=allow_local_paths)
         return self.create_run_from_plan(plan, workflow_file)
 
-    def create_run_from_plan(self, plan: ScanPlan, workflow_file: str) -> ScanRun:
-        run = materialize_scan_run(plan, workflow_file)
+    def create_run_from_plan(self, plan: ScanPlan, workflow_file: str, *, generated_content: str | None = None) -> ScanRun:
+        run = materialize_scan_run(plan, workflow_file, generated_content=generated_content)
 
         if self._storage_path is None:
             self._runs[run.id] = run

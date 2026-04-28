@@ -241,6 +241,16 @@ def _run_tool_commands(
     adapter = get_adapter(step.tool or "")
     # Substitute runtime variables not available at plan time (e.g. {{SCAN_ID}})
     resolved_args = _resolve_runtime_args(step, scan_id, technology_profile=technology_profile)
+
+    # --- Bug 1: skip nuclei if no templates remain after filtering ---
+    if step.tool == "nuclei" and "-t" not in resolved_args and "--templates" not in resolved_args:
+        return subprocess.CompletedProcess(
+            args=[step.tool],
+            returncode=0,
+            stdout="",
+            stderr="[redsploit] nuclei skipped: no applicable templates for this profile",
+        )
+
     if step.iterate == "per_host":
         return _run_per_host_commands(
             scan_id=scan_id,
@@ -324,22 +334,7 @@ def _run_per_host_commands(
     timeout_per_host = step.timeout_per_host or timeout_seconds
     max_workers = min(max(1, get_settings().scan.per_host_concurrency), len(targets))
     host_tech_map = _snapshot_tech_map(store, scan_id)
-    stdout_parts: list[str] = []
-    stderr_parts: list[str] = []
-
-    def run_for_host(target: str) -> subprocess.CompletedProcess[str]:
-        host_args = _resolve_host_args(resolved_args, target, host_tech_map.get(target, []))
-        command = adapter.build_command(args=host_args, input_value=None)
-        return _run_single_command(
-            scan_id=scan_id,
-            step=step,
-            command=command,
-            stdin_data=None,
-            timeout_seconds=timeout_per_host,
-            runner=runner,
-            publisher=publisher,
-        )
-
+    overall_return_code = 0
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_map = {executor.submit(run_for_host, target): target for target in targets}
         for future in as_completed(future_map):
@@ -348,11 +343,13 @@ def _run_per_host_commands(
                 completed = future.result()
             except subprocess.TimeoutExpired:
                 stderr_parts.append(f"{target}: timed out after {timeout_per_host}s")
+                overall_return_code = 1
                 continue
             except FileNotFoundError:
                 raise
             except Exception as exc:  # noqa: BLE001
                 stderr_parts.append(f"{target}: execution failed: {exc}")
+                overall_return_code = 1
                 continue
 
             if completed.stdout:
@@ -361,10 +358,11 @@ def _run_per_host_commands(
                 stderr_parts.append(completed.stderr)
             if completed.returncode != 0:
                 stderr_parts.append(f"{target}: exited with code {completed.returncode}")
+                overall_return_code = completed.returncode
 
     return subprocess.CompletedProcess(
         args=[step.tool or step.kind],
-        returncode=0,
+        returncode=overall_return_code,
         stdout="\n".join(part for part in stdout_parts if part),
         stderr="\n".join(part for part in stderr_parts if part),
     )
@@ -587,16 +585,35 @@ def _resolve_runtime_args(step: StepRun, scan_id: str, *, technology_profile: st
     from redsploit.workflow.worker.executor import _get_nuclei_templates_path
     settings = get_settings()
     nuclei_templates_path = str(_get_nuclei_templates_path())
-    # Map technology_profile to the nuclei template filename
-    tech_profile_file = f"{technology_profile or 'generic'}.yaml"
+    
+    # Use the technology profile name (e.g. 'php').
+    # Templates in workflow YAML should append .yaml (e.g. {{TECH_PROFILE}}.yaml)
+    tech_profile = technology_profile or "generic"
 
-    def _sub(arg: str) -> str:
-        arg = arg.replace("{{SCAN_ID}}", scan_id)
-        arg = arg.replace("{{NUCLEI_TEMPLATES_PATH}}", nuclei_templates_path)
-        arg = arg.replace("{{TECH_PROFILE}}", tech_profile_file)
-        return arg
+    resolved_args: list[str] = []
+    i = 0
+    args = step.args
+    while i < len(args):
+        arg = args[i]
+        next_arg = args[i + 1] if i + 1 < len(args) else None
 
-    resolved_args = [_sub(arg) for arg in step.args]
+        # Handle the -t {{...}}/{{TECH_PROFILE}}.yaml case
+        if arg == "-t" and next_arg and "{{TECH_PROFILE}}" in next_arg:
+            resolved_template = next_arg.replace("{{NUCLEI_TEMPLATES_PATH}}", nuclei_templates_path)
+            resolved_template = resolved_template.replace("{{TECH_PROFILE}}", tech_profile)
+            
+            # Check if the resolved template file exists
+            if resolved_template.startswith("/") and not Path(resolved_template).exists():
+                logger.debug("Skipping missing tech template: %s", resolved_template)
+                i += 2
+                continue
+        
+        # Standard substitution for all other args
+        resolved = arg.replace("{{SCAN_ID}}", scan_id)
+        resolved = resolved.replace("{{NUCLEI_TEMPLATES_PATH}}", nuclei_templates_path)
+        resolved = resolved.replace("{{TECH_PROFILE}}", tech_profile)
+        resolved_args.append(resolved)
+        i += 1
     if (
         step.tool == "httpx"
         and step.id == "httpx_probe"
@@ -608,21 +625,48 @@ def _resolve_runtime_args(step: StepRun, scan_id: str, *, technology_profile: st
 
 
 def _resolve_host_args(args: list[str], host: str, detected_tech: list[str]) -> list[str]:
+    from redsploit.workflow.worker.executor import _get_nuclei_templates_path
+    nuclei_templates_path = str(_get_nuclei_templates_path())
     resolved: list[str] = []
-    tech_template = _map_detected_tech_to_template(detected_tech)
+    tech_name = _map_detected_tech_to_template(detected_tech)
     index = 0
     while index < len(args):
         current = args[index]
         next_arg = args[index + 1] if index + 1 < len(args) else None
-        if current == "-t" and next_arg and "{{HOST_DETECTED_TECH}}" in next_arg and tech_template is None:
+        
+        # Handle {{HOST_DETECTED_TECH}} substitution and existence check
+        if current == "-t" and next_arg and "{{HOST_DETECTED_TECH}}" in next_arg:
+            if tech_name is None:
+                index += 2
+                continue
+            
+            resolved_template = next_arg.replace("{{NUCLEI_TEMPLATES_PATH}}", nuclei_templates_path)
+            resolved_template = resolved_template.replace("{{HOST_DETECTED_TECH}}", tech_name)
+            
+            # Append .yaml if not present in the template string but we have it in the name
+            # (Standardizing on templates in YAML using {{VAR}}.yaml)
+            if not resolved_template.endswith(".yaml"):
+                resolved_template += ".yaml"
+                
+            if resolved_template.startswith("/") and not Path(resolved_template).exists():
+                logger.debug("Skipping missing host tech template: %s", resolved_template)
+                index += 2
+                continue
+            
+            resolved.append(current)
+            resolved.append(resolved_template)
             index += 2
             continue
+
         replaced = current.replace("{{HOST}}", host)
         if "{{HOST_DETECTED_TECH}}" in replaced:
-            if tech_template is None:
+            if tech_name is None:
                 index += 1
                 continue
-            replaced = replaced.replace("{{HOST_DETECTED_TECH}}", tech_template)
+            replaced = replaced.replace("{{HOST_DETECTED_TECH}}", tech_name)
+            if not replaced.endswith(".yaml") and not replaced.startswith("-"):
+                replaced += ".yaml"
+                
         resolved.append(replaced)
         index += 1
     return resolved
@@ -631,14 +675,14 @@ def _resolve_host_args(args: list[str], host: str, detected_tech: list[str]) -> 
 def _map_detected_tech_to_template(detected_tech: list[str]) -> str | None:
     normalized = [item.lower() for item in detected_tech]
     priorities = [
-        (("spring boot", "spring"), "java_spring.yaml"),
-        (("laravel",), "laravel.yaml"),
-        (("wordpress",), "wordpress.yaml"),
-        (("php",), "php.yaml"),
-        (("asp.net", ".net"), "aspnet.yaml"),
-        (("node.js", "express"), "node.yaml"),
-        (("django", "flask", "python"), "python.yaml"),
-        (("graphql", "swagger"), "api.yaml"),
+        (("spring boot", "spring"), "java_spring"),
+        (("laravel",), "laravel"),
+        (("wordpress",), "wordpress"),
+        (("php",), "php"),
+        (("asp.net", ".net"), "aspnet"),
+        (("node.js", "express"), "node"),
+        (("django", "flask", "python"), "python"),
+        (("graphql", "swagger"), "api"),
     ]
     for candidates, template in priorities:
         if any(candidate in tech for candidate in candidates for tech in normalized):
@@ -820,8 +864,11 @@ def _execute_dispatch_step(
         # Load dispatch rules from the workflow definition
         rules: list[DispatchRule] = []
         try:
-            from redsploit.workflow.worker.executor import load_workflow
-            workflow = load_workflow(run.workflow_file)
+            from redsploit.workflow.worker.executor import load_workflow, load_workflow_from_text
+            if run.workflow_file.startswith("generated:") and run.generated_workflow_content:
+                workflow = load_workflow_from_text(run.generated_workflow_content)
+            else:
+                workflow = load_workflow(run.workflow_file)
             workflow_step = next((s for s in workflow.steps if s.id == step.id), None)
             if workflow_step:
                 rules = workflow_step.rules
