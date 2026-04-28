@@ -48,27 +48,35 @@ class ProgressReporter:
         self._original_stdout: TextIO = sys.stdout
         self._original_stderr: TextIO = sys.stderr
 
-        # Redirect stdout/stderr to buffers so subprocess ANSI noise doesn't
-        # bleed into the terminal and corrupt the Live rendering.
+        # The REPL runs inside prompt_toolkit patch_stdout() which intercepts
+        # sys.stdout AND sys.stderr, routing everything through its own
+        # multiplexer. That multiplexer does not forward raw VT100 cursor-control
+        # sequences, so Rich Live [ sequences print as literal "?[" text.
+        #
+        # Fix: open a new file object on a dup of fd 2 (the raw terminal fd).
+        # This completely bypasses prompt_toolkit and gives Rich a direct path
+        # to the tty where ANSI sequences are interpreted normally.
+        import os
+        self._live_tty = open(
+            os.dup(2), mode="w", encoding="utf-8", errors="replace", closefd=True
+        )
+
+        # Redirect sys.stdout/stderr to silent buffers so subprocess noise and
+        # stray prints do not bleed through patch_stdout and corrupt the display.
         self._stdout_buffer = io.StringIO()
         self._stderr_buffer = io.StringIO()
         sys.stdout = self._stdout_buffer
         sys.stderr = self._stderr_buffer
 
-        # Build the live console with an explicit file= pointing at the REAL
-        # stderr fd.  get_console() passes stderr=True which resolves to
-        # sys.stderr at render-time — but sys.stderr is now the StringIO buffer,
-        # so all Live output would be swallowed and the display appears frozen.
-        # Bypassing the singleton and passing _original_stderr directly fixes this.
+        # Build the Live console targeting the raw tty fd, not sys.stderr.
         from redsploit.core.rich_theme import RichTheme
         live_console = RichTheme.get_console(
-            file=self._original_stderr,
+            file=self._live_tty,
             force_terminal=True,
             force_jupyter=False,
         )
         self.formatter.console = live_console
 
-        # Small pause to let the terminal settle before Live starts.
         time.sleep(0.05)
 
         self._live_view = LiveStepView(live_console, total_steps=len(run.steps))
@@ -154,6 +162,15 @@ class ProgressReporter:
             delattr(self, '_original_stderr')
             delattr(self, '_stdout_buffer')
             delattr(self, '_stderr_buffer')
+
+        # Close the raw tty fd we opened for Live rendering.
+        if hasattr(self, '_live_tty'):
+            try:
+                self._live_tty.flush()
+                self._live_tty.close()
+            except Exception:
+                pass
+            delattr(self, '_live_tty')
         
         # Now render deferred error panels (Live is closed, safe to print)
         for step in self._failed_steps:
