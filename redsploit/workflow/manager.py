@@ -31,7 +31,7 @@ from .progress_reporter import ProgressReporter
 class CliLogPublisher(LogPublisher):
     """Streams tool stdout/stderr lines to stderr in real-time with collapsible output."""
 
-    DEFAULT_MAX_LINES_PER_STEP = 10000  # Default: show up to 10000 lines per step
+    DEFAULT_MAX_LINES_PER_STEP = 20  # Default: show up to 20 lines per step before folding
     
     def __init__(self, indent: str = "  ", max_lines_per_step: int | None = None) -> None:
         super().__init__()

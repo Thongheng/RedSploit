@@ -41,6 +41,11 @@ DEPTH_RATE_LIMITS: dict[str, str] = {
     "deep":   "25",
 }
 
+EXTERNAL_RATE_LIMITS: dict[str, str] = {
+    "normal": "5",
+    "deep":   "10",
+}
+
 WORDLISTS: dict[str, str] = {
     "normal": "/usr/share/seclists/Discovery/Web-Content/raft-medium-directories.txt",
     "deep":   "/usr/share/seclists/Discovery/Web-Content/raft-large-directories.txt",
@@ -184,12 +189,149 @@ def _apply_tech_depth_modifications(
                     if "seclists" in args[i + 1].lower():
                         args[i + 1] = WORDLISTS.get(test_depth, WORDLISTS["normal"])
         
-        # Update rate limits based on depth (for internal workflows)
-        if is_internal and "args" in step:
+        # Update rate limits based on depth
+        if "args" in step:
             args = step["args"]
             for i, arg in enumerate(args):
                 if arg == "-rate-limit" and i + 1 < len(args):
-                    args[i + 1] = DEPTH_RATE_LIMITS.get(test_depth, "15")
+                    limits = DEPTH_RATE_LIMITS if is_internal else EXTERNAL_RATE_LIMITS
+                    args[i + 1] = limits.get(test_depth, "15")
+
+    # Inject active steps for external project if no WAF is present
+    if not is_internal and not waf_present:
+        _inject_active_external_steps(workflow_data, technology_profile, test_depth)
+
+
+def _inject_active_external_steps(workflow_data: dict, tech: str, depth: str) -> None:
+    """Add the full attack pipeline to an external recon-only workflow."""
+    steps = workflow_data.setdefault("steps", [])
+    
+    # We don't want to double-inject if called multiple times
+    if any(s.get("id") == "probe_http" for s in steps):
+        return
+
+    rate_limit = EXTERNAL_RATE_LIMITS.get(depth, "5")
+    crawl_depth = CRAWL_DEPTHS.get(depth, "2")
+    wordlist = WORDLISTS.get(depth, WORDLISTS["normal"])
+    extensions = TECH_EXTENSIONS.get(tech, TECH_EXTENSIONS["generic"])
+
+    # 1. Liveness gate
+    steps.append({
+        "id": "probe_http",
+        "tool": "httpx",
+        "input": "{{scope.domains}}",
+        "args": ["-silent", "-status-code", "-tech-detect", "-title", "-follow-redirects", "-json", "-timeout", "10"],
+        "output": "live_host",
+        "on_empty": "stop",
+        "on_failure": "stop"
+    })
+
+    # 1.5 Passive URL discovery (gau)
+    steps.append({
+        "id": "passive_urls",
+        "tool": "gau",
+        "args": ["{{TARGET_DOMAIN}}", "--subs"],
+        "output": "gau_urls",
+        "on_empty": "warn",
+        "on_failure": "warn"
+    })
+
+    # 2. Crawl
+    steps.append({
+        "id": "crawl",
+        "tool": "katana",
+        "input": "{{live_host}}",
+        "args": ["-depth", crawl_depth, "-js-crawl", "-form-extraction", "-silent", "-rate-limit", rate_limit],
+        "output": "crawled_endpoints",
+        "on_empty": "warn",
+        "on_failure": "warn"
+    })
+
+    # 3. Fuzz
+    steps.append({
+        "id": "fuzz_content",
+        "tool": "dirsearch",
+        "input": "{{live_host}}",
+        "args": ["-e", extensions, "-w", wordlist, "-t", "10", "-q", "--format", "json", "-o", "/dev/stdout"],
+        "output": "fuzz_paths",
+        "on_empty": "warn",
+        "on_failure": "warn",
+    })
+
+    # 4. Host Vulnerabilities
+    steps.append({
+        "id": "nuclei_host",
+        "tool": "nuclei",
+        "input": "{{live_host}}",
+        "args": ["-silent", "-severity", "low,medium,high,critical", "-t", "http/misconfiguration/", "-t", "http/exposures/", "-t", "http/default-logins/", "-t", "http/panels/"],
+        "output": "host_findings",
+        "on_empty": "warn",
+        "on_failure": "warn",
+    })
+
+    # 5. JS Secrets
+    steps.append({
+        "id": "js_secret_scan",
+        "tool": "secretfinder",
+        "input": "{{live_host}}",
+        "args": ["-o", "cli"],
+        "output": "secret_findings",
+        "on_empty": "warn",
+        "on_failure": "warn",
+    })
+
+    # 6. Consolidation
+    steps.append({
+        "id": "merge_paths",
+        "type": "merge",
+        "input": "{{crawled_endpoints}}",
+        "args": ["crawled_endpoints", "fuzz_paths", "gau_urls"],
+        "output": "all_paths",
+        "on_empty": "warn"
+    })
+
+    # 7. Path Vulnerabilities
+    steps.append({
+        "id": "nuclei_paths",
+        "tool": "nuclei",
+        "input": "{{all_paths}}",
+        "args": ["-silent", "-severity", "low,medium,high,critical", "-t", "http/vulnerabilities/", "-t", "http/exposures/apis/"],
+        "output": "path_findings",
+        "on_empty": "warn",
+        "on_failure": "warn",
+    })
+
+    # 8. Parameter Discovery
+    steps.append({
+        "id": "param_discover",
+        "tool": "arjun",
+        "input": "{{all_paths}}",
+        "args": ["-t", "5", "--rate-limit", rate_limit, "-oJ", "/dev/stdout"],
+        "output": "param_endpoints",
+        "on_empty": "continue",
+        "on_failure": "warn",
+    })
+
+    # 9. Confirmation Scans (Aggressive but enabled if WAF is off)
+    steps.append({
+        "id": "xss_confirm",
+        "tool": "dalfox",
+        "input": "{{param_endpoints}}",
+        "args": ["pipe", "--silence", "--no-spinner", "--deep-domxss", "--format", "json"],
+        "output": "xss_findings",
+        "on_empty": "continue",
+        "on_failure": "warn",
+    })
+
+    steps.append({
+        "id": "sqli_confirm",
+        "tool": "sqlmap",
+        "input": "{{param_endpoints}}",
+        "args": ["--batch", "--level=2", "--risk=1", "--output-dir=./sqlmap-{{SCAN_ID}}"],
+        "output": "sqli_findings",
+        "on_empty": "continue",
+        "on_failure": "warn"
+    })
 
 
 def _generate_explanations(

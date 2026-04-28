@@ -33,7 +33,6 @@ steps:
     output: tls_findings
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 180
 
   # ── Depth 0 — HTTP security headers ─────────────────────────────────────────
   # shcheck.py: single request per target. Checks HSTS, CSP, X-Frame-Options,
@@ -74,4 +73,3 @@ steps:
     output: exposure_findings
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 300

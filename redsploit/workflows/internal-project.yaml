@@ -41,7 +41,6 @@ steps:
     output: live_host
     on_empty: stop
     on_failure: stop
-    timeout_seconds: 30
 
   # Service version fingerprint. Identifies non-HTTP services on internal app ports.
   # Custom port list biased toward internal stacks — not nmap's internet top-1000.
@@ -60,7 +59,6 @@ steps:
     output: service_findings_custom
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 300
 
   # Service version fingerprint on top 1000 ports (nmap default).
   # Complements custom port scan to catch services on standard ports.
@@ -78,7 +76,6 @@ steps:
     output: service_findings_top1000
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 600
 
   # ── Depth 1 (all parallel, depend on live_host) ───────────────────────────────
 
@@ -97,7 +94,6 @@ steps:
     output: crawled_endpoints
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 600
 
   # Directory and content fuzzing with tech-profile extensions.
   # normal: dirsearch only | deep: dirsearch + feroxbuster (see builder)
@@ -119,7 +115,6 @@ steps:
     output: fuzz_paths
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 900
 
   # Host-level vulnerability sweep. Runs once against the root URL.
   # Covers misconfigs, default creds, admin panels, security headers, CORS.
@@ -146,7 +141,6 @@ steps:
     output: host_findings
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 300
 
   # TLS cipher audit using nmap. Scoped to SSL/TLS analysis.
   # Checks weak ciphers and certificate information.
@@ -163,7 +157,22 @@ steps:
     output: tls_findings
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 180
+
+  # ── Depth 1 (all parallel, depend on live_host) ───────────────────────────────
+
+  # JavaScript secret scanning. Finds API keys, tokens, and credentials in JS.
+  # This step runs once against all discovered JS files.
+  - id: js_secret_scan
+    tool: secretfinder
+    input: "{{live_host}}"
+    args:
+      - "-o"
+      - "cli"
+    output: secret_findings
+    on_empty: warn
+    on_failure: warn
+
+  # ── Depth 1 (cont) ────────────────────────────────────────────────────────────
 
   # ── Depth 2 ───────────────────────────────────────────────────────────────────
 
@@ -194,7 +203,6 @@ steps:
     output: param_endpoints
     on_empty: continue
     on_failure: warn
-    timeout_seconds: 900
 
   # Path-level vulnerability sweep. Focused on endpoint-specific vulns —
   # NOT misconfiguration (already covered by nuclei_host).
@@ -213,7 +221,6 @@ steps:
     output: path_findings
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 600
 
   # ── Depth 4 (parallel, depend on param_discover) ──────────────────────────────
 
@@ -233,7 +240,6 @@ steps:
     output: xss_findings
     on_empty: continue
     on_failure: warn
-    timeout_seconds: 600
 
   # SQLi confirmation. level=3 risk=2 appropriate for internal test environment.
   # --output-dir uses {{SCAN_ID}} — prevents session collision between concurrent scans.
@@ -249,4 +255,3 @@ steps:
     output: sqli_findings
     on_empty: continue
     on_failure: warn
-    timeout_seconds: 1800

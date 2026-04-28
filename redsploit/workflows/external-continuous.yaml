@@ -25,7 +25,6 @@ steps:
     output: subfinder_subs
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 120
 
   - id: assetfinder_enum
     tool: assetfinder
@@ -35,7 +34,6 @@ steps:
     output: assetfinder_subs
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 60
 
   - id: crtsh_enum
     tool: crtsh
@@ -44,7 +42,6 @@ steps:
     output: crtsh_subs
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 30
 
   - id: axfr_attempt
     tool: dig
@@ -55,7 +52,6 @@ steps:
     output: axfr_result
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 30
 
   - id: merge_subdomains
     type: merge
@@ -66,7 +62,6 @@ steps:
       - "{{axfr_result}}"
     output: all_subdomains
     on_empty: stop
-    timeout_seconds: 30
 
   - id: httpx_probe
     tool: httpx
@@ -85,7 +80,6 @@ steps:
     output: confirmed_live
     on_empty: stop
     on_failure: warn
-    timeout_seconds: 300
 
   - id: nuclei_takeover
     tool: nuclei
@@ -102,7 +96,6 @@ steps:
     output: takeover_findings
     on_empty: warn
     on_failure: warn
-    timeout_per_host: 60
 
   - id: exposure_scan
     tool: nuclei
@@ -119,7 +112,6 @@ steps:
     output: exposure_findings
     on_empty: warn
     on_failure: warn
-    timeout_per_host: 120
 
   - id: header_scan
     tool: shcheck
@@ -132,7 +124,6 @@ steps:
     output: header_findings
     on_empty: warn
     on_failure: warn
-    timeout_per_host: 30
 
   - id: tls_audit
     tool: nmap
@@ -148,7 +139,6 @@ steps:
     output: tls_findings
     on_empty: warn
     on_failure: warn
-    timeout_per_host: 180
 
   - id: passive_urls
     tool: waymore
@@ -164,4 +154,3 @@ steps:
     output: passive_urls
     on_empty: warn
     on_failure: warn
-    timeout_seconds: 300
