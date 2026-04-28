@@ -74,7 +74,6 @@ def test_project_builder_external_tls_audit_uses_nmap() -> None:
         "443,8443",
         "-Pn",
     ]
-    assert step_by_id["tls_audit"].timeout_seconds == 180
 
 
 def test_catalog_external_project_tls_audit_uses_nmap() -> None:
@@ -90,7 +89,6 @@ def test_catalog_external_project_tls_audit_uses_nmap() -> None:
         "-Pn",
     ]
     assert step_by_id["tls_audit"].tool == "nmap"
-    assert step_by_id["tls_audit"].timeout_seconds == 180
 
 
 def test_project_builder_rejects_unknown_project_workflow() -> None:

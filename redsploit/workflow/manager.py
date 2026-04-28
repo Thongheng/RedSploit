@@ -461,7 +461,10 @@ class WorkflowManager:
         return 0 if final_run.status == "complete" else 1
 
     def _offer_output_pager(self, publisher: CliLogPublisher, run: ScanRun) -> None:
-        """Prompts user to browse logs for steps that were truncated."""
+        """Post-run: offer pager for truncated step output using plain input()."""
+        if not sys.stdin.isatty():
+            return
+
         truncated_steps = [
             s.id for s in run.steps 
             if publisher._output_manager.get_step_output(s.id) and publisher._output_manager.get_step_output(s.id).is_truncated()
@@ -469,31 +472,29 @@ class WorkflowManager:
         if not truncated_steps:
             return
 
-        print(f"\n{Colors.DIM}Output truncated for: {', '.join(truncated_steps)}{Colors.ENDC}")
-        print(f"{Colors.HEADER}Press Ctrl+O to browse full logs, or Enter to continue...{Colors.ENDC}", end="", flush=True)
+        print(f"\n{Colors.DIM}{'─' * 60}{Colors.ENDC}")
+        print(f"{Colors.DIM}{len(truncated_steps)} step(s) have truncated output:{Colors.ENDC}")
+        for i, sid in enumerate(truncated_steps, 1):
+            print(f"  {i}. {sid}")
+        print(f"{Colors.DIM}Enter step number to view in pager, or press Enter to skip:{Colors.ENDC} ", end="", flush=True)
         
-        # Listen for Ctrl+O (ASCII 15)
-        import termios, tty, select
-        fd = sys.stdin.fileno()
-        if not sys.stdin.isatty():
+        try:
+            choice = input().strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
             return
             
-        old_settings = termios.tcgetattr(fd)
+        if not choice:
+            return
+            
         try:
-            tty.setraw(fd)
-            r, _, _ = select.select([sys.stdin], [], [], 10.0)
-            if r:
-                char = sys.stdin.read(1)
-                if ord(char) == 15: # Ctrl+O
-                    # Restore terminal for pager
-                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-                    # Pick the first truncated step to show (or let them pick if multiple? 
-                    # Simpler: just show them one by one if they want, or the "main" one)
-                    for sid in truncated_steps:
-                        publisher.view_step_in_pager(sid)
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-        print()
+            idx = int(choice) - 1
+            if 0 <= idx < len(truncated_steps):
+                publisher.view_step_in_pager(truncated_steps[idx])
+            else:
+                print(f"{Colors.DIM}Invalid choice.{Colors.ENDC}")
+        except ValueError:
+            pass  # non-numeric input -> skip
 
     def _build_generated_if_requested(self, options: dict[str, str], target: str):
         workflow_name = options.get("workflow")

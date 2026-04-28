@@ -35,6 +35,7 @@ class LiveStepView:
 
     def __enter__(self):
         self._live.__enter__()
+        self._live.refresh()
         return self
 
     def __exit__(self, *args):
@@ -75,7 +76,7 @@ class LiveStepView:
 
     def _refresh(self) -> None:
         self._spinner_idx = (self._spinner_idx + 1) % len(SPINNERS)
-        self._live.update(self._build_table())
+        self._live.update(self._build_table(), refresh=True)
 
     def _build_table(self) -> Table:
         table = Table.grid(padding=(0, 1))
@@ -89,6 +90,17 @@ class LiveStepView:
             rows = dict(self._rows)
 
         spinner = SPINNERS[self._spinner_idx]
+
+        if not rows:
+            # Show a placeholder if no steps have started yet
+            table.add_row(
+                Text(spinner, style="cyan"),
+                Text("Initializing...", style="dim italic"),
+                Text("", style="dim"),
+                Text("", style="dim"),
+                Text("Preparing engine...", style="dim italic")
+            )
+            return table
 
         for step_id, row in rows.items():
             status = row["status"]

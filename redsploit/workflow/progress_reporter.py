@@ -32,6 +32,7 @@ class ProgressReporter:
         self.step_display = StepDisplay(self.formatter, self.theme)
         self.step_states: Dict[str, StepDisplayState] = {}
         self._live_view: LiveStepView | None = None
+        self._failed_steps: list[StepRun] = []
     
     def run_header(self, run: ScanRun) -> None:
         self.workflow_display.render_header(run)
@@ -77,8 +78,8 @@ class ProgressReporter:
             self.step_states[step.id].update_status("failed")
         if self._live_view:
             self._live_view.step_done(step, "failed")
-        # Still render error details for failed steps
-        self.step_display.render_error_details(step)
+        # Defer rendering error details until after Live context exits
+        self._failed_steps.append(step)
     
     def step_skipped(self, step: StepRun) -> None:
         if step.id in self.step_states:
@@ -90,6 +91,12 @@ class ProgressReporter:
         if self._live_view:
             self._live_view.__exit__(None, None, None)
             self._live_view = None
+        
+        # Now render deferred error panels (Live is closed, safe to print)
+        for step in self._failed_steps:
+            self.step_display.render_error_details(step)
+        self._failed_steps.clear()
+
         self.workflow_display.render_summary(run)
     
     def finalize_step_output(self, step_id: str, publisher: CliLogPublisher | None = None) -> None:

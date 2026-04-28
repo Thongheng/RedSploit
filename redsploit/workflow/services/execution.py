@@ -334,6 +334,22 @@ def _run_per_host_commands(
     timeout_per_host = step.timeout_per_host or timeout_seconds
     max_workers = min(max(1, get_settings().scan.per_host_concurrency), len(targets))
     host_tech_map = _snapshot_tech_map(store, scan_id)
+    stdout_parts: list[str] = []
+    stderr_parts: list[str] = []
+
+    def run_for_host(target: str) -> subprocess.CompletedProcess[str]:
+        host_args = _resolve_host_args(resolved_args, target, host_tech_map.get(target, []))
+        command = adapter.build_command(args=host_args, input_value=None)
+        return _run_single_command(
+            scan_id=scan_id,
+            step=step,
+            command=command,
+            stdin_data=None,
+            timeout_seconds=timeout_per_host,
+            runner=runner,
+            publisher=publisher,
+        )
+
     overall_return_code = 0
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_map = {executor.submit(run_for_host, target): target for target in targets}
@@ -590,6 +606,12 @@ def _resolve_runtime_args(step: StepRun, scan_id: str, *, technology_profile: st
     # Templates in workflow YAML should append .yaml (e.g. {{TECH_PROFILE}}.yaml)
     tech_profile = technology_profile or "generic"
 
+    def _sub(s: str) -> str:
+        s = s.replace("{{SCAN_ID}}", scan_id)
+        s = s.replace("{{NUCLEI_TEMPLATES_PATH}}", nuclei_templates_path)
+        s = s.replace("{{TECH_PROFILE}}", tech_profile)
+        return s
+
     resolved_args: list[str] = []
     i = 0
     args = step.args
@@ -597,22 +619,22 @@ def _resolve_runtime_args(step: StepRun, scan_id: str, *, technology_profile: st
         arg = args[i]
         next_arg = args[i + 1] if i + 1 < len(args) else None
 
-        # Handle the -t {{...}}/{{TECH_PROFILE}}.yaml case
-        if arg == "-t" and next_arg and "{{TECH_PROFILE}}" in next_arg:
-            resolved_template = next_arg.replace("{{NUCLEI_TEMPLATES_PATH}}", nuclei_templates_path)
-            resolved_template = resolved_template.replace("{{TECH_PROFILE}}", tech_profile)
-            
-            # Check if the resolved template file exists
-            if resolved_template.startswith("/") and not Path(resolved_template).exists():
-                logger.debug("Skipping missing tech template: %s", resolved_template)
+        # Handle ALL -t <path> pairs: substitute then existence-check
+        if arg == "-t" and next_arg is not None:
+            resolved_path = _sub(next_arg)
+            # Skip the pair if path is absolute and does not exist on disk
+            if resolved_path.startswith("/") and not Path(resolved_path).exists():
+                logger.debug("Skipping missing nuclei template: %s", resolved_path)
                 i += 2
                 continue
-        
+            # Path exists (or is relative) — keep both flag and value
+            resolved_args.append("-t")
+            resolved_args.append(resolved_path)
+            i += 2
+            continue
+
         # Standard substitution for all other args
-        resolved = arg.replace("{{SCAN_ID}}", scan_id)
-        resolved = resolved.replace("{{NUCLEI_TEMPLATES_PATH}}", nuclei_templates_path)
-        resolved = resolved.replace("{{TECH_PROFILE}}", tech_profile)
-        resolved_args.append(resolved)
+        resolved_args.append(_sub(arg))
         i += 1
     if (
         step.tool == "httpx"
