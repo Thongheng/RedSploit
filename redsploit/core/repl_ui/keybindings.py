@@ -8,6 +8,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 
 
+
 def create_key_bindings(current_text: list[str]) -> KeyBindings:
     """Create enhanced key bindings."""
     kb = KeyBindings()
@@ -68,5 +69,11 @@ def create_key_bindings(current_text: list[str]) -> KeyBindings:
     def handle_escape_enter(event):
         """Esc+Enter inserts a newline for multiline input."""
         event.current_buffer.insert_text("\n")
+
+    # NOTE: Ctrl+O (open pager for live step output) is handled by a raw-tty
+    # background thread in ProgressReporter._start_ctrl_o_listener(), NOT here.
+    # prompt_toolkit key bindings are parked during workflow execution because
+    # the REPL's prompt() call is not running. The raw-tty thread reads /dev/tty
+    # directly and works regardless of prompt_toolkit state.
 
     return kb

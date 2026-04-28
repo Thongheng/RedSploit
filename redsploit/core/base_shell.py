@@ -196,7 +196,7 @@ class BaseShell(cmd.Cmd):
                 bottom_toolbar=toolbar,
                 style=style,
                 enable_suspend=True,
-                enable_open_in_editor=True,
+                enable_open_in_editor=False,  # Ctrl+O reserved for live step pager (progress_reporter._start_ctrl_o_listener)
                 complete_in_thread=False,
                 complete_while_typing=False,
             )
