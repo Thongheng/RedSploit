@@ -36,6 +36,8 @@ class ProgressReporter:
     
     def run_header(self, run: ScanRun) -> None:
         self.workflow_display.render_header(run)
+        # Ensure terminal is ready for Live
+        time.sleep(0.05)
         self._live_view = LiveStepView(self.formatter.console, total_steps=len(run.steps))
         self._live_view.__enter__()
         # self.formatter.console.print("[dim]DEBUG: Live context entered[/dim]")

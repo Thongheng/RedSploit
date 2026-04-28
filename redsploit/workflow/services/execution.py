@@ -43,7 +43,9 @@ def _log(
     """Send to publisher for CLI-visible messages; silently drop otherwise.
     Errors are always persisted in the step's error_summary."""
     if publisher is not None:
-        publisher.publish(scan_id, level, msg)
+        # If step_id is present, add the prefix so publisher can coordinate it
+        full_msg = f"[tool:{step_id}] {msg}" if step_id else msg
+        publisher.publish(scan_id, level, full_msg)
 
 
 @dataclass(slots=True)

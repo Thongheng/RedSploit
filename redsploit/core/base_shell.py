@@ -3,6 +3,7 @@ import os
 import subprocess
 # import readline # Removed in favor of prompt_toolkit
 from prompt_toolkit import PromptSession
+from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.shortcuts import CompleteStyle
 from prompt_toolkit.history import FileHistory, InMemoryHistory
@@ -196,44 +197,45 @@ class BaseShell(cmd.Cmd):
                 style=style,
                 enable_suspend=True,
                 enable_open_in_editor=True,
-                complete_in_thread=True,
-                complete_while_typing=True,
+                complete_in_thread=False,
+                complete_while_typing=False,
             )
 
-            while not stop:
-                if self.cmdqueue:
-                    line = self.cmdqueue.pop(0)
-                else:
-                    if self.use_rawinput:
-                        try:
-                            # Build styled prompt tokens instead of raw ANSI
-                            context = self._prompt_context_str()
-                            prompt_tokens = make_prompt_tokens(
-                                self.module_name, context
-                            )
-                            current_text[0] = ""
-
-                            line = self.prompt_session.prompt(
-                                prompt_tokens,
-                            )
-                        except EOFError:
-                            line = 'EOF'
-                        except KeyboardInterrupt:
-                            print("^C")
-                            continue
+            with patch_stdout():
+                while not stop:
+                    if self.cmdqueue:
+                        line = self.cmdqueue.pop(0)
                     else:
-                        self.stdout.write(self.prompt)
-                        self.stdout.flush()
-                        line = self.stdin.readline()
-                        if not len(line):
-                            line = 'EOF'
+                        if self.use_rawinput:
+                            try:
+                                # Build styled prompt tokens instead of raw ANSI
+                                context = self._prompt_context_str()
+                                prompt_tokens = make_prompt_tokens(
+                                    self.module_name, context
+                                )
+                                current_text[0] = ""
+
+                                line = self.prompt_session.prompt(
+                                    prompt_tokens,
+                                )
+                            except EOFError:
+                                line = 'EOF'
+                            except KeyboardInterrupt:
+                                print("^C")
+                                continue
                         else:
-                            line = line.rstrip('\r\n')
-                line = self.precmd(line)
-                stop = self.onecmd(line)
-                if line and line.strip():
-                    self.command_history.add(line)
-                stop = self.postcmd(stop, line)
+                            self.stdout.write(self.prompt)
+                            self.stdout.flush()
+                            line = self.stdin.readline()
+                            if not len(line):
+                                line = 'EOF'
+                            else:
+                                line = line.rstrip('\r\n')
+                    line = self.precmd(line)
+                    stop = self.onecmd(line)
+                    if line and line.strip():
+                        self.command_history.add(line)
+                    stop = self.postcmd(stop, line)
             self.postloop()
         finally:
             if self.use_rawinput and self.completekey:

@@ -1,0 +1,14 @@
+name: TUI Test
+mode: project
+profile: cautious
+version: "1.0"
+steps:
+  - id: check_google
+    tool: dig
+    args: ["google.com", "+short"]
+  - id: check_local
+    tool: dig
+    args: ["localhost", "+short"]
+  - id: summary
+    kind: merge
+    input: ["check_google", "check_local"]

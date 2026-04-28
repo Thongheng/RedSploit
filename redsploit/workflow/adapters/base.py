@@ -30,7 +30,7 @@ class ToolAdapter:
                 capture_output=True, text=True, timeout=5, check=False,
             )
             return proc.returncode == 0
-        except (FileNotFoundError, subprocess.TimeoutExpired):
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
             return False
 
     def version(self) -> str | None:

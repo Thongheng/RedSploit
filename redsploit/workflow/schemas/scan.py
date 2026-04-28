@@ -121,7 +121,7 @@ class StepRun(BaseModel):
     artifacts: list[StepArtifact] = Field(default_factory=list)
     output_items: list[str] = Field(default_factory=list)
     discovered_endpoints: list[EndpointRecord] = Field(default_factory=list)
-    input_ref: str | None = None
+    input_ref: str | list[str] | None = None
     planned_input: PlannedInput | None = None
     dependency_step_ids: list[str] = Field(default_factory=list)
     args: list[str] = Field(default_factory=list)

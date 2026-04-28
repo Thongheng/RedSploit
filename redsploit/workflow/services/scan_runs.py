@@ -1071,7 +1071,7 @@ class ScanRunStore:
                     step.finished_at,
                     step.output_summary,
                     step.error_summary,
-                    step.input_ref,
+                    json.dumps(step.input_ref) if isinstance(step.input_ref, list) else step.input_ref,
                     step.output_key,
                     step.rule_count,
                     step.on_empty,
