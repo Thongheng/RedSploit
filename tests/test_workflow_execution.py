@@ -552,8 +552,8 @@ def test_external_continuous_workflow_matches_new_spec() -> None:
     assert step_by_id["nuclei_takeover"].timeout_per_host == 60
     assert step_by_id["exposure_scan"].timeout_per_host == 120
     assert step_by_id["header_scan"].timeout_per_host == 30
-    assert "--warnings" in step_by_id["tls_audit"].args
-    assert "batch" in step_by_id["tls_audit"].args
+    assert "--script" in step_by_id["tls_audit"].args
+    assert "ssl*" in step_by_id["tls_audit"].args
 
 
 def test_execute_per_host_exposure_scan_uses_detected_tech_template(session, monkeypatch) -> None:

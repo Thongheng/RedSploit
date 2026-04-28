@@ -18,18 +18,18 @@ scope:
 steps:
 
   # ── Depth 0 — TLS audit ────────────────────────────────────────────────────
-  # Weak cipher and certificate chain analysis. Standard external report items.
-  # External targets may have multiple hosts — testssl receives live_hosts output.
+  # SSL/TLS cipher and certificate analysis using nmap.
+  # External targets may have multiple hosts.
   - id: tls_audit
-    tool: testssl
+    tool: nmap
     input: "{{TARGET}}"
     args:
-      - "--weak-cipher"
-      - "--quiet"
-      - "--color"
-      - "0"
-      - "--warnings"
-      - "batch"
+      - "-sV"
+      - "--script"
+      - "ssl*"
+      - "-p"
+      - "443,8443"
+      - "-Pn"
     output: tls_findings
     on_empty: warn
     on_failure: warn

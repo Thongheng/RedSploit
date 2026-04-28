@@ -52,7 +52,7 @@ def test_project_builder_keeps_continuous_workflow_fixed() -> None:
     assert generated.content is None
 
 
-def test_project_builder_external_tls_audit_uses_only_weak_cipher_flags() -> None:
+def test_project_builder_external_tls_audit_uses_nmap() -> None:
     generated = build_project_workflow(
         ProjectWorkflowBuildRequest(
             target="example.com",
@@ -60,36 +60,36 @@ def test_project_builder_external_tls_audit_uses_only_weak_cipher_flags() -> Non
             technology_profile="php",
             test_depth="deep",
         ),
-        available_tools={"testssl", "shcheck", "nuclei"},
+        available_tools={"nmap", "shcheck", "nuclei"},
     )
 
     plan = build_scan_plan_from_text(generated.content, "example.com")
     step_by_id = {step.id: step for step in plan.steps}
 
     assert step_by_id["tls_audit"].args == [
-        "--weak-cipher",
-        "--quiet",
-        "--color",
-        "0",
-        "--warnings",
-        "batch",
+        "-sV",
+        "--script",
+        "ssl*",
+        "-p",
+        "443,8443",
+        "-Pn",
     ]
     assert step_by_id["tls_audit"].timeout_seconds == 180
 
 
-def test_catalog_external_project_tls_audit_uses_only_weak_cipher_flags() -> None:
+def test_catalog_external_project_tls_audit_uses_nmap() -> None:
     plan = build_scan_plan_from_path("external-project.yaml", "example.com")
     step_by_id = {step.id: step for step in plan.steps}
 
     assert step_by_id["tls_audit"].args == [
-        "--weak-cipher",
-        "--quiet",
-        "--color",
-        "0",
-        "--warnings",
-        "batch",
+        "-sV",
+        "--script",
+        "ssl*",
+        "-p",
+        "443,8443",
+        "-Pn",
     ]
-    assert step_by_id["tls_audit"].tool == "testssl"
+    assert step_by_id["tls_audit"].tool == "nmap"
     assert step_by_id["tls_audit"].timeout_seconds == 180
 
 

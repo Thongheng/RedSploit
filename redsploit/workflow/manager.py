@@ -119,154 +119,27 @@ class _ProgressReporter:
 
     def __init__(self) -> None:
         self._reporter = ProgressReporter()
-        self._start = monotonic()
 
     def run_header(self, run) -> None:
         self._reporter.run_header(run)
 
     def step_started(self, run, step, *, publisher: CliLogPublisher | None = None) -> None:
         self._reporter.step_started(run, step, publisher)
-        if publisher is not None:
-            print(self._render_step_board(run, publisher), file=sys.stderr, flush=True)
 
     def step_completed(self, step) -> None:
         self._reporter.step_completed(step)
-        print(self._format_completion(step), file=sys.stderr, flush=True)
 
     def step_failed(self, step) -> None:
         self._reporter.step_failed(step)
-        print(self._format_failure(step), file=sys.stderr, flush=True)
 
     def step_skipped(self, step) -> None:
         self._reporter.step_skipped(step)
-        print(f"– {step.id} skipped", file=sys.stderr, flush=True)
 
     def run_footer(self, run) -> None:
         self._reporter.run_footer(run)
 
     def finalize_step_output(self, step_id: str, publisher: CliLogPublisher | None = None) -> None:
         self._reporter.finalize_step_output(step_id, publisher)
-
-    @staticmethod
-    def _format_clock(seconds: float) -> str:
-        total = max(0, int(seconds))
-        minutes, remainder = divmod(total, 60)
-        hours, minutes = divmod(minutes, 60)
-        if hours:
-            return f"{hours:02d}:{minutes:02d}:{remainder:02d}"
-        return f"{minutes:02d}:{remainder:02d}"
-
-    @staticmethod
-    def _trim_message(message: str, *, limit: int = 48) -> str:
-        message = " ".join(message.split())
-        if len(message) <= limit:
-            return message
-        return message[: limit - 1] + "…"
-
-    def _format_live_status(
-        self,
-        *,
-        step_id: str,
-        tool_name: str,
-        elapsed_seconds: float,
-        activity: dict[str, object] | None,
-    ) -> str:
-        line_count = int(activity.get("line_count", 0)) if activity else 0
-        warn_count = int(activity.get("warn_count", 0)) if activity else 0
-        idle_seconds = float(activity.get("idle_seconds", 0.0)) if activity else 0.0
-        last_message = str(activity.get("last_message", "")) if activity else ""
-        state = "stalled" if idle_seconds >= 15 else "active"
-
-        parts = [
-            "⊙",
-            tool_name,
-            state,
-            f"elapsed:{self._format_clock(elapsed_seconds)}",
-            f"lines:{line_count}",
-        ]
-        if warn_count:
-            parts.append(f"warn:{warn_count}")
-        if idle_seconds >= 5:
-            parts.append(f"idle:{self._format_clock(idle_seconds)}")
-        if last_message:
-            parts.append(f"last:{self._trim_message(last_message)}")
-        return " ".join(parts)
-
-    def _render_step_board(self, run, publisher: CliLogPublisher) -> str:
-        lines = ["Step Board"]
-        now = monotonic()
-        for step in run.steps:
-            if step.status == "complete":
-                lines.append(f"✓ {step.id}")
-                continue
-            if step.status == "failed":
-                lines.append(f"✗ {step.id}")
-                continue
-            if step.status == "skipped":
-                lines.append(f"– {step.id}")
-                continue
-            if step.status in {"blocked", "ready", "queued"}:
-                marker = "…" if step.status == "blocked" else "○"
-                lines.append(f"{marker} {step.id}")
-                continue
-
-            tool_name = step.tool or step.kind
-            elapsed = 0.0
-            if step.started_at:
-                try:
-                    from datetime import datetime
-
-                    started = datetime.fromisoformat(step.started_at.replace("Z", "+00:00")).timestamp()
-                    elapsed = max(0.0, now - started)
-                except (ValueError, AttributeError):
-                    elapsed = 0.0
-            activity = publisher.get_step_activity(step.id)
-            lines.append(f"▶ {step.id}")
-            lines.append(
-                "  "
-                + self._format_live_status(
-                    step_id=step.id,
-                    tool_name=tool_name,
-                    elapsed_seconds=elapsed,
-                    activity=activity,
-                )
-            )
-        return "\n".join(lines)
-
-    def _format_completion(self, step) -> str:
-        telemetry = step.telemetry
-        duration = self._format_duration_ms(telemetry.duration_ms if telemetry else None)
-        input_count = telemetry.input_count if telemetry else 0
-        artifact_count = len(step.artifacts)
-        output_count = len(step.output_items)
-        return (
-            f"✓ {step.id} {duration} "
-            f"items:{output_count} in:{input_count} artifacts:{artifact_count}"
-        )
-
-    def _format_failure(self, step) -> str:
-        telemetry = step.telemetry
-        duration = self._format_duration_ms(telemetry.duration_ms if telemetry else None)
-        exit_code = telemetry.exit_code if telemetry else None
-        parts = [f"✗ {step.id}", duration]
-        if exit_code is not None:
-            parts.append(f"exit:{exit_code}")
-        if step.error_summary:
-            parts.append(self._trim_message(step.error_summary, limit=72))
-        return " ".join(part for part in parts if part)
-
-    @staticmethod
-    def _format_duration_ms(duration_ms: int | None) -> str:
-        if duration_ms is None:
-            return "N/A"
-        if duration_ms < 1000:
-            return f"{duration_ms}ms"
-        duration_seconds = duration_ms / 1000
-        if duration_seconds < 60:
-            return f"{duration_seconds:.1f}s"
-        minutes = int(duration_seconds // 60)
-        seconds = int(duration_seconds % 60)
-        return f"{minutes:02d}:{seconds:02d}"
 
 
 class WorkflowManager:

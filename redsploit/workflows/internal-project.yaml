@@ -9,8 +9,8 @@ version: "2.2"
 # Depth modes: normal | deep only (light not supported for internal).
 #
 # DAG parallelism:
-#   Depth 0: probe_http + service_scan (independent — both start immediately)
-#   Depth 1: crawl + fuzz_content + nuclei_host + testssl (all depend on live_host)
+#   Depth 0: probe_http + service_scan_custom + service_scan_top1000 (independent — all start immediately)
+#   Depth 1: crawl + fuzz_content + nuclei_host + tls_audit (all depend on live_host)
 #   Depth 2: merge_paths (depends on crawl + fuzz outputs)
 #   Depth 3: param_discover + nuclei_paths + js_secret_scan (all depend on merge_paths)
 #   Depth 4: xss_confirm + sqli_confirm (depend on param_discover)
@@ -47,7 +47,7 @@ steps:
   # Custom port list biased toward internal stacks — not nmap's internet top-1000.
   # -Pn required: internal hosts frequently don't respond to ICMP.
   # Artifact only — not chained to HTTP pipeline.
-  - id: service_scan
+  - id: service_scan_custom
     tool: nmap
     input: "{{TARGET}}"
     args:
@@ -57,10 +57,28 @@ steps:
       - "--open"
       - "-T4"
       - "-Pn"
-    output: service_findings
+    output: service_findings_custom
     on_empty: warn
     on_failure: warn
     timeout_seconds: 300
+
+  # Service version fingerprint on top 1000 ports (nmap default).
+  # Complements custom port scan to catch services on standard ports.
+  # -Pn required: internal hosts frequently don't respond to ICMP.
+  - id: service_scan_top1000
+    tool: nmap
+    input: "{{TARGET}}"
+    args:
+      - "-sV"
+      - "--top-ports"
+      - "1000"
+      - "--open"
+      - "-T4"
+      - "-Pn"
+    output: service_findings_top1000
+    on_empty: warn
+    on_failure: warn
+    timeout_seconds: 600
 
   # ── Depth 1 (all parallel, depend on live_host) ───────────────────────────────
 
@@ -130,19 +148,18 @@ steps:
     on_failure: warn
     timeout_seconds: 300
 
-  # TLS weak cipher audit. Scoped to ciphers only — headers and cert info
-  # are covered by nuclei_host to avoid duplication.
-  # --warnings batch prevents interactive prompts hanging the process.
+  # TLS cipher audit using nmap. Scoped to SSL/TLS analysis.
+  # Checks weak ciphers and certificate information.
   - id: tls_audit
-    tool: testssl
+    tool: nmap
     input: "{{live_host}}"
     args:
-      - "--weak-cipher"
-      - "--quiet"
-      - "--color"
-      - "0"
-      - "--warnings"
-      - "batch"
+      - "-sV"
+      - "--script"
+      - "ssl*"
+      - "-p"
+      - "443,8443"
+      - "-Pn"
     output: tls_findings
     on_empty: warn
     on_failure: warn
