@@ -26,20 +26,24 @@ class LiveStepView:
         self._rows: dict[str, dict] = {}   # step_id → {status, tool, start, last_line}
         self._lock = threading.Lock()
         self._spinner_idx = 0
-        self._live = Live(
-            self._build_table(),
-            console=console,
-            refresh_per_second=8,
-            transient=False,
-        )
+        self._live: Live | None = None
 
     def __enter__(self):
+        self._live = Live(
+            self._build_table(),
+            console=self._console,
+            refresh_per_second=4,
+            transient=False,
+            auto_refresh=True,
+        )
         self._live.__enter__()
         self._live.refresh()
         return self
 
     def __exit__(self, *args):
-        self._live.__exit__(*args)
+        if self._live:
+            self._live.__exit__(*args)
+            self._live = None
 
     def step_started(self, step: "StepRun") -> None:
         with self._lock:
@@ -58,7 +62,7 @@ class LiveStepView:
         with self._lock:
             if step_id in self._rows:
                 # Keep only the last 120 chars of the line for display
-                self._rows[step_id]["last_line"] = line[:120].replace("\n", " ").strip()
+                self._rows[step_id]["last_line"] = line[:120]
         self._refresh()
 
     def step_done(self, step: "StepRun", status: str) -> None:
@@ -71,10 +75,12 @@ class LiveStepView:
                     row["duration"] = f"{ms/1000:.1f}s" if ms >= 1000 else f"{ms}ms"
                 row["output_count"] = len(step.output_items) if step.output_items else 0
                 if status == "failed":
-                    row["error"] = (step.error_summary or "")[:80].replace("\n", " ").strip()
+                    row["error"] = (step.error_summary or "")[:80]
         self._refresh()
 
     def _refresh(self) -> None:
+        if not self._live:
+            return
         self._spinner_idx = (self._spinner_idx + 1) % len(SPINNERS)
         self._live.update(self._build_table(), refresh=True)
 

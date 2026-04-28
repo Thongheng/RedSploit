@@ -38,6 +38,7 @@ class ProgressReporter:
         self.workflow_display.render_header(run)
         self._live_view = LiveStepView(self.formatter.console, total_steps=len(run.steps))
         self._live_view.__enter__()
+        # self.formatter.console.print("[dim]DEBUG: Live context entered[/dim]")
     
     def step_started(
         self,
