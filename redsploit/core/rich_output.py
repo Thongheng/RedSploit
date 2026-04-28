@@ -92,7 +92,8 @@ def get_console(force_color_override: bool | None = None) -> Console:
         force_terminal = force_color_override if force_color_override is not None else config.get("force_color", False)
         _console_instance = RichTheme.get_console(
             stderr=True,
-            force_terminal=force_terminal
+            force_terminal=force_terminal,
+            force_jupyter=False,  # Explicitly disable Jupyter mode which can cause encoding issues
         )
     return _console_instance
 

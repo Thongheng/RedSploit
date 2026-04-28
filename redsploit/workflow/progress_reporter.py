@@ -6,6 +6,9 @@ and step display components during workflow execution.
 
 from __future__ import annotations
 
+import io
+import re
+import sys
 import time
 from typing import TYPE_CHECKING, Dict
 
@@ -18,6 +21,7 @@ from redsploit.workflow.step_display import StepDisplay
 
 if TYPE_CHECKING:
     from redsploit.workflow.manager import CliLogPublisher
+    from typing import TextIO
 
 
 from redsploit.workflow.live_step_view import LiveStepView
@@ -35,7 +39,19 @@ class ProgressReporter:
         self._failed_steps: list[StepRun] = []
     
     def run_header(self, run: ScanRun) -> None:
+        # Render header first (before suppressing)
         self.workflow_display.render_header(run)
+        sys.stdout.flush()
+        sys.stderr.flush()
+
+        # Suppress stdout/stderr during Live to prevent ANSI leaks from subprocess output
+        self._original_stdout: TextIO = sys.stdout
+        self._original_stderr: TextIO = sys.stderr
+        self._stdout_buffer = io.StringIO()
+        self._stderr_buffer = io.StringIO()
+        sys.stdout = self._stdout_buffer
+        sys.stderr = self._stderr_buffer
+
         # Ensure terminal is ready for Live
         time.sleep(0.05)
         # Force terminal mode for Live rendering - required for proper display
@@ -43,9 +59,18 @@ class ProgressReporter:
         # Reset console to allow recreation with force_terminal=True
         reset_console()
         live_console = get_console(force_color_override=True)
+        # Update formatter's console reference to use the new console
+        self.formatter.console = live_console
+
+        # Clear any residual ANSI codes from terminal after header
+        import os
+        if hasattr(os, 'isatty') and os.isatty(1):
+            # Clear screen and move cursor to top-left
+            sys.stdout.write('\033[2J\033[H')
+            sys.stdout.flush()
+
         self._live_view = LiveStepView(live_console, total_steps=len(run.steps))
         self._live_view.__enter__()
-        # self.formatter.console.print("[dim]DEBUG: Live context entered[/dim]")
     
     def step_started(
         self,
@@ -71,7 +96,10 @@ class ProgressReporter:
         if self._live_view:
             self._live_view.step_started(step)
     
-    def _on_output_line(self, step_id: str, line: str) -> None:
+    def _on_output_line(self, step_id: str, raw_line: str) -> None:
+        # Strip ANSI escape sequences from tool output
+        ansi_escape = re.compile(r'\x1b\[[0-9;?]*[a-zA-Z]')
+        line = ansi_escape.sub('', raw_line)
         if self._live_view:
             self._live_view.update_last_line(step_id, line)
 
@@ -99,6 +127,31 @@ class ProgressReporter:
         if self._live_view:
             self._live_view.__exit__(None, None, None)
             self._live_view = None
+
+        # Restore stdout/stderr and flush buffered content
+        if hasattr(self, '_original_stdout'):
+            stdout_content = self._stdout_buffer.getvalue()
+            stderr_content = self._stderr_buffer.getvalue()
+
+            sys.stdout = self._original_stdout
+            sys.stderr = self._original_stderr
+
+            # Filter out ANSI escape sequences that may have leaked during Live
+            ansi_escape = re.compile(r'\x1b\[[0-9;?]*[a-zA-Z]')
+            clean_stdout = ansi_escape.sub('', stdout_content)
+            clean_stderr = ansi_escape.sub('', stderr_content)
+
+            if clean_stdout.strip():
+                sys.stdout.write(clean_stdout)
+                sys.stdout.flush()
+            if clean_stderr.strip():
+                sys.stderr.write(clean_stderr)
+                sys.stderr.flush()
+
+            delattr(self, '_original_stdout')
+            delattr(self, '_original_stderr')
+            delattr(self, '_stdout_buffer')
+            delattr(self, '_stderr_buffer')
         
         # Now render deferred error panels (Live is closed, safe to print)
         for step in self._failed_steps:
