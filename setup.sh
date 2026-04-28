@@ -49,9 +49,9 @@ WORKFLOW_REQUIRED_BINARIES=(
     assetfinder
     gau
     waymore
-    theHarvester
+    theharvester
     testssl.sh
-    shcheck.py
+    shcheck
     arjun
     dalfox
     secretfinder
@@ -91,7 +91,9 @@ check_all_tools_before_install() {
     local managers
     local tool
     
-    mapfile -t managers < <(list_required_managers)
+    while IFS= read -r line; do
+        managers+=("$line")
+    done < <(list_required_managers)
     if [ ${#managers[@]} -gt 0 ]; then
         log_info "Available package managers: ${managers[*]}"
     else
@@ -99,7 +101,19 @@ check_all_tools_before_install() {
     fi
     
     for tool in "${WORKFLOW_REQUIRED_BINARIES[@]}"; do
+        local found=0
         if command -v "$tool" >/dev/null 2>&1; then
+            if [ "$tool" = "httpx" ]; then
+                # Check if it's the ProjectDiscovery version
+                if "$tool" -h 2>&1 | grep -iq "projectdiscovery"; then
+                    found=1
+                fi
+            else
+                found=1
+            fi
+        fi
+
+        if [ $found -eq 1 ]; then
             available_tools+=("$tool")
         else
             missing_tools+=("$tool")
@@ -108,11 +122,11 @@ check_all_tools_before_install() {
     
     echo ""
     if [ ${#available_tools[@]} -gt 0 ]; then
-        printf '%s[+]%s Available tools (%d): %s\n' "$C_GREEN" "$C_RESET" ${#available_tools[@]} "${available_tools[*]}"
+        printf '%s[+]%s %d tools available\n' "$C_GREEN" "$C_RESET" ${#available_tools[@]}
     fi
     
     if [ ${#missing_tools[@]} -gt 0 ]; then
-        printf '%s[-]%s Missing tools (%d): %s\n' "$C_YELLOW" "$C_RESET" ${#missing_tools[@]} "${missing_tools[*]}"
+        printf '%s[-]%s %d tools missing: %s\n' "$C_YELLOW" "$C_RESET" ${#missing_tools[@]} "${missing_tools[*]}"
     else
         log_success "All workflow tools are already installed"
     fi
@@ -126,11 +140,22 @@ check_all_tools_before_install() {
 list_missing_workflow_tools() {
     local binary missing=()
     for binary in "${WORKFLOW_REQUIRED_BINARIES[@]}"; do
-        if ! command -v "$binary" >/dev/null 2>&1; then
+        local found=0
+        if command -v "$binary" >/dev/null 2>&1; then
+            if [ "$binary" = "httpx" ]; then
+                if "$binary" -h 2>&1 | grep -iq "projectdiscovery"; then
+                    found=1
+                fi
+            else
+                found=1
+            fi
+        fi
+
+        if [ $found -eq 0 ]; then
             missing+=("$binary")
         fi
     done
-    [ ${#missing[@]} -gt 0 ] && printf '%s\n' "${missing[@]}"
+    [ ${#missing[@]} -gt 0 ] && printf '%s\n' "${missing[@]}" | grep -v "^$"
 }
 
 run_as_root_or_sudo() {
@@ -195,7 +220,7 @@ workflow_install_command() {
             ;;
         httpx)
             if has_package_manager brew; then
-                printf 'brew install httpx'
+                printf 'brew install projectdiscovery/tap/httpx'
                 return 0
             fi
             if has_package_manager go; then
@@ -259,13 +284,17 @@ workflow_install_command() {
             ;;
         waymore)
             if has_package_manager pipx; then
-                printf 'pipx install git+https://github.com/xnl-h4ck3r/waymore.git'
+                printf 'pipx install waymore || pipx install git+https://github.com/xnl-h4ck3r/waymore.git'
                 return 0
             fi
             ;;
         theHarvester)
-            if command -v theHarvester >/dev/null 2>&1; then
-                printf ':'
+            if has_package_manager brew; then
+                printf 'brew install theharvester'
+                return 0
+            fi
+            if has_package_manager pipx; then
+                printf 'pipx install theHarvester'
                 return 0
             fi
             ;;
@@ -273,7 +302,7 @@ workflow_install_command() {
             printf 'rm -rf "$HOME/.local/share/testssl.sh" "$HOME/.local/bin/testssl.sh" && mkdir -p "$HOME/.local/share/testssl.sh" && git clone --depth 1 https://github.com/testssl/testssl.sh.git --branch 3.3dev "$HOME/.local/share/testssl.sh" && mkdir -p "$HOME/.local/bin" && ln -sf "$HOME/.local/share/testssl.sh/testssl.sh" "$HOME/.local/bin/testssl.sh"'
             return 0
             ;;
-        shcheck.py)
+        shcheck)
             if has_package_manager pipx; then
                 printf 'pipx install shcheck'
                 return 0
@@ -296,6 +325,10 @@ workflow_install_command() {
             fi
             ;;
         dirsearch)
+            if has_package_manager pipx; then
+                printf 'pipx install dirsearch'
+                return 0
+            fi
             printf 'rm -rf "$HOME/.local/share/dirsearch" "$HOME/.local/bin/dirsearch" && mkdir -p "$HOME/.local/share/dirsearch" && git clone --depth 1 https://github.com/maurosoria/dirsearch.git "$HOME/.local/share/dirsearch" && chmod +x "$HOME/.local/share/dirsearch/dirsearch.py" && mkdir -p "$HOME/.local/bin" && ln -sf "$HOME/.local/share/dirsearch/dirsearch.py" "$HOME/.local/bin/dirsearch"'
             return 0
             ;;
@@ -306,7 +339,7 @@ workflow_install_command() {
             fi
             ;;
         secretfinder)
-            printf 'rm -rf "$HOME/.local/share/SecretFinder" && mkdir -p "$HOME/.local/share/SecretFinder" "$HOME/.local/bin" && git clone --depth 1 https://github.com/m4ll0k/SecretFinder.git "$HOME/.local/share/SecretFinder" && python3 -m pip install --break-system-packages -r "$HOME/.local/share/SecretFinder/requirements.txt" && chmod +x "$HOME/.local/share/SecretFinder/SecretFinder.py" && ln -sf "$HOME/.local/share/SecretFinder/SecretFinder.py" "$HOME/.local/bin/secretfinder"'
+            printf 'rm -rf "$HOME/.local/share/SecretFinder" && mkdir -p "$HOME/.local/share/SecretFinder" "$HOME/.local/bin" && git clone --depth 1 https://github.com/m4ll0k/SecretFinder.git "$HOME/.local/share/SecretFinder" && (python3 -m pip install --break-system-packages -r "$HOME/.local/share/SecretFinder/requirements.txt" || python3 -m pip install -r "$HOME/.local/share/SecretFinder/requirements.txt") && chmod +x "$HOME/.local/share/SecretFinder/SecretFinder.py" && ln -sf "$HOME/.local/share/SecretFinder/SecretFinder.py" "$HOME/.local/bin/secretfinder"'
             return 0
             ;;
     esac
@@ -328,9 +361,9 @@ workflow_install_hint() {
         feroxbuster) printf 'Official: Kali apt, Homebrew, or install-nix.sh from epi052/feroxbuster' ;;
         arjun) printf 'Official: pipx install arjun' ;;
         waymore) printf 'Official: pipx install git+https://github.com/xnl-h4ck3r/waymore.git' ;;
-        shcheck.py) printf 'Official source uses pip; installer uses pipx install shcheck for isolated CLI install' ;;
+        shcheck) printf 'Official source uses pip; installer uses pipx install shcheck for isolated CLI install' ;;
         testssl.sh) printf 'Official: git clone testssl/testssl.sh and run from the cloned directory' ;;
-        theHarvester) printf 'Official: Kali package, pipx in a repo clone, Docker, or uv source install' ;;
+        theharvester) printf 'Official: Kali package, pipx in a repo clone, Docker, or uv source install' ;;
         sqlmap) printf 'Official source uses pip; installer uses pipx install sqlmap for isolated CLI install' ;;
         secretfinder) printf 'Official: pipx install git+https://github.com/m4ll0k/SecretFinder.git' ;;
         dirsearch) printf 'Official: git clone maurosoria/dirsearch and run it, or install it in an isolated environment' ;;
@@ -345,26 +378,36 @@ install_missing_workflow_tools() {
     local binary install_cmd
     local failed=0
     local installed=0
+    local log_file
+    log_file="$(mktemp)"
 
     for binary in "$@"; do
+        # Skip empty or whitespace-only binary names
+        if [[ -z "${binary// }" ]]; then
+            continue
+        fi
+        
         if command -v "$binary" >/dev/null 2>&1; then
             continue
         fi
         
         log_info "Installing $binary..."
         if install_cmd="$(workflow_install_command "$binary" 2>/dev/null)"; then
-            log_info "Running: $install_cmd"
-            if bash -lc "$install_cmd"; then
+            # Silent install unless it fails
+            if bash -lc "$install_cmd" > "$log_file" 2>&1; then
                 export PATH="$HOME/.local/bin:$PATH"
                 if command -v "$binary" >/dev/null 2>&1 || [ -f "$HOME/.local/bin/$binary" ]; then
                     log_success "$binary installed successfully"
                     installed=$((installed + 1))
                 else
                     log_warn "$binary install command ran but binary not found"
+                    cat "$log_file"
                     failed=$((failed + 1))
                 fi
             else
                 log_warn "Failed to install $binary. $(workflow_install_hint "$binary")"
+                # Show last 20 lines of log on failure
+                tail -n 20 "$log_file" | sed 's/^/    /'
                 failed=$((failed + 1))
             fi
         else
@@ -372,6 +415,8 @@ install_missing_workflow_tools() {
             failed=$((failed + 1))
         fi
     done
+
+    rm -f "$log_file"
 
     echo ""
     if [ $installed -gt 0 ]; then
@@ -385,8 +430,12 @@ install_missing_workflow_tools() {
 }
 
 ensure_workflow_tools() {
-    local missing_tools
-    mapfile -t missing_tools < <(list_missing_workflow_tools)
+    local -a missing_tools=()
+    local line
+    
+    while IFS= read -r line; do
+        [ -n "$line" ] && missing_tools+=("$line")
+    done < <(list_missing_workflow_tools)
 
     if [ "${#missing_tools[@]}" -eq 0 ]; then
         log_success "All workflow tools are available on PATH"
@@ -396,7 +445,11 @@ ensure_workflow_tools() {
     log_info "Missing workflow tools: ${missing_tools[*]}"
     install_missing_workflow_tools "${missing_tools[@]}" || true
 
-    mapfile -t missing_tools < <(list_missing_workflow_tools)
+    # Re-check
+    missing_tools=()
+    while IFS= read -r line; do
+        [ -n "$line" ] && missing_tools+=("$line")
+    done < <(list_missing_workflow_tools)
 
     if [ "${#missing_tools[@]}" -eq 0 ]; then
         log_success "All workflow tools installed successfully"
@@ -407,6 +460,7 @@ ensure_workflow_tools() {
     log_warn "Some workflow tools could not be installed:"
     local tool
     for tool in "${missing_tools[@]}"; do
+        [ -z "$tool" ] && continue
         printf '%s[-]%s %s — %s\n' "$C_YELLOW" "$C_RESET" "$tool" "$(workflow_install_hint "$tool")"
     done
     return 0

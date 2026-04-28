@@ -17,13 +17,21 @@ class WorkflowModule(BaseModule):
     def _check_httpx(self):
         """Warn if the 'httpx' on PATH is the Python library instead of ProjectDiscovery tool."""
         import subprocess
+        import shutil
+        
+        # If httpx isn't even on path, setup.sh will handle it
+        if not shutil.which("httpx"):
+            return
+
         try:
-            # Python httpx CLI returns usage error for --version
-            res = subprocess.run(["httpx", "--version"], capture_output=True, text=True, timeout=2)
-            if "Usage: httpx [OPTIONS] URL" in res.stderr or "Usage: httpx [OPTIONS] URL" in res.stdout:
+            # ProjectDiscovery httpx supports -version and returns vX.X.X
+            # Python httpx returns 'Usage: httpx [OPTIONS] URL' for --version
+            res = subprocess.run(["httpx", "-h"], capture_output=True, text=True, timeout=2)
+            if "projectdiscovery" not in res.stdout.lower() and "projectdiscovery" not in res.stderr.lower():
                 from ..core.colors import log_warn, Colors
                 log_warn(f"Conflict detected: The '{Colors.BOLD}httpx{Colors.ENDC}' on your path is the Python library, not the ProjectDiscovery tool.")
                 print(f"  {Colors.DIM}Workflows require the ProjectDiscovery version. You may need to rename the Python version or adjust your PATH.{Colors.ENDC}")
+                print(f"  {Colors.DIM}Suggestion: go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest{Colors.ENDC}")
         except Exception:
             pass
 

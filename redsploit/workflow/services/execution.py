@@ -29,6 +29,7 @@ _OPTIONAL_MISSING_TOOL_STEPS = {
     "waymore",
     "passive_urls",
     "axfr_attempt",
+    "shcheck",
 }
 
 
