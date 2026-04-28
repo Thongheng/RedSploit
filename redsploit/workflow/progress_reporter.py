@@ -38,7 +38,12 @@ class ProgressReporter:
         self.workflow_display.render_header(run)
         # Ensure terminal is ready for Live
         time.sleep(0.05)
-        self._live_view = LiveStepView(self.formatter.console, total_steps=len(run.steps))
+        # Force terminal mode for Live rendering - required for proper display
+        from redsploit.core.rich_output import get_console, reset_console
+        # Reset console to allow recreation with force_terminal=True
+        reset_console()
+        live_console = get_console(force_color_override=True)
+        self._live_view = LiveStepView(live_console, total_steps=len(run.steps))
         self._live_view.__enter__()
         # self.formatter.console.print("[dim]DEBUG: Live context entered[/dim]")
     

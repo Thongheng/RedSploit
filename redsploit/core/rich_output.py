@@ -72,8 +72,12 @@ def reset_config_cache() -> None:
     _config_cache = None
 
 
-def get_console() -> Console:
+def get_console(force_color_override: bool | None = None) -> Console:
     """Get or create the global Rich Console instance.
+
+    Args:
+        force_color_override: Optional override for force_color config.
+            Useful for Live rendering which requires terminal mode.
 
     Returns:
         Console: The singleton Rich Console instance
@@ -82,13 +86,13 @@ def get_console() -> Console:
     if _console_instance is None:
         config = _load_ui_config()
         # Use stderr for interactive output to avoid polluting pipes
-        # Force color output for Rich Live rendering
-        # Use standard color system for better tmux/SSH compatibility
+        # Force terminal mode if:
+        # 1. Config explicitly enables force_color, OR
+        # 2. Caller requests it via force_color_override (e.g., for Live rendering)
+        force_terminal = force_color_override if force_color_override is not None else config.get("force_color", False)
         _console_instance = RichTheme.get_console(
             stderr=True,
-            force_terminal=True,
-            color_system="standard",  # Use basic 16 colors for max compatibility
-            legacy_windows=False
+            force_terminal=force_terminal
         )
     return _console_instance
 
