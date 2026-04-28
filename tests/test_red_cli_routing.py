@@ -82,12 +82,12 @@ def test_red_cli_returns_error_for_unknown_cli_command(monkeypatch):
     mock_log_error.assert_called_once()
 
 
-def test_red_cli_routes_workflow_command(monkeypatch):
+def test_red_cli_rejects_removed_workflow_command(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["red.py", "workflow", "list"])
 
-    with patch("redsploit.workflow.manager.WorkflowManager.run_cli", return_value=0) as mock_run_cli:
+    with patch("red.log_error") as mock_log_error:
         from red import main
 
-        assert main() == 0
+        assert main() == 1
 
-    mock_run_cli.assert_called_once()
+    mock_log_error.assert_called_once()

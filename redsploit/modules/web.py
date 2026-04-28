@@ -176,7 +176,7 @@ class WebModule(BaseModule):
                 try:
                     scanner_args = shlex.split(new_cmd)
                 except ValueError as exc:
-                    from ...core.rich_output import get_formatter
+                    from ..core.rich_output import get_formatter
                     formatter = get_formatter()
                     formatter.error_panel(
                         error_type="ValueError",
@@ -195,7 +195,7 @@ class WebModule(BaseModule):
             except HeaderscanHelp:
                 return 0
             except ValueError as exc:
-                from ...core.rich_output import get_formatter
+                from ..core.rich_output import get_formatter
                 formatter = get_formatter()
                 formatter.error_panel(
                     error_type="ValueError",

@@ -16,10 +16,11 @@ class TestModuleToolHelp:
         infra.run(["-nmap", "-h"])
 
         captured = capsys.readouterr()
-        assert "nmap" in captured.out
-        assert "Service/version scan with default scripts" in captured.out
-        assert "Session inputs:" in captured.out
-        assert "-nosummary" in captured.out
+        rendered = captured.out + captured.err
+        assert "nmap" in rendered
+        assert "Service/version scan with default scripts" in rendered
+        assert "Session inputs:" in rendered
+        assert "-nosummary" in rendered
 
     def test_web_cli_tool_help_uses_specific_tool(self, session, capsys):
         with pytest.MonkeyPatch.context() as monkeypatch:
@@ -29,9 +30,10 @@ class TestModuleToolHelp:
         web.run(["-headerscan", "-h"])
 
         captured = capsys.readouterr()
-        assert "headerscan" in captured.out
-        assert "Scan HTTP security headers using shcheck.py" in captured.out
-        assert "Flags:" in captured.out
+        rendered = captured.out + captured.err
+        assert "headerscan" in rendered
+        assert "Scan HTTP security headers using shcheck.py" in rendered
+        assert "Flags:" in rendered
 
 
 class TestFileHelp:
@@ -74,9 +76,10 @@ class TestTopLevelCliHelp:
 
         assert excinfo.value.code == 0
         captured = capsys.readouterr()
-        assert "nmap" in captured.out
-        assert "Command template:" in captured.out
-        assert "Infrastructure Module" not in captured.out
+        rendered = captured.out + captured.err
+        assert "nmap" in rendered
+        assert "Command template:" in rendered
+        assert "Infrastructure Module" not in rendered
 
     def test_red_py_routes_headerscan_help_without_module_fallback(self, monkeypatch, capsys):
         monkeypatch.setattr(sys, "argv", ["red.py", "-w", "-headerscan", "-h"])
@@ -86,9 +89,10 @@ class TestTopLevelCliHelp:
 
         assert excinfo.value.code == 0
         captured = capsys.readouterr()
-        assert "headerscan" in captured.out
-        assert "Flags:" in captured.out
-        assert "Web Reconnaissance Module" not in captured.out
+        rendered = captured.out + captured.err
+        assert "headerscan" in rendered
+        assert "Flags:" in rendered
+        assert "Web Reconnaissance Module" not in rendered
 
     def test_red_py_auto_detects_headerscan_help_without_module_flag(self, monkeypatch, capsys):
         monkeypatch.setattr(sys, "argv", ["red.py", "-headerscan", "-h"])
@@ -98,9 +102,10 @@ class TestTopLevelCliHelp:
 
         assert excinfo.value.code == 0
         captured = capsys.readouterr()
-        assert "headerscan" in captured.out
-        assert "Flags:" in captured.out
-        assert "Red Team Pentest Helper" not in captured.out
+        rendered = captured.out + captured.err
+        assert "headerscan" in rendered
+        assert "Flags:" in rendered
+        assert "Red Team Pentest Helper" not in rendered
 
     def test_red_py_main_help_mentions_no_summary_flag(self, monkeypatch, capsys):
         monkeypatch.setattr(sys, "argv", ["red.py", "-h"])
@@ -111,3 +116,4 @@ class TestTopLevelCliHelp:
         assert excinfo.value.code == 0
         captured = capsys.readouterr()
         assert "--no-summary" in captured.out
+        assert "workflow" not in captured.out.lower()

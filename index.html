@@ -190,50 +190,6 @@
     padding: 4px 12px; border-radius: 6px; margin-bottom: 16px; letter-spacing: 0.05em;
   }
 
-  /* --- VIEW 2: WORKFLOWS --- */
-  .workflows-layout {
-    display: flex; height: 100%; width: 100%;
-  }
-  
-  .wf-sidebar {
-    width: 320px; background: var(--surface); border-right: 1px solid var(--border);
-    padding: 24px; display: flex; flex-direction: column; gap: 12px;
-    overflow-y: auto; z-index: 5;
-  }
-  
-  .wf-sidebar h2 { font-size: 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
-  
-  .wf-nav-item {
-    padding: 16px; background: var(--surface-2); border: 1px solid transparent;
-    border-radius: 12px; cursor: pointer; transition: all 0.2s;
-  }
-  .wf-nav-item:hover { background: var(--surface-3); border-color: var(--border); }
-  .wf-nav-item.active { background: rgba(255, 90, 43, 0.1); border-color: var(--accent); }
-  .wf-nav-item h3 { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
-  .wf-nav-item p { font-size: 11px; color: var(--muted); line-height: 1.5; }
-  .wf-tags { display: flex; gap: 6px; margin-top: 10px; }
-  .wf-tag { font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: 600; text-transform: uppercase; background: var(--border); color: var(--muted); }
-  .wf-tag.mode-continuous { background: rgba(59, 130, 246, 0.2); color: var(--info); }
-  .wf-tag.mode-project { background: rgba(16, 185, 129, 0.2); color: var(--good); }
-  .wf-tag.profile-aggressive { background: rgba(245, 158, 11, 0.2); color: var(--warn); }
-  .wf-tag.profile-cautious { background: rgba(148, 163, 184, 0.2); color: var(--muted); }
-
-  .wf-main {
-    flex: 1; padding: 40px; overflow-y: auto; background: var(--bg);
-    display: flex; flex-direction: column; align-items: center;
-  }
-  
-  .wf-content { max-width: 1000px; width: 100%; display: none; animation: fadeIn 0.3s ease; }
-  .wf-content.active { display: block; }
-  
-  .wf-header { margin-bottom: 40px; border-bottom: 1px solid var(--border); padding-bottom: 32px; }
-  .wf-header h1 { font-size: 32px; font-weight: 800; margin-bottom: 12px; }
-  .wf-header p { font-size: 16px; color: var(--muted); line-height: 1.6; max-width: 800px; }
-  .wf-meta { display: flex; gap: 16px; margin-top: 24px; }
-  .wf-meta-item { display: flex; flex-direction: column; gap: 4px; }
-  .wf-meta-label { font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 700; letter-spacing: 0.05em; }
-  .wf-meta-value { font-size: 14px; font-weight: 600; background: var(--surface-2); padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); }
-
   /* Flow DAG Visualization */
   .dag-container {
     display: flex; gap: 40px; align-items: stretch; overflow-x: auto; padding-bottom: 20px;
@@ -333,7 +289,6 @@
   
   <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('core-flow')">Interactive Map</button>
-    <button class="tab-btn" onclick="switchTab('workflows')">Automated Workflows</button>
   </div>
   
   <div class="ctrl-group" id="canvas-controls">
@@ -378,265 +333,6 @@
     </div>
   </section>
 
-  <!-- VIEW 2: WORKFLOWS -->
-  <section id="workflows" class="view-section">
-    <div class="workflows-layout">
-      <!-- Sidebar -->
-      <div class="wf-sidebar">
-        <h2>Available Workflows</h2>
-        
-        <div class="wf-nav-item active" onclick="showWorkflow('wf-ext-cont', this)">
-          <h3>External Monthly</h3>
-          <p>Recurring external assessment focused on live subdomains.</p>
-          <div class="wf-tags">
-            <span class="wf-tag mode-continuous">Continuous</span>
-            <span class="wf-tag profile-cautious">Cautious</span>
-          </div>
-        </div>
-        
-        <div class="wf-nav-item" onclick="showWorkflow('wf-ext-proj', this)">
-          <h3>External Project</h3>
-          <p>One-time assessment against a single scoped target URL.</p>
-          <div class="wf-tags">
-            <span class="wf-tag mode-project">Project</span>
-            <span class="wf-tag profile-cautious">Cautious</span>
-          </div>
-        </div>
-        
-        <div class="wf-nav-item" onclick="showWorkflow('wf-int-proj', this)">
-          <h3>Internal Blackbox</h3>
-          <p>Aggressive full-scale scan for internal targets.</p>
-          <div class="wf-tags">
-            <span class="wf-tag mode-project">Project</span>
-            <span class="wf-tag profile-aggressive">Aggressive</span>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Main Content -->
-      <div class="wf-main">
-        
-        <!-- Workflow 1: External Continuous -->
-        <div id="wf-ext-cont" class="wf-content active">
-          <div class="dag-container">
-            <div class="dag-depth">
-              <div class="dag-depth-label">Phase 1: Reconnaissance</div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">subfinder_enum</span><span class="dag-node-tool">subfinder</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">subfinder_subs</span></div>
-                </div>
-              </div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">assetfinder_enum</span><span class="dag-node-tool">assetfinder</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">assetfinder_subs</span></div>
-                </div>
-              </div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">crtsh_enum</span><span class="dag-node-tool">crtsh</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">crtsh_subs</span></div>
-                </div>
-              </div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">axfr_attempt</span><span class="dag-node-tool">dig</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">axfr_result</span></div>
-                </div>
-              </div>
-            </div>
-            
-            <div class="dag-depth">
-              <div class="dag-depth-label">Phase 2: Aggregate</div>
-              <div class="dag-node" style="margin-top: 100px;">
-                <div class="dag-node-header"><span class="dag-node-id">merge_subdomains</span><span class="dag-node-tool merge">merge</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">4 lists</span></div>
-                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">all_subdomains</span></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="dag-depth">
-              <div class="dag-depth-label">Phase 3: Probe</div>
-              <div class="dag-node" style="margin-top: 100px;">
-                <div class="dag-node-header"><span class="dag-node-id">httpx_probe</span><span class="dag-node-tool">httpx</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{all_subdomains}}</span></div>
-                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">confirmed_live</span></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="dag-depth">
-              <div class="dag-depth-label">Phase 4: Vulnerability Scan (Per Host)</div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">nuclei_takeover</span><span class="dag-node-tool">nuclei</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{confirmed_live}}</span></div>
-                </div>
-              </div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">exposure_scan</span><span class="dag-node-tool">nuclei</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{confirmed_live}}</span></div>
-                </div>
-              </div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">header_scan</span><span class="dag-node-tool">shcheck</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{confirmed_live}}</span></div>
-                </div>
-              </div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">tls_audit</span><span class="dag-node-tool">testssl</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{confirmed_live}}</span></div>
-                </div>
-              </div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">passive_urls</span><span class="dag-node-tool">waymore</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{TARGET_DOMAIN}}</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Workflow 2: External Project -->
-        <div id="wf-ext-proj" class="wf-content">
-          <div class="dag-container">
-            <div class="dag-depth">
-              <div class="dag-depth-label">Depth 0 (Parallel Execution)</div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">tls_audit</span><span class="dag-node-tool">testssl</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{TARGET}}</span></div>
-                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">tls_findings</span></div>
-                </div>
-              </div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">header_scan</span><span class="dag-node-tool">shcheck</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{TARGET}}</span></div>
-                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">header_findings</span></div>
-                </div>
-              </div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">exposure_scan</span><span class="dag-node-tool">nuclei</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{TARGET}}</span></div>
-                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">exposure_findings</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Workflow 3: Internal Project -->
-        <div id="wf-int-proj" class="wf-content">
-          <div class="dag-container">
-            <div class="dag-depth">
-              <div class="dag-depth-label">Depth 0</div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">probe_http</span><span class="dag-node-tool">httpx</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{scope.domains}}</span></div>
-                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">live_host</span></div>
-                </div>
-              </div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">service_scan</span><span class="dag-node-tool">nmap</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{TARGET}}</span></div>
-                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">service_findings</span></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="dag-depth">
-              <div class="dag-depth-label">Depth 1</div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">crawl</span><span class="dag-node-tool">katana</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{live_host}}</span></div>
-                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">crawled_endpoints</span></div>
-                </div>
-              </div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">fuzz_content</span><span class="dag-node-tool">dirsearch</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{live_host}}</span></div>
-                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">fuzz_paths</span></div>
-                </div>
-              </div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">nuclei_host</span><span class="dag-node-tool">nuclei</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{live_host}}</span></div>
-                </div>
-              </div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">tls_audit</span><span class="dag-node-tool">testssl</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{live_host}}</span></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="dag-depth">
-              <div class="dag-depth-label">Depth 2</div>
-              <div class="dag-node" style="margin-top:30px;">
-                <div class="dag-node-header"><span class="dag-node-id">merge_paths</span><span class="dag-node-tool merge">merge</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{crawled_endpoints}}<br>+ fuzz_paths</span></div>
-                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">all_paths</span></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="dag-depth">
-              <div class="dag-depth-label">Depth 3</div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">param_discover</span><span class="dag-node-tool">arjun</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{all_paths}}</span></div>
-                  <div class="dag-param"><span class="dag-param-key">Out</span><span class="dag-param-val">param_endpoints</span></div>
-                </div>
-              </div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">nuclei_paths</span><span class="dag-node-tool">nuclei</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{all_paths}}</span></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="dag-depth">
-              <div class="dag-depth-label">Depth 4</div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">xss_confirm</span><span class="dag-node-tool">dalfox</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{param_endpoints}}</span></div>
-                </div>
-              </div>
-              <div class="dag-node">
-                <div class="dag-node-header"><span class="dag-node-id">sqli_confirm</span><span class="dag-node-tool">sqlmap</span></div>
-                <div class="dag-node-details">
-                  <div class="dag-param"><span class="dag-param-key">In</span><span class="dag-param-val">{{param_endpoints}}</span></div>
-                </div>
-              </div>
-            </div>
-            
-          </div>
-        </div>
-
-      </div>
-    </div>
-  </section>
-
 </main>
 
 <div class="tooltip" id="tooltip">
@@ -662,14 +358,6 @@ function switchTab(tabId) {
   
   // Toggle zoom controls visibility
   document.getElementById('canvas-controls').style.display = tabId === 'core-flow' ? 'flex' : 'none';
-}
-
-function showWorkflow(wfId, el) {
-  document.querySelectorAll('.wf-nav-item').forEach(item => item.classList.remove('active'));
-  document.querySelectorAll('.wf-content').forEach(content => content.classList.remove('active'));
-  
-  el.classList.add('active');
-  document.getElementById(wfId).classList.add('active');
 }
 
 // --- Canvas Flow Logic ---
@@ -748,7 +436,7 @@ const fileCards = [
 
 const bottomCards = [
   makeCard('core', C.accent, 'CORE', 'Loot Locker', 'Store credentials and hashes found during engagement.', 'loot add admin:Secret123 smb cred\nloot show'),
-  makeCard('core', C.accent, 'CORE', 'Playbooks', 'Run YAML-defined semi-automated workflows.', 'playbook list\nplaybook run recon'),
+  makeCard('core', C.accent, 'CORE', 'Workspace', 'Manage session state, saved targets, and reusable context.', 'workspace save\nworkspace list'),
   makeCard('core', C.accent, 'CORE', 'Runtime Flags', 'Modify command behavior on the fly.', '-p Preview\n-c Copy\n-e Edit'),
 ];
 

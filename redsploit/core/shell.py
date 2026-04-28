@@ -2,7 +2,6 @@ import difflib
 
 from .colors import Colors, log_warn
 from .base_shell import BaseShell
-from ..workflow.manager import WorkflowManager
 
 CORE_COMMANDS = {"use", "set", "show", "exit", "back", "shell", "help", "clear", "options", "workspace"}
 
@@ -263,74 +262,6 @@ class RedShell(BaseShell):
             return [c for c in commands if c.startswith(text)]
         return commands
 
-    def do_list(self, arg):
-        """Shortcut to list available workflows."""
-        self.do_workflow("list")
-
-    def do_run(self, arg):
-        """
-        Shortcut to run a workflow.
-        Usage: run <name> [--target <target>]
-        Example: run external-project.yaml --target https://example.com
-        """
-        if not arg:
-            from .colors import log_error
-            log_error("Usage: run <name> [--target <target>]")
-            return
-        self.do_workflow(f"run {arg}")
-
-    def do_workflow(self, arg):
-        """
-        Run workflow commands or enter workflow module.
-        Usage: workflow [command]
-        Example: workflow list
-                 workflow run internal-project.yaml --target https://example.com
-                 workflow (enters module)
-        """
-        if not arg:
-            self.do_use("workflow")
-            return
-
-        from ..workflow.manager import WorkflowManager
-
-        WorkflowManager(self.session).handle_shell_command(arg)
-
-    def complete_workflow(self, text, line, begidx, endidx):
-        """Autocomplete workflow subcommands, workflow files, and common flags."""
-        from ..workflow.planner import list_workflow_files
-
-        subcommands = ["list", "show", "preview", "build", "run", "runs", "findings", "delta", "adapters"]
-        workflow_files = [path.name for path in list_workflow_files()]
-        flags = ["--workflow", "--target", "--tech", "--depth", "--scan-id", "-q", "--quiet"]
-        tech_values = list(WorkflowManager.TECH_CHOICES)
-        depth_values = list(WorkflowManager.DEPTH_CHOICES)
-
-        parts = line.split()
-        if parts and parts[-1] == "--tech":
-            return [value for value in tech_values if value.startswith(text)]
-
-        if parts and parts[-1] == "--depth":
-            return [value for value in depth_values if value.startswith(text)]
-
-        if len(parts) <= 1 or (len(parts) == 2 and not line.endswith(" ")):
-            return [cmd for cmd in subcommands if cmd.startswith(text)]
-
-        subcommand = parts[1]
-        if subcommand in {"show"}:
-            return [name for name in workflow_files if name.startswith(text)]
-
-        if subcommand in {"preview", "build", "run"}:
-            candidates = workflow_files + flags
-            return [candidate for candidate in candidates if candidate.startswith(text)]
-
-        if subcommand in {"findings"}:
-            return [flag for flag in ["--scan-id"] if flag.startswith(text)]
-
-        if subcommand in {"delta"}:
-            return [flag for flag in ["--target"] if flag.startswith(text)]
-
-        return [flag for flag in flags if flag.startswith(text)]
-
     def do_help(self, arg):
         topic = arg.strip()
         if topic:
@@ -396,4 +327,3 @@ class RedShell(BaseShell):
                 else:
                     formatter.console.print(f"  • [terracotta]{suggestion}[/terracotta]")
         formatter.console.print("\n[dim]Use 'shell <cmd>' to run system commands.[/dim]")
-

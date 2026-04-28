@@ -19,7 +19,6 @@ MODULE_FLAGS = {
     "-a": "ad",
     "-w": "web",
     "-f": "file",
-    "-wf": "workflow",
 }
 VALUE_FLAGS = {"-T", "-U", "-D", "-H", "-I", "-P"}
 EXECUTION_FLAGS = {
@@ -45,7 +44,6 @@ def print_main_help():
     print("  red                         Start the interactive shell")
     print("  red -set [preset flags]     Start the shell with session values preloaded")
     print("  red -T ... -i -nmap         Run one tool directly from the CLI")
-    print("  red workflow ...            Run workflow catalog, preview, or execution")
     print("")
     print(f"{Colors.HEADER}Areas:{Colors.ENDC}")
     print("  -i  Infrastructure           Network scanning and host analysis")
@@ -162,9 +160,6 @@ def _make_module(module_name, session, for_help=False):
         from redsploit.modules.file import FileModule
 
         return FileModule(session)
-    if module_name == "workflow":
-        from redsploit.modules.workflow import WorkflowModule
-        return WorkflowModule(session)
     raise ValueError(f"Unknown module: {module_name}")
 
 
@@ -191,9 +186,6 @@ def _make_shell(module_name, session):
         from redsploit.modules.system import SystemShell
 
         return SystemShell(session)
-    if module_name == "workflow":
-        from redsploit.modules.workflow import WorkflowShell
-        return WorkflowShell(session)
     raise ValueError(f"Unknown shell: {module_name}")
 
 
@@ -238,15 +230,6 @@ def main():
     raw_args = sys.argv[1:]
     args, unknown, module_order = _parse_top_level_args(raw_args)
     
-    # If the first argument is 'workflow', treat it as a module switch
-    if raw_args and raw_args[0] == "workflow":
-        if "workflow" not in module_order:
-            module_order.insert(0, "workflow")
-        if len(raw_args) > 1:
-            unknown = raw_args[1:]
-        else:
-            unknown = []
-
     selected_module = module_order[0] if module_order else _auto_detect_module(unknown)
 
     # Handle Help Manually

@@ -1,50 +1,13 @@
 # Bash completion for red command
 
-_red_workflow_completion() {
-    local cur prev opts
-    cur="${COMP_WORDS[COMP_CWORD]}"
-    prev="${COMP_WORDS[COMP_CWORD-1]}"
-
-    # Workflow subcommands
-    local workflow_cmds="list show preview build run runs findings delta adapters"
-
-    # Workflow files
-    local workflow_files="external-project.yaml internal-project.yaml external-continuous.yaml"
-
-    # If completing the first arg after "workflow"
-    if [[ "${COMP_WORDS[2]}" == "workflow" && "$COMP_CWORD" -eq 3 ]]; then
-        COMPREPLY=( $(compgen -W "$workflow_cmds" -- ${cur}) )
-        return 0
-    fi
-
-    # Subcommand-specific completions
-    local subcmd="${COMP_WORDS[3]}"
-    case "$subcmd" in
-        show|run|preview|build)
-            if [[ "$COMP_CWORD" -eq 4 ]]; then
-                COMPREPLY=( $(compgen -W "$workflow_files" -- ${cur}) )
-                return 0
-            fi
-            ;;
-    esac
-
-    return 0
-}
-
 _red_completion() {
     local cur prev opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    # Delegate to workflow completion if "workflow" is the first argument
-    if [[ "${COMP_WORDS[1]}" == "workflow" ]]; then
-        _red_workflow_completion
-        return 0
-    fi
-
     # Global options
-    local global_opts="-h -T -U -D -H -I -P -i -w -f -set -nosummary --no-summary workflow"
+    local global_opts="-h -T -U -D -H -I -P -i -w -f -set -nosummary --no-summary"
 
     # Common flags for all modules
     local common_opts="-c --copy -p --preview -e --edit -nosummary --no-summary -noauth --noauth"

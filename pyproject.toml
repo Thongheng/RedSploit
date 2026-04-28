@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "redsploit"
 version = "2.1.0"
-description = "Red Team penetration testing CLI tool with interactive shell and workflow automation"
+description = "Red Team penetration testing CLI tool with interactive shell and automation"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
@@ -37,10 +37,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-workflow = [
-    "pydantic>=2.9,<3.0",
-    "PyYAML>=6.0",
-]
 dev = [
     "pytest>=7.0",
     "pytest-mock>=3.0",
@@ -60,6 +56,3 @@ include = ["redsploit*"]
 
 [tool.setuptools.package-data]
 redsploit = ["*.yaml"]
-"redsploit.workflow" = ["*.yaml"]
-"redsploit.workflows" = ["*.yaml"]
-"redsploit.workflow.nuclei-templates" = ["**/*.yaml"]

@@ -18,7 +18,8 @@ class TestSessionSetGet:
     def test_set_invalid_variable_rejected(self, session, capsys):
         session.set("nonexistent_var", "value")
         captured = capsys.readouterr()
-        assert "Invalid variable" in captured.out
+        rendered = captured.out + captured.err
+        assert "Invalid variable" in rendered
         assert session.get("nonexistent_var") == ""
 
     def test_user_auto_split_username_password(self, session):
@@ -52,8 +53,9 @@ class TestSessionSetGet:
     def test_removed_tuning_variables_are_not_settable(self, session, capsys):
         session.set("payload", "linux/x64/shell_reverse_tcp")
         session.set("fileport", "9000")
-        captured = capsys.readouterr().out
-        assert "Invalid variable" in captured
+        captured = capsys.readouterr()
+        rendered = captured.out + captured.err
+        assert "Invalid variable" in rendered
         assert session.get("payload") == ""
         assert session.get("fileport") == ""
 
@@ -73,12 +75,13 @@ class TestSessionSetGet:
         session.set("password", "secret123")
         session.set("hash", "deadbeef")
 
-        session.show_options()
-        captured = capsys.readouterr().out
+        session.show_options(all_vars=True)
+        captured = capsys.readouterr()
+        rendered = captured.out + captured.err
 
-        assert "secret123" not in captured
-        assert "deadbeef" not in captured
-        assert "********" in captured
+        assert "secret123" not in rendered
+        assert "deadbeef" not in rendered
+        assert "********" in rendered
 
 
 class TestPortValidation:

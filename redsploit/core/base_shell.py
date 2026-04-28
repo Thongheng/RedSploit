@@ -320,7 +320,7 @@ class BaseShell(cmd.Cmd):
         Available modules: infra, ad, web, file, shell
         """
         module = arg.strip().lower()
-        if module in ["infra", "ad", "web", "file", "shell", "workflow", "main"]:
+        if module in ["infra", "ad", "web", "file", "shell", "main"]:
             self.session.next_shell = module
             return True
         else:
@@ -328,7 +328,7 @@ class BaseShell(cmd.Cmd):
 
     def complete_use(self, text, line, begidx, endidx):
         """Autocomplete module names for 'use' command"""
-        modules = ["infra", "ad", "web", "file", "shell", "workflow", "main"]
+        modules = ["infra", "ad", "web", "file", "shell", "main"]
         if text:
             return [m for m in modules if m.startswith(text)]
         return modules
@@ -667,7 +667,7 @@ class BaseShell(cmd.Cmd):
             formatter.console.print("  use infra                  Enter a module shell")
             formatter.console.print("  infra nmap                 Run one module command from the main shell")
             formatter.console.print("  options                    Show current session context")
-            formatter.console.print("  loot, workspace, workflow  Use built-in workflow helpers")
+            formatter.console.print("  loot, workspace            Use built-in session helpers")
 
         formatter.console.print("\n[bold]Global Flags[/bold]")
         formatter.console.print(f"{'-c, --copy':<16} Copy command to clipboard without running")
@@ -684,7 +684,7 @@ class BaseShell(cmd.Cmd):
         # Categorize core commands
         navigation_cmds = ["back", "use", "exit", "help", "clear"]
         config_cmds = ["set", "options"]
-        advanced_cmds = ["workspace", "loot", "workflow"]
+        advanced_cmds = ["workspace", "loot"]
         module_select_cmds = ["infra", "ad", "web", "file", "shell"]
         
         module_cmds = []
@@ -875,7 +875,7 @@ class ModuleShell(BaseShell):
         print("")  # Add spacing after panel
 
     def complete_use(self, text, line, begidx, endidx):
-        modules = ["infra", "ad", "web", "file", "shell", "workflow", "main"]
+        modules = ["infra", "ad", "web", "file", "shell", "main"]
         if text:
             return [m for m in modules if m.startswith(text)]
         return modules

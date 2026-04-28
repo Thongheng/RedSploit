@@ -197,112 +197,14 @@ printf '200'
     assert "OpenRouter test passed" in stdout
 
 
-def test_workflow_tool_detection_lists_missing_binaries(tmp_path):
-    install_script = str(INSTALL_SCRIPT)
-    fake_bin = tmp_path / "bin"
-    fake_bin.mkdir()
-    for name in ("python3", "nmap"):
-        stub = fake_bin / name
-        stub.write_text("#!/usr/bin/env bash\nexit 0\n")
-        stub.chmod(0o755)
-
-    stdout = _run_shell(
-        f'''
-        export PATH="{fake_bin}:/usr/bin:/bin"
-        source "{install_script}"
-        list_missing_workflow_tools
-        '''
-    )
-
-    assert "katana" in stdout
-    assert "python3" not in stdout
-    assert "nmap" not in stdout
-
-
-def test_workflow_install_command_prefers_official_httpx_methods(tmp_path):
-    install_script = str(INSTALL_SCRIPT)
-    fake_bin = tmp_path / "bin"
-    fake_bin.mkdir()
-    fake_go = fake_bin / "go"
-    fake_go.write_text("#!/usr/bin/env bash\nexit 0\n")
-    fake_go.chmod(0o755)
-
-    stdout = _run_shell(
-        f'''
-        export PATH="{fake_bin}:/usr/bin:/bin"
-        source "{install_script}"
-        workflow_install_command httpx
-        '''
-    )
-
-    assert "go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest" in stdout
-
-
-def test_workflow_install_command_uses_waymore_official_pipx_route(tmp_path):
-    install_script = str(INSTALL_SCRIPT)
-    fake_bin = tmp_path / "bin"
-    fake_bin.mkdir()
-    fake_pipx = fake_bin / "pipx"
-    fake_pipx.write_text("#!/usr/bin/env bash\nexit 0\n")
-    fake_pipx.chmod(0o755)
-
-    stdout = _run_shell(
-        f'''
-        export PATH="{fake_bin}:/usr/bin:/bin"
-        source "{install_script}"
-        workflow_install_command waymore
-        '''
-    )
-
-    assert "pipx install git+https://github.com/xnl-h4ck3r/waymore.git" in stdout
-
-
-def test_workflow_install_command_uses_pipx_for_shcheck(tmp_path):
-    install_script = str(INSTALL_SCRIPT)
-    fake_bin = tmp_path / "bin"
-    fake_bin.mkdir()
-    fake_pipx = fake_bin / "pipx"
-    fake_pipx.write_text("#!/usr/bin/env bash\nexit 0\n")
-    fake_pipx.chmod(0o755)
-
-    stdout = _run_shell(
-        f'''
-        export PATH="{fake_bin}:/usr/bin:/bin"
-        source "{install_script}"
-        workflow_install_command shcheck.py
-        '''
-    )
-
-    assert "pipx install shcheck" in stdout
-
-
-def test_workflow_install_command_uses_pipx_for_sqlmap(tmp_path):
-    install_script = str(INSTALL_SCRIPT)
-    fake_bin = tmp_path / "bin"
-    fake_bin.mkdir()
-    fake_pipx = fake_bin / "pipx"
-    fake_pipx.write_text("#!/usr/bin/env bash\nexit 0\n")
-    fake_pipx.chmod(0o755)
-
-    stdout = _run_shell(
-        f'''
-        export PATH="{fake_bin}:/usr/bin:/bin"
-        source "{install_script}"
-        workflow_install_command sqlmap
-        '''
-    )
-
-    assert "pipx install sqlmap" in stdout
-
-
-def test_workflow_install_hint_warns_when_no_safe_auto_install_path(tmp_path):
+def test_print_banner_does_not_reference_workflows(tmp_path):
     install_script = str(INSTALL_SCRIPT)
 
     stdout = _run_shell(
         f'''
         source "{install_script}"
-        install_missing_workflow_tools mystery-tool || true
+        print_banner
         '''
     )
 
-    assert "No safe auto-install path for mystery-tool" in stdout
+    assert "workflow" not in stdout.lower()

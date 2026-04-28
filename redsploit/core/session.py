@@ -130,13 +130,6 @@ class Session:
                     },
                 },
             },
-            "workflow_report": {
-                "enabled": True,
-                "include_llm_summary": True,
-                "max_prompt_chars": 10000,
-                "max_step_outputs": 10,
-                "max_findings": 25,
-            },
             "ui": {
                 "rich_enabled": True,
                 "theme": "default",
@@ -460,15 +453,6 @@ class Session:
         if not os.path.exists(log_dir):
             os.makedirs(log_dir, mode=0o700, exist_ok=True)
         return log_dir
-
-    def workflow_data_dir(self) -> str:
-        workspace = self.get("workspace") or "default"
-        path = os.path.join(self.workspace_dir, workspace, "workflow")
-        os.makedirs(path, mode=0o700, exist_ok=True)
-        return path
-
-    def workflow_db_path(self) -> str:
-        return os.path.join(self.workflow_data_dir(), "scan-runs.db")
 
     def get_transfer_port(self) -> str:
         return str(self.config.get("transfer", {}).get("port", 8000))

@@ -257,6 +257,7 @@ def test_passthrough_tool_warns_when_summary_is_unsupported(session, capsys):
         with patch.object(infra, "_run_passthrough") as run_passthrough:
             infra.run_tool("msf")
 
-    captured = capsys.readouterr().out
-    assert "Post-run summary is not supported for infra.msf" in captured
+    captured = capsys.readouterr()
+    rendered = captured.out + captured.err
+    assert "Post-run summary is not supported for infra.msf" in rendered
     assert run_passthrough.called

@@ -49,7 +49,8 @@ class TestCommandGeneration:
         with patch("shutil.which", return_value="/usr/bin/subfinder"):
             web.run_tool("subfinder")
             captured = capsys.readouterr()
-            assert "not set" in captured.out
+            rendered = captured.out + captured.err
+            assert "not set" in rendered
 
 
 class TestWordlistConfig:
@@ -80,7 +81,8 @@ class TestToolCheck:
         session.set("domain", "example.com")
         web.run_tool("subfinder")
         captured = capsys.readouterr()
-        assert "not found" in captured.out
+        rendered = captured.out + captured.err
+        assert "not found" in rendered
 
 
 class TestHeaderscan:
@@ -195,4 +197,5 @@ class TestHeaderscan:
     def test_headerscan_rejects_removed_flags(self, scanner_args, web, capsys):
         web.run_tool("headerscan", scanner_args=scanner_args)
         captured = capsys.readouterr()
-        assert "Unsupported option for headerscan" in captured.out
+        rendered = captured.out + captured.err
+        assert "Unsupported option for headerscan" in rendered

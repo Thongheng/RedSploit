@@ -15,7 +15,8 @@ class TestToolCheck:
     def test_missing_tool_detected(self, mock_which, infra, capsys):
         assert not infra._check_tool("nonexistent_tool")
         captured = capsys.readouterr()
-        assert "not found" in captured.out
+        rendered = captured.out + captured.err
+        assert "not found" in rendered
 
     @patch("shutil.which", return_value="/usr/bin/nmap")
     def test_available_tool_passes(self, mock_which, infra):
@@ -70,7 +71,8 @@ class TestCommandGeneration:
         with patch("shutil.which", return_value="/usr/bin/nmap"):
             infra.run_tool("nmap")
             captured = capsys.readouterr()
-            assert "Target" in captured.out or "target" in captured.out
+            rendered = captured.out + captured.err
+            assert "Target" in rendered or "target" in rendered
 
 
 class TestAuthModes:
