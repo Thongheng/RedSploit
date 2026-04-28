@@ -82,9 +82,10 @@ def get_console() -> Console:
     if _console_instance is None:
         config = _load_ui_config()
         # Use stderr for interactive output to avoid polluting pipes
+        # force_terminal=True ensures Rich Live rendering works in non-TTY environments
         _console_instance = RichTheme.get_console(
             stderr=True,
-            force_terminal=config.get("force_color", False)
+            force_terminal=True
         )
     return _console_instance
 
