@@ -74,7 +74,7 @@ def reset_config_cache() -> None:
 
 def get_console() -> Console:
     """Get or create the global Rich Console instance.
-    
+
     Returns:
         Console: The singleton Rich Console instance
     """
@@ -82,10 +82,13 @@ def get_console() -> Console:
     if _console_instance is None:
         config = _load_ui_config()
         # Use stderr for interactive output to avoid polluting pipes
-        # force_terminal=True ensures Rich Live rendering works in non-TTY environments
+        # Force color output for Rich Live rendering
+        # Use standard color system for better tmux/SSH compatibility
         _console_instance = RichTheme.get_console(
             stderr=True,
-            force_terminal=True
+            force_terminal=True,
+            color_system="standard",  # Use basic 16 colors for max compatibility
+            legacy_windows=False
         )
     return _console_instance
 
