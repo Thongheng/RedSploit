@@ -4,6 +4,8 @@ This module provides the ProgressReporter class that orchestrates workflow
 and step display components during workflow execution.
 """
 
+from __future__ import annotations
+
 import time
 from typing import TYPE_CHECKING, Dict
 
