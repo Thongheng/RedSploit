@@ -304,15 +304,19 @@ workflow_install_command() {
             ;;
         shcheck)
             if has_package_manager pipx; then
-                printf 'pipx install shcheck'
+                printf 'pipx install shcheck || python3 -m pip install --user --break-system-packages shcheck'
                 return 0
             fi
+            printf 'python3 -m pip install --user --break-system-packages shcheck'
+            return 0
             ;;
         arjun)
             if has_package_manager pipx; then
-                printf 'pipx install arjun'
+                printf 'pipx install arjun || python3 -m pip install --user --break-system-packages arjun'
                 return 0
             fi
+            printf 'python3 -m pip install --user --break-system-packages arjun'
+            return 0
             ;;
         dalfox)
             if has_package_manager brew; then
@@ -326,10 +330,10 @@ workflow_install_command() {
             ;;
         dirsearch)
             if has_package_manager pipx; then
-                printf 'pipx install dirsearch'
+                printf 'pipx install dirsearch || python3 -m pip install --user --break-system-packages dirsearch'
                 return 0
             fi
-            printf 'rm -rf "$HOME/.local/share/dirsearch" "$HOME/.local/bin/dirsearch" && mkdir -p "$HOME/.local/share/dirsearch" && git clone --depth 1 https://github.com/maurosoria/dirsearch.git "$HOME/.local/share/dirsearch" && chmod +x "$HOME/.local/share/dirsearch/dirsearch.py" && mkdir -p "$HOME/.local/bin" && ln -sf "$HOME/.local/share/dirsearch/dirsearch.py" "$HOME/.local/bin/dirsearch"'
+            printf 'python3 -m pip install --user --break-system-packages dirsearch'
             return 0
             ;;
         sqlmap)
@@ -339,7 +343,11 @@ workflow_install_command() {
             fi
             ;;
         secretfinder)
-            printf 'rm -rf "$HOME/.local/share/SecretFinder" && mkdir -p "$HOME/.local/share/SecretFinder" "$HOME/.local/bin" && git clone --depth 1 https://github.com/m4ll0k/SecretFinder.git "$HOME/.local/share/SecretFinder" && (python3 -m pip install --break-system-packages -r "$HOME/.local/share/SecretFinder/requirements.txt" || python3 -m pip install -r "$HOME/.local/share/SecretFinder/requirements.txt") && chmod +x "$HOME/.local/share/SecretFinder/SecretFinder.py" && ln -sf "$HOME/.local/share/SecretFinder/SecretFinder.py" "$HOME/.local/bin/secretfinder"'
+            if has_package_manager pipx; then
+                printf 'pipx install git+https://github.com/m4ll0k/SecretFinder.git || python3 -m pip install --user --break-system-packages git+https://github.com/m4ll0k/SecretFinder.git'
+                return 0
+            fi
+            printf 'python3 -m pip install --user --break-system-packages git+https://github.com/m4ll0k/SecretFinder.git'
             return 0
             ;;
     esac

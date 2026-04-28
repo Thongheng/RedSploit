@@ -11,7 +11,10 @@ class WorkflowModule(BaseModule):
     def __init__(self, session):
         super().__init__(session)
         from ..workflow.manager import WorkflowManager
+        from ..workflow.adapters.registry import available_adapters
         self.manager = WorkflowManager(session)
+        # For display in the shell context panel
+        self.TOOLS = available_adapters()
         self._check_httpx()
 
     def _check_httpx(self):

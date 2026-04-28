@@ -81,7 +81,9 @@ def get_console() -> Console:
     global _console_instance
     if _console_instance is None:
         config = _load_ui_config()
+        # Use stderr for interactive output to avoid polluting pipes
         _console_instance = RichTheme.get_console(
+            stderr=True,
             force_terminal=config.get("force_color", False)
         )
     return _console_instance

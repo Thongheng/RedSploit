@@ -785,7 +785,7 @@ def _persist_special_findings(
 
 
 def _should_skip_missing_tool(step: StepRun) -> bool:
-    return step.id in _OPTIONAL_MISSING_TOOL_STEPS
+    return step.id in _OPTIONAL_MISSING_TOOL_STEPS or (step.tool and step.tool in _OPTIONAL_MISSING_TOOL_STEPS)
 
 
 def _execute_merge_step(

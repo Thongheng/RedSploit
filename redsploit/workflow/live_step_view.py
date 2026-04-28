@@ -32,7 +32,7 @@ class LiveStepView:
         self._live = Live(
             self._build_table(),
             console=self._console,
-            refresh_per_second=4,
+            refresh_per_second=10,
             transient=False,
             auto_refresh=True,
         )
@@ -88,78 +88,84 @@ class LiveStepView:
         return SPINNERS[self._spinner_idx]
 
     def _build_table(self) -> Table:
-        table = Table(
-            box=None,
-            show_header=True,
-            header_style="bold #e05a2f",
-            collapse_padding=True,
-            pad_edge=False,
-        )
-        table.add_column("", width=3)           # Icon
-        table.add_column("Step", width=20)      # Step ID
-        table.add_column("Tool", width=15)      # Tool
-        table.add_column("Time", width=8)       # Duration
-        table.add_column("Progress", width=8)   # [1/14]
-        table.add_column("Activity", ratio=1)   # Last line or status
-
-        spinner = self._get_spinner_char()
-        
-        with self._lock:
-            rows = dict(self._rows)
-            total = self._total
-            done_count = sum(1 for r in rows.values() if r["status"] in {"complete", "failed", "skipped"})
-
-        if not rows:
-            # Show a placeholder if no steps have started yet
-            table.add_row(
-                Text(spinner, style="cyan"),
-                Text("Initializing...", style="dim italic"),
-                Text("", style="dim"),
-                Text("", style="dim"),
-                Text(f"[0/{total}]", style="dim"),
-                Text("Preparing engine...", style="dim italic")
+        try:
+            table = Table(
+                box=None,
+                show_header=True,
+                header_style="bold #e05a2f",
+                collapse_padding=True,
+                pad_edge=False,
             )
-            return table
+            table.add_column("", width=3)           # Icon
+            table.add_column("Step", width=20)      # Step ID
+            table.add_column("Tool", width=15)      # Tool
+            table.add_column("Time", width=8)       # Duration
+            table.add_column("Progress", width=8)   # [1/14]
+            table.add_column("Activity", ratio=1)   # Last line or status
 
-        i = 0
-        for step_id, row in rows.items():
-            i += 1
-            status = row["status"]
-            progress_text = f"[{i}/{total}]" if total > 0 else f"[{i}]"
+            spinner = self._get_spinner_char()
             
-            if status == "running":
-                icon = Text(spinner, style="cyan")
-                sid = Text(step_id, style="bold cyan")
-                tool = Text(row["tool"], style="dim")
-                elapsed = time.monotonic() - row["start"]
-                dur = Text(f"{elapsed:.1f}s", style="dim")
-                prog = Text(progress_text, style="cyan")
-                last = Text(row["last_line"], style="dim", no_wrap=True)
-            elif status == "complete":
-                icon = Text("✓", style="bold green")
-                sid = Text(step_id, style="green")
-                tool = Text(row["tool"], style="dim")
-                dur = Text(row["duration"] or "", style="dim")
-                prog = Text(progress_text, style="dim")
-                cnt = row["output_count"]
-                last = Text(f"{cnt} output(s)" if cnt else "done", style="dim")
-            elif status == "failed":
-                icon = Text("✗", style="bold red")
-                sid = Text(step_id, style="red")
-                tool = Text(row["tool"], style="dim")
-                dur = Text(row["duration"] or "", style="dim")
-                prog = Text(progress_text, style="red dim")
-                last = Text(row["error"] or "failed", style="red dim", no_wrap=True)
-            elif status == "skipped":
-                icon = Text("–", style="dim")
-                sid = Text(step_id, style="dim")
-                tool = Text(row["tool"], style="dim")
-                dur = Text("", style="dim")
-                prog = Text(progress_text, style="dim")
-                last = Text("skipped", style="dim")
-            else:
-                continue
+            with self._lock:
+                rows = dict(self._rows)
+                total = self._total
 
-            table.add_row(icon, sid, tool, dur, prog, last)
+            if not rows:
+                # Show a placeholder if no steps have started yet
+                table.add_row(
+                    Text(spinner, style="cyan"),
+                    Text("Initializing...", style="dim italic"),
+                    Text("", style="dim"),
+                    Text("", style="dim"),
+                    Text(f"[0/{total}]", style="dim"),
+                    Text("Preparing engine...", style="dim italic")
+                )
+                return table
 
-        return table
+            i = 0
+            for step_id, row in rows.items():
+                i += 1
+                status = row["status"]
+                progress_text = f"[{i}/{total}]" if total > 0 else f"[{i}]"
+                
+                if status == "running":
+                    icon = Text(spinner, style="cyan")
+                    sid = Text(step_id, style="bold cyan")
+                    tool = Text(row["tool"], style="dim")
+                    elapsed = time.monotonic() - row["start"]
+                    dur = Text(f"{elapsed:.1f}s", style="dim")
+                    prog = Text(progress_text, style="cyan")
+                    last = Text(row["last_line"], style="dim", no_wrap=True)
+                elif status == "complete":
+                    icon = Text("✓", style="bold green")
+                    sid = Text(step_id, style="green")
+                    tool = Text(row["tool"], style="dim")
+                    dur = Text(row["duration"] or "", style="dim")
+                    prog = Text(progress_text, style="dim")
+                    cnt = row["output_count"]
+                    last = Text(f"{cnt} output(s)" if cnt else "done", style="dim")
+                elif status == "failed":
+                    icon = Text("✗", style="bold red")
+                    sid = Text(step_id, style="red")
+                    tool = Text(row["tool"], style="dim")
+                    dur = Text(row["duration"] or "", style="dim")
+                    prog = Text(progress_text, style="red dim")
+                    last = Text(row["error"] or "failed", style="red dim", no_wrap=True)
+                elif status == "skipped":
+                    icon = Text("–", style="dim")
+                    sid = Text(step_id, style="dim")
+                    tool = Text(row["tool"], style="dim")
+                    dur = Text("", style="dim")
+                    prog = Text(progress_text, style="dim")
+                    last = Text("skipped", style="dim")
+                else:
+                    continue
+
+                table.add_row(icon, sid, tool, dur, prog, last)
+
+            return table
+        except Exception as e:
+            # Fallback table if rendering fails
+            err_table = Table(box=None)
+            err_table.add_column("Error")
+            err_table.add_row(f"TUI Error: {e}")
+            return err_table

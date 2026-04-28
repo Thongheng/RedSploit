@@ -46,7 +46,7 @@ ADAPTERS: dict[str, ToolAdapter] = {
     "waymore":       WaymoreAdapter("waymore",         "waymore",         "Passive archive URL discovery"),
     "theharvester":  ToolAdapter("theharvester",       "theharvester",    "OSINT harvesting"),
     "testssl":       TargetAppendAdapter("testssl",    "testssl.sh",      "TLS configuration audit"),
-    "shcheck":       ShcheckAdapter("shcheck",         "shcheck",         "HTTP security header scanner"),
+    "shcheck":       ShcheckAdapter("shcheck",         "shcheck.py",      "HTTP security header scanner"),
     "arjun":         JsonUrlAdapter("arjun",           "arjun",           "Hidden parameter discovery", target_flag="-u"),
     "dalfox":        ToolAdapter("dalfox",             "dalfox",          "XSS confirmation"),
     "sqlmap":        JsonUrlAdapter("sqlmap",          "sqlmap",          "SQL injection confirmation", target_flag="-u"),

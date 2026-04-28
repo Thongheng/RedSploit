@@ -68,8 +68,9 @@ class CliLogPublisher(LogPublisher):
             if cb:
                 cb(step_id, raw)
         else:
-            # Non-tool messages (warnings, errors) always show
-            print(raw, file=sys.stderr, flush=True)
+            # Non-tool messages (warnings, errors) always show through the same console
+            from redsploit.core.rich_output import get_console
+            get_console().print(raw)
     
     def reset_step_tracking(self, step_id: str) -> None:
         """Reset tracking for a new step."""
