@@ -42,6 +42,7 @@ def _load_ui_config() -> dict:
         "max_table_rows": 1000,
         "panel_padding": 1,
         "show_icons": True,
+        "max_output_lines": 10000,  # Maximum lines to show per step before truncation
     }
     
     # Try to load from config.yaml

@@ -15,15 +15,15 @@ logger = logging.getLogger(__name__)
 
 def _get_workflow_dir() -> Path:
     """Resolve workflow directory for both source and pip-installed layouts."""
-    # Source layout: redsploit/workflow/worker/ -> project_root/workflows
-    source_dir = Path(__file__).resolve().parents[3] / "workflows"
-    if source_dir.exists():
-        return source_dir
-
     # Package layout: workflows bundled inside the redsploit package
     package_dir = Path(__file__).resolve().parents[2] / "workflows"
     if package_dir.exists():
         return package_dir
+
+    # Source layout legacy fallback: project_root/workflows
+    source_dir = Path(__file__).resolve().parents[3] / "workflows"
+    if source_dir.exists():
+        return source_dir
 
     # Fallback: current working directory
     cwd_dir = Path.cwd() / "workflows"
@@ -248,6 +248,18 @@ def _resolve_dependency_ids(
     return dependency_ids
 
 
+def _resolve_merge_dependency_ids(
+    args: list[str],
+    available_outputs: dict[str, str],
+) -> list[str]:
+    dependency_ids: list[str] = []
+    for ref in args:
+        producer = available_outputs.get(ref)
+        if producer and producer not in dependency_ids:
+            dependency_ids.append(producer)
+    return dependency_ids
+
+
 def build_scan_plan(workflow: WorkflowDefinition, target: str) -> ScanPlan:
     scope_domains = _resolve_scope_values(workflow.scope.domains, target)
     scope_exclude = _resolve_scope_values(workflow.scope.exclude, target)
@@ -270,6 +282,10 @@ def build_scan_plan(workflow: WorkflowDefinition, target: str) -> ScanPlan:
             else None
         )
         dependency_step_ids = _resolve_dependency_ids(resolved_step.input_ref, available_outputs)
+        if resolved_step.kind == "merge":
+            for dependency_id in _resolve_merge_dependency_ids(resolved_step.args, available_outputs):
+                if dependency_id not in dependency_step_ids:
+                    dependency_step_ids.append(dependency_id)
         planned_args = [_resolve_template_string(arg, context) for arg in resolved_step.args]
         if resolved_step.kind == "merge" and isinstance(resolved_step.input_ref, list):
             planned_args = [

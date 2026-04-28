@@ -37,16 +37,16 @@ def test_merge_step_deduplicates_discovery_outputs(session):
             store.complete_step(run.id, dep_id, output_items=["https://example.com"])
 
     for step_id, output_items in (
-        ("fuzz_dirsearch", ["https://example.com/admin", "https://example.com/login"]),
-        ("fuzz_feroxbuster", ["https://example.com/admin", "https://example.com/api"]),
+        ("crawl", ["https://example.com/admin", "https://example.com/login"]),
+        ("fuzz_content", ["https://example.com/admin", "https://example.com/api"]),
     ):
         current = store.get_run(run.id)
         step = next(step for step in current.steps if step.id == step_id)
         store.start_step(run.id, step.id)
         store.complete_step(run.id, step.id, output_items=output_items)
 
-    updated_run = execute_current_step(store, run.id, step_id="merge_fuzz_paths")
-    merge_step = next(step for step in updated_run.steps if step.id == "merge_fuzz_paths")
+    updated_run = execute_current_step(store, run.id, step_id="merge_paths")
+    merge_step = next(step for step in updated_run.steps if step.id == "merge_paths")
 
     assert merge_step.status == "complete"
     assert set(merge_step.output_items) == {

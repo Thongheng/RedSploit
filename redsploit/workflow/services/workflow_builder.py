@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Literal
 
 import yaml
@@ -72,6 +73,10 @@ def build_project_workflow(
     *,
     available_tools: set[str] | None = None,
 ) -> GeneratedWorkflow:
+    """
+    Build a workflow by reading the YAML file and modifying it based on tech/depth options.
+    This ensures YAML files are the single source of truth.
+    """
     workflow = request.workflow
     if workflow in CONTINUOUS_WORKFLOWS:
         return GeneratedWorkflow(
@@ -84,481 +89,134 @@ def build_project_workflow(
     if workflow not in PROJECT_WORKFLOWS:
         raise ValueError(f"Unsupported workflow '{workflow}' for project workflow builder.")
 
-    profile = "aggressive" if workflow == "internal-project.yaml" else (
-        "cautious" if request.waf_present else "aggressive"
+    # Read the base workflow YAML file
+    workflow_path = _find_workflow_file(workflow)
+    if not workflow_path or not workflow_path.exists():
+        raise FileNotFoundError(f"Workflow file '{workflow}' not found")
+    
+    with open(workflow_path, 'r', encoding='utf-8') as f:
+        workflow_data = yaml.safe_load(f)
+    
+    # Modify workflow based on tech/depth options
+    _apply_tech_depth_modifications(
+        workflow_data,
+        technology_profile=request.technology_profile,
+        test_depth=request.test_depth,
+        waf_present=request.waf_present,
+        is_internal=workflow == "internal-project.yaml",
     )
-    name = _workflow_name(workflow, request.technology_profile, request.test_depth)
-    steps = _project_steps(
+    
+    # Generate explanations
+    explanations = _generate_explanations(
         workflow=workflow,
         technology_profile=request.technology_profile,
         test_depth=request.test_depth,
         waf_present=request.waf_present,
-        available_tools=available_tools,
     )
-    payload = {
-        "name": name,
-        "mode": "project",
-        "profile": profile,
-        "version": "generated-2",
-        "scope": {"domains": ["{{TARGET}}"]},
-        "steps": steps,
-    }
+    
+    # Update workflow name
+    name = _workflow_name(workflow, request.technology_profile, request.test_depth)
+    workflow_data["name"] = name
+    
+    # Convert back to YAML
+    content = yaml.dump(workflow_data, default_flow_style=False, sort_keys=False)
+    
     return GeneratedWorkflow(
-        workflow_file=_generated_workflow_file(workflow, request.technology_profile, request.test_depth),
+        workflow_file=f"generated:{workflow}:{request.technology_profile}:{request.test_depth}",
         workflow_name=name,
         builder_enabled=True,
-        content=yaml.safe_dump(payload, sort_keys=False),
-        explanations=_explanations(request.technology_profile, request.test_depth, request.waf_present),
+        content=content,
+        explanations=explanations,
     )
 
 
-def _project_steps(
+def _find_workflow_file(workflow_name: str) -> Path | None:
+    """Resolve the canonical workflow file used by the runtime."""
+    from redsploit.workflow.worker.executor import resolve_workflow_path
+
+    try:
+        return resolve_workflow_path(workflow_name, allow_local_paths=False)
+    except FileNotFoundError:
+        return None
+
+
+def _apply_tech_depth_modifications(
+    workflow_data: dict,
+    *,
+    technology_profile: str,
+    test_depth: str,
+    waf_present: bool,
+    is_internal: bool,
+) -> None:
+    """
+    Modify workflow data in-place based on tech/depth options.
+    Only modifies what's necessary - keeps everything else from YAML.
+    """
+    steps = workflow_data.get("steps", [])
+    
+    for step in steps:
+        step_id = step.get("id", "")
+        
+        # Update file extensions based on tech profile
+        if "args" in step:
+            args = step["args"]
+            for i, arg in enumerate(args):
+                if arg == "-e" and i + 1 < len(args):
+                    # Update extensions for fuzzing tools
+                    args[i + 1] = TECH_EXTENSIONS.get(technology_profile, TECH_EXTENSIONS["generic"])
+                elif arg == "-x" and i + 1 < len(args):
+                    # feroxbuster uses -x
+                    args[i + 1] = TECH_EXTENSIONS.get(technology_profile, TECH_EXTENSIONS["generic"])
+        
+        # Update crawl depth
+        if step_id == "crawl" and "args" in step:
+            args = step["args"]
+            for i, arg in enumerate(args):
+                if arg == "-depth" and i + 1 < len(args):
+                    args[i + 1] = CRAWL_DEPTHS.get(test_depth, "2")
+        
+        # Update wordlists based on depth
+        if "args" in step:
+            args = step["args"]
+            for i, arg in enumerate(args):
+                if arg == "-w" and i + 1 < len(args):
+                    # Check if it's a wordlist path
+                    if "seclists" in args[i + 1].lower():
+                        args[i + 1] = WORDLISTS.get(test_depth, WORDLISTS["normal"])
+        
+        # Update rate limits based on depth (for internal workflows)
+        if is_internal and "args" in step:
+            args = step["args"]
+            for i, arg in enumerate(args):
+                if arg == "-rate-limit" and i + 1 < len(args):
+                    args[i + 1] = DEPTH_RATE_LIMITS.get(test_depth, "15")
+
+
+def _generate_explanations(
     *,
     workflow: str,
-    technology_profile: TechnologyProfile,
-    test_depth: TestDepth,
-    waf_present: bool = True,
-    available_tools: set[str] | None,
-) -> list[dict[str, object]]:
-    is_internal = workflow == "internal-project.yaml"
-    is_external = not is_internal
-    rate_limit = DEPTH_RATE_LIMITS[test_depth]
-    extensions = TECH_EXTENSIONS[technology_profile]
-    wordlist = WORDLISTS[test_depth]
-    crawl_depth = CRAWL_DEPTHS[test_depth]
-    steps: list[dict[str, object]] = []
-
-    # ── Depth 0 ──────────────────────────────────────────────────────────────
-
-    if is_internal:
-        # ── Internal: liveness gate + service fingerprint ──────────────────────
-        steps.append({
-            "id": "probe_http",
-            "tool": "httpx",
-            "input": "{{scope.domains}}",
-            "args": ["-silent", "-status-code", "-tech-detect", "-title",
-                     "-follow-redirects", "-json", "-timeout", "10"],
-            "output": "live_host",
-            "on_empty": "stop",
-            "on_failure": "stop",
-            "timeout_seconds": 30,
-        })
-        steps.append({
-            "id": "service_scan",
-            "tool": "nmap",
-            "input": "{{TARGET}}",
-            "args": [
-                "-sV", "-p",
-                "80,443,8080,8443,8888,8000,8001,3000,4000,5000,9090,9091,"
-                "9200,9300,27017,6379,5432,3306,1433,2375,4848,7001,15672,5601",
-                "--open", "-T4", "-Pn",
-            ],
-            "output": "service_findings",
-            "on_empty": "warn",
-            "on_failure": "warn",
-            "timeout_seconds": 300,
-        })
-        probe_input = "{{live_host}}"
-    else:
-        # ── External: WAF present — 3 parallel recon steps, no active scanning ──
-        # No port scan, no passive recon, no liveness filtering.
-        # All 3 steps receive TARGET directly. No sequential chain.
-        steps.append({
-            "id": "tls_audit",
-            "tool": "testssl",
-            "input": "{{TARGET}}",
-            "args": [
-                "-f",
-                "--quiet", "--color", "0", "--warnings", "batch",
-            ],
-            "output": "tls_findings",
-            "on_empty": "warn",
-            "on_failure": "warn",
-            "timeout_seconds": 180,
-        })
-        steps.append({
-            "id": "header_scan",
-            "tool": "shcheck",
-            "input": "{{TARGET}}",
-            "args": ["-d", "{{TARGET}}", "--json"],
-            "output": "header_findings",
-            "on_empty": "warn",
-            "on_failure": "warn",
-        })
-        steps.append({
-            "id": "exposure_scan",
-            "tool": "nuclei",
-            "input": "{{TARGET}}",
-            "args": [
-                "-silent",
-                "-t", "{{NUCLEI_TEMPLATES_PATH}}/external/base-exposure.yaml",
-                "-t", "{{NUCLEI_TEMPLATES_PATH}}/external/tech/{{TECH_PROFILE}}.yaml",
-                "-u", "{{TARGET}}",
-            ],
-            "output": "exposure_findings",
-            "on_empty": "warn",
-            "on_failure": "warn",
-            "timeout_seconds": 300,
-        })
+    technology_profile: str,
+    test_depth: str,
+    waf_present: bool,
+) -> list[str]:
+    """Generate explanations for the workflow modifications."""
+    explanations = []
+    
+    explanations.append(f"Technology profile: {technology_profile}")
+    explanations.append(f"Test depth: {test_depth}")
+    
+    if workflow == "external-project.yaml":
         if waf_present:
-            # WAF present — recon only, stop here
-            return steps
-
-        # ── External, no WAF — full active pipeline with conservative rate limits ──
-        # WAF-safe rate limits applied throughout (5 req/s max).
-        # Mirrors internal pipeline but cautious profile: lower threads, rate-limited.
-        waf_rate = "5"
-
-        steps.append({
-            "id": "probe_http",
-            "tool": "httpx",
-            "input": "{{scope.domains}}",
-            "args": ["-silent", "-status-code", "-tech-detect", "-title",
-                     "-follow-redirects", "-json", "-timeout", "10"],
-            "output": "live_host",
-            "on_empty": "stop",
-            "on_failure": "stop",
-            "timeout_seconds": 30,
-        })
-
-        # Depth 1 — parallel on live_host
-        steps.append({
-            "id": "crawl",
-            "tool": "katana",
-            "input": "{{live_host}}",
-            "args": ["-depth", crawl_depth, "-js-crawl", "-form-extraction",
-                     "-silent", "-rate-limit", waf_rate],
-            "output": "crawled_endpoints",
-            "on_empty": "warn",
-            "on_failure": "warn",
-            "timeout_seconds": 1200 if test_depth == "deep" else 600,
-        })
-        steps.append({
-            "id": "nuclei_host",
-            "tool": "nuclei",
-            "input": "{{live_host}}",
-            "args": [
-                "-silent", "-severity", "low,medium,high,critical",
-                "-rate-limit", waf_rate,
-                "-t", "http/misconfiguration/",
-                "-t", "http/exposures/",
-                "-t", "http/panels/",
-                "-t", "http/misconfiguration/cors-misconfiguration.yaml",
-                "-t", "http/misconfiguration/http-missing-security-headers/",
-            ],
-            "output": "host_findings",
-            "on_empty": "warn",
-            "on_failure": "warn",
-            "timeout_seconds": 300,
-        })
-
-        # Depth 1 — fuzzing
-        has_ferox = test_depth == "deep" and (available_tools is None or "feroxbuster" in available_tools)
-        fuzz_output_key: str
-        if test_depth == "deep":
-            steps.append({
-                "id": "fuzz_dirsearch",
-                "tool": "dirsearch",
-                "input": "{{live_host}}",
-                "args": ["-e", extensions, "-w", wordlist, "-t", "10", "-q",
-                         "--format", "json", "-o", "/dev/stdout"],
-                "output": "dirsearch_paths",
-                "on_empty": "warn",
-                "on_failure": "warn",
-                "timeout_seconds": 900,
-            })
-            if has_ferox:
-                steps.append({
-                    "id": "fuzz_feroxbuster",
-                    "tool": "feroxbuster",
-                    "input": "{{live_host}}",
-                    "args": ["-w", wordlist, "-x", extensions, "-t", "10", "-q",
-                             "--json", "-o", "/dev/stdout", "--no-recursion",
-                             "--rate-limit", waf_rate],
-                    "output": "ferox_paths",
-                    "on_empty": "warn",
-                    "on_failure": "warn",
-                    "timeout_seconds": 900,
-                })
-                steps.append({
-                    "id": "merge_fuzz_paths",
-                    "type": "merge",
-                    "args": ["dirsearch_paths", "ferox_paths"],
-                    "output": "fuzz_paths",
-                    "on_empty": "warn",
-                })
-                fuzz_output_key = "fuzz_paths"
-            else:
-                fuzz_output_key = "dirsearch_paths"
+            explanations.append("WAF present — recon-only mode with rate limiting")
         else:
-            steps.append({
-                "id": "fuzz_content",
-                "tool": "dirsearch",
-                "input": "{{live_host}}",
-                "args": ["-e", extensions, "-w", wordlist, "-t", "10", "-q",
-                         "--format", "json", "-o", "/dev/stdout"],
-                "output": "fuzz_paths",
-                "on_empty": "warn",
-                "on_failure": "warn",
-                "timeout_seconds": 900,
-            })
-            fuzz_output_key = "fuzz_paths"
-
-        # Depth 2 — merge
-        steps.append({
-            "id": "merge_paths",
-            "type": "merge",
-            "args": ["crawled_endpoints", fuzz_output_key],
-            "output": "all_paths",
-            "on_empty": "warn",
-        })
-
-        # Depth 3 — param discovery + path nuclei
-        steps.append({
-            "id": "param_discover",
-            "tool": "arjun",
-            "input": "{{all_paths}}",
-            "args": ["-t", "5", "--rate-limit", waf_rate, "-oJ", "/dev/stdout"],
-            "output": "param_endpoints",
-            "on_empty": "continue",
-            "on_failure": "warn",
-            "timeout_seconds": 900,
-        })
-        steps.append({
-            "id": "nuclei_paths",
-            "tool": "nuclei",
-            "input": "{{all_paths}}",
-            "args": [
-                "-silent", "-severity", "low,medium,high,critical",
-                "-rate-limit", waf_rate,
-                "-t", "http/vulnerabilities/",
-                "-t", "http/exposures/apis/",
-            ],
-            "output": "path_findings",
-            "on_empty": "warn",
-            "on_failure": "warn",
-            "timeout_seconds": 600,
-        })
-
-        # Depth 4 — active confirmation
-        steps.append({
-            "id": "xss_confirm",
-            "tool": "dalfox",
-            "input": "{{param_endpoints}}",
-            "args": ["pipe", "--silence", "--no-spinner", "--deep-domxss",
-                     "--format", "json", "--delay", "200"],
-            "output": "xss_findings",
-            "on_empty": "continue",
-            "on_failure": "warn",
-            "timeout_seconds": 600,
-        })
-        steps.append({
-            "id": "sqli_confirm",
-            "tool": "sqlmap",
-            "input": "{{param_endpoints}}",
-            "args": [
-                "--batch", "--level=2", "--risk=1",
-                "--delay=1",
-                "--output-dir=./sqlmap-{{SCAN_ID}}",
-            ],
-            "output": "sqli_findings",
-            "on_empty": "continue",
-            "on_failure": "warn",
-            "timeout_seconds": 1800,
-        })
-        return steps
-
-    # ── Depth 1 (all parallel, depend on probe output) ────────────────────────
-
-    steps.append({
-        "id": "crawl",
-        "tool": "katana",
-        "input": probe_input,
-        "args": ["-depth", crawl_depth, "-js-crawl", "-form-extraction",
-                 "-silent", "-rate-limit", rate_limit],
-        "output": "crawled_endpoints",
-        "on_empty": "warn",
-        "on_failure": "warn",
-        "timeout_seconds": 1200 if test_depth == "deep" else 600,
-    })
-
-    steps.append({
-        "id": "nuclei_host" if is_internal else "nuclei_live",
-        "tool": "nuclei",
-        "input": probe_input,
-        "args": [
-            "-silent", "-severity", "low,medium,high,critical",
-            "-t", "http/misconfiguration/",
-            "-t", "http/exposures/",
-            "-t", "http/default-logins/",
-            "-t", "http/panels/",
-            "-t", "http/misconfiguration/cors-misconfiguration.yaml",
-            "-t", "http/misconfiguration/http-missing-security-headers/",
-        ],
-        "output": "host_findings",
-        "on_empty": "warn",
-        "on_failure": "warn",
-        "timeout_seconds": 300,
-    })
-
-    steps.append({
-        "id": "tls_audit",
-        "tool": "testssl",
-        "input": probe_input,
-        "args": ["-f", "--quiet", "--color", "0", "--warnings", "batch"],
-        "output": "tls_findings",
-        "on_empty": "warn",
-        "on_failure": "warn",
-        "timeout_seconds": 180,
-    })
-
-    # ── Fuzzing — varies by depth ─────────────────────────────────────────────
-
-    fuzz_output_key: str
+            explanations.append("No WAF — full active testing enabled")
+    
     if test_depth == "deep":
-        # Deep: dirsearch + feroxbuster parallel, then merge
-        has_ferox = available_tools is None or "feroxbuster" in available_tools
-        steps.append({
-            "id": "fuzz_dirsearch",
-            "tool": "dirsearch",
-            "input": probe_input,
-            "args": ["-e", extensions, "-w", wordlist, "-t", "25", "-q",
-                     "--format", "json", "-o", "/dev/stdout"],
-            "output": "dirsearch_paths",
-            "on_empty": "warn",
-            "on_failure": "warn",
-            "timeout_seconds": 900,
-        })
-        if has_ferox:
-            steps.append({
-                "id": "fuzz_feroxbuster",
-                "tool": "feroxbuster",
-                "input": probe_input,
-                "args": ["-w", wordlist, "-x", extensions, "-t", "25", "-q",
-                         "--json", "-o", "/dev/stdout", "--no-recursion"],
-                "output": "ferox_paths",
-                "on_empty": "warn",
-                "on_failure": "warn",
-                "timeout_seconds": 900,
-            })
-            steps.append({
-                "id": "merge_fuzz_paths",
-                "type": "merge",
-                "args": ["dirsearch_paths", "ferox_paths"],
-                "output": "fuzz_paths",
-                "on_empty": "warn",
-            })
-            fuzz_output_key = "fuzz_paths"
-        else:
-            fuzz_output_key = "dirsearch_paths"
-    else:
-        # Normal: dirsearch only
-        steps.append({
-            "id": "fuzz_content",
-            "tool": "dirsearch",
-            "input": probe_input,
-            "args": ["-e", extensions, "-w", wordlist, "-t", "25", "-q",
-                     "--format", "json", "-o", "/dev/stdout"],
-            "output": "fuzz_paths",
-            "on_empty": "warn",
-            "on_failure": "warn",
-            "timeout_seconds": 900,
-        })
-        fuzz_output_key = "fuzz_paths"
-
-    # ── Depth 2 — merge crawl + fuzz ─────────────────────────────────────────
-
-    steps.append({
-        "id": "merge_paths",
-        "type": "merge",
-        "args": ["crawled_endpoints", fuzz_output_key],
-        "output": "all_paths",
-        "on_empty": "warn",
-    })
-
-    # ── Depth 3 (parallel, depend on merge_paths) ─────────────────────────────
-
-    steps.append({
-        "id": "param_discover",
-        "tool": "arjun",
-        "input": "{{all_paths}}",
-        "args": ["-t", "10" if is_internal else "5",
-                 "--rate-limit", rate_limit, "-oJ", "/dev/stdout"],
-        "output": "param_endpoints",
-        "on_empty": "continue",
-        "on_failure": "warn",
-        "timeout_seconds": 900,
-    })
-
-    steps.append({
-        "id": "nuclei_paths",
-        "tool": "nuclei",
-        "input": "{{all_paths}}",
-        "args": [
-            "-silent", "-severity", "low,medium,high,critical",
-            "-t", "http/vulnerabilities/",
-            "-t", "http/exposures/apis/",
-        ],
-        "output": "path_findings",
-        "on_empty": "warn",
-        "on_failure": "warn",
-        "timeout_seconds": 600,
-    })
-
-    # ── Depth 4 (parallel, depend on param_discover) ──────────────────────────
-
-    steps.append({
-        "id": "xss_confirm",
-        "tool": "dalfox",
-        "input": "{{param_endpoints}}",
-        "args": ["pipe", "--silence", "--no-spinner", "--deep-domxss", "--format", "json"],
-        "output": "xss_findings",
-        "on_empty": "continue",
-        "on_failure": "warn",
-        "timeout_seconds": 600,
-    })
-
-    steps.append({
-        "id": "sqli_confirm",
-        "tool": "sqlmap",
-        "input": "{{param_endpoints}}",
-        "args": [
-            "--batch",
-            f"--level={'3' if is_internal else '2'}",
-            f"--risk={'2' if is_internal else '1'}",
-            "--output-dir=./sqlmap-{{SCAN_ID}}",
-            # NOTE: --format=json is NOT a valid sqlmap flag — removed
-        ],
-        "output": "sqli_findings",
-        "on_empty": "continue",
-        "on_failure": "warn",
-        "timeout_seconds": 1800,
-    })
-
-    return steps
+        explanations.append("Deep mode: larger wordlists, deeper crawling, additional fuzzing tools")
+    
+    return explanations
 
 
 def _workflow_name(workflow: str, technology_profile: str, test_depth: str) -> str:
     base = "Internal Project" if workflow == "internal-project.yaml" else "External Project"
     return f"{base} Generated ({technology_profile}, {test_depth})"
-
-
-def _generated_workflow_file(workflow: str, technology_profile: str, test_depth: str) -> str:
-    return f"generated:{workflow}:{technology_profile}:{test_depth}"
-
-
-def _explanations(technology_profile: str, test_depth: str, waf_present: bool = True) -> list[str]:
-    notes = [
-        f"Technology profile '{technology_profile}' sets file extensions for directory fuzzing.",
-        f"Test depth '{test_depth}' controls crawl depth ({CRAWL_DEPTHS[test_depth]}), "
-        f"rate limit ({DEPTH_RATE_LIMITS[test_depth]} req/s), wordlist size, and tool inclusion.",
-        "Generated project workflows are not saved to the workflow catalog.",
-    ]
-    if not waf_present:
-        notes.append(
-            "No WAF detected — full active pipeline enabled with conservative rate limits (5 req/s)."
-        )
-    else:
-        notes.append("WAF present — recon-only mode: tls_audit + header_scan + exposure_scan.")
-    notes.append("Per-step timeouts are set — sqlmap: 1800s, arjun: 900s, katana deep: 1200s.")
-    return notes

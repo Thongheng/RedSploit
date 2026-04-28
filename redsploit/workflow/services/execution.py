@@ -136,7 +136,7 @@ def execute_current_step(
     except subprocess.TimeoutExpired as exc:
         stdout = _timeout_output(exc.stdout)
         err = (
-            f"Step '{step.id}' ({step.tool or step.kind}) timed out after {effective_timeout}s. "
+            f"Step '{step.id}' ({step.tool or step.kind}) timed out after {step_timeout}s. "
             f"Last output: {_truncate(stdout, max_chars=200)!r}. "
             f"Increase scan.default_timeout_seconds in config."
         )

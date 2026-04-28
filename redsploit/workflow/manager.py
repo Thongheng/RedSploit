@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-import os
 import sys
 import threading
 from pathlib import Path
@@ -10,14 +8,13 @@ from time import monotonic
 from redsploit.core.colors import Colors, log_error, log_warn
 
 from .builder import ProjectWorkflowBuildRequest, build_project_workflow
-from .services.workflow_builder import PROJECT_WORKFLOWS, TECH_EXTENSIONS
+from .services.workflow_builder import CONTINUOUS_WORKFLOWS, PROJECT_WORKFLOWS, TECH_EXTENSIONS
 from .config import configure_settings
 from .planner import (
     WorkflowPlanningError,
     build_scan_plan_from_path,
     build_scan_plan_from_text,
     list_workflow_files,
-    load_workflow,
     read_workflow_document,
 )
 from .services.derived_views import derive_delta
@@ -27,19 +24,23 @@ from .services.reporting import WorkflowReportService
 from .services.scan_runs import ScanRunStore
 from .worker.log_publisher import LogPublisher
 from .collapsible_output import CollapsibleOutputManager
+from .progress_reporter import ProgressReporter
 
 
 class CliLogPublisher(LogPublisher):
     """Streams tool stdout/stderr lines to stderr in real-time with collapsible output."""
 
-    MAX_LINES_PER_STEP = 10000  # Show up to 10000 lines per step (effectively unlimited for most tools)
+    DEFAULT_MAX_LINES_PER_STEP = 10000  # Default: show up to 10000 lines per step
     
-    def __init__(self, indent: str = "  ") -> None:
+    def __init__(self, indent: str = "  ", max_lines_per_step: int | None = None) -> None:
         super().__init__()
         self._indent = indent
         self._activity_lock = threading.Lock()
         self._step_activity: dict[str, dict[str, object]] = {}
-        self._output_manager = CollapsibleOutputManager(max_preview_lines=self.MAX_LINES_PER_STEP)
+        
+        # Use provided max_lines or default
+        max_lines = max_lines_per_step if max_lines_per_step is not None else self.DEFAULT_MAX_LINES_PER_STEP
+        self._output_manager = CollapsibleOutputManager(max_preview_lines=max_lines)
 
     def publish(self, scan_id: str, level: str, message: str) -> None:
         super().publish(scan_id, level, message)
@@ -114,297 +115,53 @@ class CliLogPublisher(LogPublisher):
 
 
 class _ProgressReporter:
-    """Prints step transitions for a workflow run to stderr so stdout stays clean."""
-
-    HEARTBEAT_INTERVAL_SECONDS = 10.0
-    STALLED_AFTER_SECONDS = 60.0  # tools like nmap legitimately go silent for 60s+
+    """Wrapper for the new ProgressReporter to maintain backward compatibility."""
 
     def __init__(self) -> None:
+        self._reporter = ProgressReporter()
         self._start = monotonic()
-        self._step_live_stop = threading.Event()
-        self._step_live_thread: threading.Thread | None = None
-        self._active_step_started = 0.0
-        self._first_step = True
-        self._use_fixed_header = self._supports_terminal_control()
-        self._header_lines = 0
-        self._current_run = None
-
-    @staticmethod
-    def _supports_terminal_control() -> bool:
-        """Check if terminal supports ANSI control sequences for fixed header."""
-        # Disable fixed header mode - it causes confusing repeated output
-        return False
-
-    def _elapsed(self) -> str:
-        secs = int(monotonic() - self._start)
-        return f"{secs // 60:02d}:{secs % 60:02d}"
-
-    @staticmethod
-    def _format_seconds(seconds: float) -> str:
-        total = max(0, int(seconds))
-        return f"{total // 60:02d}:{total % 60:02d}"
-
-    @staticmethod
-    def _format_duration_ms(duration_ms: int | None) -> str:
-        if duration_ms is None:
-            return "n/a"
-        return f"{duration_ms / 1000:.1f}s"
-
-    @staticmethod
-    def _status_icon(status: str) -> str:
-        return {
-            "ready":    "○",
-            "running":  "▶",
-            "blocked":  "·",
-            "complete": "✓",
-            "failed":   "✗",
-            "skipped":  "–",
-            "queued":   "◌",
-        }.get(status, "?")
-
-    @staticmethod
-    def _status_color(status: str) -> str:
-        return {
-            "complete": Colors.OKGREEN,
-            "failed":   Colors.FAIL,
-            "running":  Colors.OKBLUE,
-            "skipped":  Colors.DIM,
-            "blocked":  Colors.DIM,
-            "ready":    "",
-        }.get(status, Colors.DIM)
-
-    def _render_step_board(self, run) -> str:
-        lines = []
-        for step in run.steps:
-            icon = self._status_icon(step.status)
-            color = self._status_color(step.status)
-            tool = step.tool or step.kind
-            suffix = ""
-            if step.telemetry is not None and step.status in {"complete", "failed"}:
-                dur = self._format_duration_ms(step.telemetry.duration_ms)
-                out = f"  out:{step.telemetry.output_count}" if step.telemetry.output_count else ""
-                suffix = f"  {Colors.DIM}{dur}{out}{Colors.ENDC}"
-            elif step.status == "failed" and step.error_summary:
-                err = step.error_summary[:50]
-                suffix = f"  {Colors.FAIL}{err}{Colors.ENDC}"
-            lines.append(
-                f"  {color}{icon}{Colors.ENDC}  {step.id:<20} {Colors.DIM}{tool}{Colors.ENDC}{suffix}"
-            )
-        return "\n".join(lines)
 
     def run_header(self, run) -> None:
-        self._current_run = run
-        # Always use simple mode - fixed header causes visual chaos
-        from redsploit.core.rich_output import get_formatter
-        formatter = get_formatter()
-        
-        # Create workflow start panel
-        content = []
-        content.append(f"[bold]{run.workflow_name}[/bold]  [dim][{run.mode}/{run.profile}][/dim]")
-        content.append(f"[warning]Target:[/warning] {run.target_name}")
-        content.append(f"[dim]Steps:[/dim] {len(run.steps)}  [dim]·[/dim]  [dim]ID:[/dim] {run.id}")
-        
-        formatter.panel(
-            "\n".join(content),
-            title="[bold terracotta]Workflow Execution[/bold terracotta]",
-            border_style="terracotta"
-        )
-        
-        print(file=sys.stderr)
-
-    def _setup_fixed_header(self, run) -> None:
-        """Setup a fixed header area at the top of the terminal."""
-        # Clear screen and move cursor to top
-        print("\033[2J\033[H", file=sys.stderr, end="", flush=True)
-        
-        # Render header content
-        header_lines = []
-        header_lines.append("")
-        header_lines.append(
-            f"  {Colors.BOLD}{run.workflow_name}{Colors.ENDC}"
-            f"  {Colors.DIM}[{run.mode}/{run.profile}]{Colors.ENDC}"
-            f"  {Colors.WARNING}{run.target_name}{Colors.ENDC}"
-        )
-        header_lines.append(
-            f"  {Colors.DIM}{len(run.steps)} steps  ·  {run.id}{Colors.ENDC}"
-        )
-        header_lines.append("")
-        header_lines.extend(self._render_step_board(run).split("\n"))
-        header_lines.append("")
-        header_lines.append(f"  {Colors.DIM}{'─' * 70}{Colors.ENDC}")
-        header_lines.append("")
-        
-        for line in header_lines:
-            print(line, file=sys.stderr)
-        
-        self._header_lines = len(header_lines)
-
-    def _update_fixed_header(self) -> None:
-        """Update the fixed header with current run status."""
-        if not self._use_fixed_header or self._current_run is None:
-            return
-        
-        # Save cursor position
-        print("\033[s", file=sys.stderr, end="", flush=True)
-        
-        # Move to top and redraw header
-        print("\033[H", file=sys.stderr, end="", flush=True)
-        
-        header_lines = []
-        header_lines.append("")
-        header_lines.append(
-            f"  {Colors.BOLD}{self._current_run.workflow_name}{Colors.ENDC}"
-            f"  {Colors.DIM}[{self._current_run.mode}/{self._current_run.profile}]{Colors.ENDC}"
-            f"  {Colors.WARNING}{self._current_run.target_name}{Colors.ENDC}"
-        )
-        header_lines.append(
-            f"  {Colors.DIM}{len(self._current_run.steps)} steps  ·  {self._current_run.id}  ·  {self._elapsed()}{Colors.ENDC}"
-        )
-        header_lines.append("")
-        header_lines.extend(self._render_step_board(self._current_run).split("\n"))
-        header_lines.append("")
-        header_lines.append(f"  {Colors.DIM}{'─' * 70}{Colors.ENDC}")
-        header_lines.append("")
-        
-        # Clear and redraw each line
-        for line in header_lines:
-            print(f"\033[K{line}", file=sys.stderr)
-        
-        # Restore cursor position
-        print("\033[u", file=sys.stderr, end="", flush=True)
+        self._reporter.run_header(run)
 
     def step_started(self, run, step, *, publisher: CliLogPublisher | None = None) -> None:
-        self._current_run = run
-        tool = step.tool or step.kind
-        
-        # Reset line tracking for new step
+        self._reporter.step_started(run, step, publisher)
         if publisher is not None:
-            publisher.reset_step_tracking(step.id)
-        
-        from redsploit.core.rich_output import get_formatter
-        formatter = get_formatter()
-        # Rich console.print doesn't support file parameter, use stderr directly
-        import sys
-        old_file = formatter.console.file
-        formatter.console.file = sys.stderr
-        
-        # Add visual separator and step header
-        formatter.console.print(f"\n[dim]{'─' * 80}[/dim]")
-        formatter.console.print(f"  [info]▶[/info]  [bold]{step.id}[/bold]  [dim]{tool}[/dim]")
-        
-        formatter.console.file = old_file
-        # Don't start live updates - they cause confusing repeated output
-        # self._start_step_live_updates(step.id, tool, publisher)
+            print(self._render_step_board(run, publisher), file=sys.stderr, flush=True)
 
     def step_completed(self, step) -> None:
-        self._stop_step_live_updates()
-        telemetry = step.telemetry
-        dur = self._format_duration_ms(telemetry.duration_ms) if telemetry else "n/a"
-        out = telemetry.output_count if telemetry else len(step.output_items)
-        
-        from redsploit.core.rich_output import get_formatter
-        formatter = get_formatter()
-        import sys
-        old_file = formatter.console.file
-        formatter.console.file = sys.stderr
-        formatter.console.print(f"  [success]✓[/success]  [bold]{step.id}[/bold]  [dim]{dur}  ·  {out} output(s)[/dim]")
-        formatter.console.print(f"[dim]{'─' * 80}[/dim]\n")
-        formatter.console.file = old_file
+        self._reporter.step_completed(step)
+        print(self._format_completion(step), file=sys.stderr, flush=True)
 
     def step_failed(self, step) -> None:
-        self._stop_step_live_updates()
-        err = (step.error_summary or "failed")[:80]
-        telemetry = step.telemetry
-        dur = f"  [dim]{self._format_duration_ms(telemetry.duration_ms)}[/dim]" if telemetry else ""
-        
-        from redsploit.core.rich_output import get_formatter
-        formatter = get_formatter()
-        import sys
-        old_file = formatter.console.file
-        formatter.console.file = sys.stderr
-        formatter.console.print(f"  [error]✗[/error]  [bold]{step.id}[/bold]  [error]{err}[/error]{dur}")
-        formatter.console.print(f"[dim]{'─' * 80}[/dim]\n")
-        formatter.console.file = old_file
+        self._reporter.step_failed(step)
+        print(self._format_failure(step), file=sys.stderr, flush=True)
 
     def step_skipped(self, step) -> None:
-        from redsploit.core.rich_output import get_formatter
-        formatter = get_formatter()
-        import sys
-        old_file = formatter.console.file
-        formatter.console.file = sys.stderr
-        formatter.console.print(f"  [dim]–  {step.id}  skipped[/dim]")
-        formatter.console.file = old_file
+        self._reporter.step_skipped(step)
+        print(f"– {step.id} skipped", file=sys.stderr, flush=True)
 
     def run_footer(self, run) -> None:
-        self._stop_step_live_updates()
-        self._current_run = run
-        
-        total = len(run.steps)
-        complete = sum(1 for s in run.steps if s.status == "complete")
-        failed = sum(1 for s in run.steps if s.status == "failed")
-        skipped = sum(1 for s in run.steps if s.status == "skipped")
-        
-        # Use Rich panel for completion summary
-        from redsploit.core.rich_output import get_formatter
-        formatter = get_formatter()
-        
-        status_style = "success" if run.status == "complete" else "error"
-        content = []
-        content.append(f"[{status_style}]{run.status.upper()}[/{status_style}]")
-        content.append(f"\n[dim]Completed:[/dim] {complete}/{total}")
-        if failed:
-            content.append(f"[error]Failed:[/error] {failed}")
-        if skipped:
-            content.append(f"[dim]Skipped:[/dim] {skipped}")
-        content.append(f"[dim]Duration:[/dim] {self._elapsed()}")
-        
-        formatter.panel(
-            "\n".join(content),
-            title="[bold terracotta]Workflow Summary[/bold terracotta]",
-            border_style="terracotta" if run.status == "complete" else "error"
-        )
-        print(file=sys.stderr)
+        self._reporter.run_footer(run)
 
-    def _start_step_live_updates(
-        self,
-        step_id: str,
-        tool_name: str,
-        publisher: CliLogPublisher | None,
-    ) -> None:
-        self._stop_step_live_updates()
-        if publisher is None:
-            return
-        self._active_step_started = monotonic()
-        self._step_live_stop.clear()
+    def finalize_step_output(self, step_id: str, publisher: CliLogPublisher | None = None) -> None:
+        self._reporter.finalize_step_output(step_id, publisher)
 
-        def _heartbeat() -> None:
-            while not self._step_live_stop.wait(self.HEARTBEAT_INTERVAL_SECONDS):
-                activity = publisher.get_step_activity(step_id) or {
-                    "line_count": 0,
-                    "warn_count": 0,
-                    "last_message": "waiting for output",
-                    "idle_seconds": monotonic() - self._active_step_started,
-                }
-                print(
-                    self._format_live_status(
-                        step_id=step_id,
-                        tool_name=tool_name,
-                        elapsed_seconds=monotonic() - self._active_step_started,
-                        activity=activity,
-                    ),
-                    file=sys.stderr,
-                    flush=True,
-                )
+    @staticmethod
+    def _format_clock(seconds: float) -> str:
+        total = max(0, int(seconds))
+        minutes, remainder = divmod(total, 60)
+        hours, minutes = divmod(minutes, 60)
+        if hours:
+            return f"{hours:02d}:{minutes:02d}:{remainder:02d}"
+        return f"{minutes:02d}:{remainder:02d}"
 
-        self._step_live_thread = threading.Thread(target=_heartbeat, daemon=True)
-        self._step_live_thread.start()
-
-    def _stop_step_live_updates(self) -> None:
-        self._step_live_stop.set()
-        if self._step_live_thread is not None:
-            self._step_live_thread.join(timeout=0.2)
-            self._step_live_thread = None
-        self._step_live_stop.clear()
+    @staticmethod
+    def _trim_message(message: str, *, limit: int = 48) -> str:
+        message = " ".join(message.split())
+        if len(message) <= limit:
+            return message
+        return message[: limit - 1] + "…"
 
     def _format_live_status(
         self,
@@ -412,14 +169,104 @@ class _ProgressReporter:
         step_id: str,
         tool_name: str,
         elapsed_seconds: float,
-        activity: dict[str, object],
+        activity: dict[str, object] | None,
     ) -> str:
-        idle_seconds = float(activity.get("idle_seconds", 0.0))
-        elapsed_str = self._format_seconds(elapsed_seconds)
-        # Don't show idle warnings - tools like nmap/nuclei can be silent for long periods
+        line_count = int(activity.get("line_count", 0)) if activity else 0
+        warn_count = int(activity.get("warn_count", 0)) if activity else 0
+        idle_seconds = float(activity.get("idle_seconds", 0.0)) if activity else 0.0
+        last_message = str(activity.get("last_message", "")) if activity else ""
+        state = "stalled" if idle_seconds >= 15 else "active"
+
+        parts = [
+            "⊙",
+            tool_name,
+            state,
+            f"elapsed:{self._format_clock(elapsed_seconds)}",
+            f"lines:{line_count}",
+        ]
+        if warn_count:
+            parts.append(f"warn:{warn_count}")
+        if idle_seconds >= 5:
+            parts.append(f"idle:{self._format_clock(idle_seconds)}")
+        if last_message:
+            parts.append(f"last:{self._trim_message(last_message)}")
+        return " ".join(parts)
+
+    def _render_step_board(self, run, publisher: CliLogPublisher) -> str:
+        lines = ["Step Board"]
+        now = monotonic()
+        for step in run.steps:
+            if step.status == "complete":
+                lines.append(f"✓ {step.id}")
+                continue
+            if step.status == "failed":
+                lines.append(f"✗ {step.id}")
+                continue
+            if step.status == "skipped":
+                lines.append(f"– {step.id}")
+                continue
+            if step.status in {"blocked", "ready", "queued"}:
+                marker = "…" if step.status == "blocked" else "○"
+                lines.append(f"{marker} {step.id}")
+                continue
+
+            tool_name = step.tool or step.kind
+            elapsed = 0.0
+            if step.started_at:
+                try:
+                    from datetime import datetime
+
+                    started = datetime.fromisoformat(step.started_at.replace("Z", "+00:00")).timestamp()
+                    elapsed = max(0.0, now - started)
+                except (ValueError, AttributeError):
+                    elapsed = 0.0
+            activity = publisher.get_step_activity(step.id)
+            lines.append(f"▶ {step.id}")
+            lines.append(
+                "  "
+                + self._format_live_status(
+                    step_id=step.id,
+                    tool_name=tool_name,
+                    elapsed_seconds=elapsed,
+                    activity=activity,
+                )
+            )
+        return "\n".join(lines)
+
+    def _format_completion(self, step) -> str:
+        telemetry = step.telemetry
+        duration = self._format_duration_ms(telemetry.duration_ms if telemetry else None)
+        input_count = telemetry.input_count if telemetry else 0
+        artifact_count = len(step.artifacts)
+        output_count = len(step.output_items)
         return (
-            f"  {Colors.DIM}[{step_id}] running {elapsed_str}{Colors.ENDC}"
+            f"✓ {step.id} {duration} "
+            f"items:{output_count} in:{input_count} artifacts:{artifact_count}"
         )
+
+    def _format_failure(self, step) -> str:
+        telemetry = step.telemetry
+        duration = self._format_duration_ms(telemetry.duration_ms if telemetry else None)
+        exit_code = telemetry.exit_code if telemetry else None
+        parts = [f"✗ {step.id}", duration]
+        if exit_code is not None:
+            parts.append(f"exit:{exit_code}")
+        if step.error_summary:
+            parts.append(self._trim_message(step.error_summary, limit=72))
+        return " ".join(part for part in parts if part)
+
+    @staticmethod
+    def _format_duration_ms(duration_ms: int | None) -> str:
+        if duration_ms is None:
+            return "N/A"
+        if duration_ms < 1000:
+            return f"{duration_ms}ms"
+        duration_seconds = duration_ms / 1000
+        if duration_seconds < 60:
+            return f"{duration_seconds:.1f}s"
+        minutes = int(duration_seconds // 60)
+        seconds = int(duration_seconds % 60)
+        return f"{minutes:02d}:{seconds:02d}"
 
 
 class WorkflowManager:
@@ -691,11 +538,11 @@ class WorkflowManager:
                 if updated_step.status == "complete":
                     # Finalize output to show truncation indicator if needed
                     if publisher is not None:
-                        publisher.finalize_step_output(step_id)
+                        reporter.finalize_step_output(step_id, publisher)
                     reporter.step_completed(updated_step)
                 elif updated_step.status == "failed":
                     if publisher is not None:
-                        publisher.finalize_step_output(step_id)
+                        reporter.finalize_step_output(step_id, publisher)
                     reporter.step_failed(updated_step)
 
             _report_skipped(updated)
@@ -727,27 +574,28 @@ class WorkflowManager:
 
     def _build_generated_if_requested(self, options: dict[str, str], target: str):
         workflow_name = options.get("workflow")
-        if workflow_name in PROJECT_WORKFLOWS:
-            self._prompt_for_missing_generation_options(options, workflow_name)
-
-        if "tech" not in options and "depth" not in options:
-            return None
         if not workflow_name:
             return None
-        request = ProjectWorkflowBuildRequest(
-            target=target,
-            workflow=workflow_name,
-            technology_profile=options.get("tech", "generic"),
-            test_depth=options.get("depth", "normal"),
-            waf_present=options.get("waf", "yes") != "no",
+
+        workflow_basename = Path(workflow_name).name
+        if workflow_basename not in PROJECT_WORKFLOWS and workflow_basename not in CONTINUOUS_WORKFLOWS:
+            return None
+        if workflow_name != workflow_basename:
+            return None
+
+        if workflow_basename in PROJECT_WORKFLOWS:
+            self._prompt_for_missing_generation_options(options, workflow_basename)
+
+        waf_present = options.get("waf", "yes").lower() in {"yes", "y", "true", "1"}
+        return build_project_workflow(
+            ProjectWorkflowBuildRequest(
+                target=target,
+                workflow=workflow_basename,
+                technology_profile=options.get("tech", "generic"),
+                test_depth=options.get("depth", "normal"),
+                waf_present=waf_present,
+            )
         )
-        available = {
-            "httpx", "naabu", "nmap", "katana", "ffuf", "dirsearch",
-            "feroxbuster", "nuclei", "gau", "waymore", "subfinder", "assetfinder",
-            "crtsh", "dig", "theharvester", "testssl", "arjun", "dalfox",
-            "sqlmap", "secretfinder",
-        }
-        return build_project_workflow(request, available_tools=available)
 
     def _prompt_for_missing_generation_options(self, options: dict[str, str], workflow_name: str) -> None:
         if "tech" not in options:

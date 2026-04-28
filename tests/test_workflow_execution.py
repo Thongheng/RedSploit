@@ -154,12 +154,11 @@ def test_parallel_steps_run_independently() -> None:
     plan = build_scan_plan_from_text(content, "example.com")
     run = store.create_run_from_plan(plan, "parallel.yaml")
 
-    # probe ready, a/b blocked, merge is ready (merge steps have no
-    # planned_input; they resolve args at execution time)
+    # probe ready, a/b blocked, merge blocked until both parents complete
     assert run.steps[0].status == "ready"
     assert run.steps[1].status == "blocked"
     assert run.steps[2].status == "blocked"
-    assert run.steps[3].status == "ready"
+    assert run.steps[3].status == "blocked"
 
     store.start_step(run.id, "probe")
     store.complete_step(run.id, "probe", output_items=["https://example.com"])
@@ -172,11 +171,41 @@ def test_parallel_steps_run_independently() -> None:
     store.start_step(run.id, "a")
     store.complete_step(run.id, "a", output_items=["x"])
 
+    updated = store.get_run(run.id)
+    assert updated.steps[3].status == "blocked"
+
     store.start_step(run.id, "b")
     store.complete_step(run.id, "b", output_items=["y"])
 
     updated = store.get_run(run.id)
     assert updated.steps[3].status == "ready"
+
+
+def test_materialized_steps_preserve_failure_policy_and_timeout() -> None:
+    store = ScanRunStore()
+    content = yaml_safe_dump({
+        "name": "Policies",
+        "mode": "project",
+        "profile": "aggressive",
+        "version": "1",
+        "steps": [
+            {
+                "id": "probe",
+                "tool": "httpx",
+                "input": "{{TARGET}}",
+                "args": [],
+                "on_failure": "stop",
+                "timeout_seconds": 42,
+            },
+        ],
+    })
+
+    plan = build_scan_plan_from_text(content, "example.com")
+    run = store.create_run_from_plan(plan, "policies.yaml")
+    step = run.steps[0]
+
+    assert step.on_failure == "stop"
+    assert step.timeout_seconds == 42
 
 
 # ─── Step failure handling ────────────────────────────────────────────────────
@@ -190,7 +219,7 @@ def test_step_failure_stops_scan() -> None:
         "profile": "cautious",
         "version": "1",
         "steps": [
-            {"id": "s1", "tool": "httpx", "input": "{{TARGET}}", "args": [], "output": "o1"},
+            {"id": "s1", "tool": "httpx", "input": "{{TARGET}}", "args": [], "output": "o1", "on_failure": "stop"},
             {"id": "s2", "tool": "nuclei", "input": "{{o1}}", "args": []},
         ],
     })

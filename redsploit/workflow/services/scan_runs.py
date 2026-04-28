@@ -61,6 +61,8 @@ def materialize_scan_run(plan: ScanPlan, workflow_file: str) -> ScanRun:
                 output_key=planned_step.output_key,
                 rule_count=planned_step.rule_count,
                 on_empty=planned_step.on_empty,
+                on_failure=planned_step.on_failure,
+                timeout_seconds=planned_step.timeout_seconds,
                 timeout_per_host=planned_step.timeout_per_host,
                 iterate=planned_step.iterate,
                 skipped=planned_step.skipped,
@@ -86,6 +88,8 @@ def materialize_scan_run(plan: ScanPlan, workflow_file: str) -> ScanRun:
 
 
 def _planned_step_dependencies(planned_step) -> list[str]:
+    if planned_step.dependency_step_ids:
+        return list(planned_step.dependency_step_ids)
     producer = planned_step.planned_input.producer_step_id if planned_step.planned_input else None
     return [producer] if producer else []
 

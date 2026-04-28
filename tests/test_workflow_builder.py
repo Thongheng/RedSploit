@@ -25,10 +25,14 @@ def test_project_builder_generates_php_deep_multi_tool_workflow() -> None:
     assert generated.builder_enabled is True
     assert plan.mode == "project"
     assert plan.profile == "aggressive"
-    assert {"fuzz_dirsearch", "fuzz_feroxbuster", "merge_fuzz_paths"}.issubset(step_by_id)
-    assert "-e" in step_by_id["fuzz_dirsearch"].args
-    assert "php,bak,old,zip,txt,inc,json,html" in step_by_id["fuzz_dirsearch"].args
-    assert step_by_id["merge_fuzz_paths"].kind == "merge"
+    assert {"probe_http", "crawl", "fuzz_content", "merge_paths"}.issubset(step_by_id)
+    assert "-e" in step_by_id["fuzz_content"].args
+    assert "php,bak,old,zip,txt,inc,json,html" in step_by_id["fuzz_content"].args
+    assert step_by_id["crawl"].args[step_by_id["crawl"].args.index("-depth") + 1] == "3"
+    assert step_by_id["fuzz_content"].args[step_by_id["fuzz_content"].args.index("-w") + 1].endswith(
+        "raft-large-directories.txt"
+    )
+    assert step_by_id["merge_paths"].kind == "merge"
     assert "nuclei_paths" in step_by_id
 
 
@@ -70,6 +74,7 @@ def test_project_builder_external_tls_audit_uses_only_weak_cipher_flags() -> Non
         "--warnings",
         "batch",
     ]
+    assert step_by_id["tls_audit"].timeout_seconds == 180
 
 
 def test_catalog_external_project_tls_audit_uses_only_weak_cipher_flags() -> None:
@@ -84,6 +89,8 @@ def test_catalog_external_project_tls_audit_uses_only_weak_cipher_flags() -> Non
         "--warnings",
         "batch",
     ]
+    assert step_by_id["tls_audit"].tool == "testssl"
+    assert step_by_id["tls_audit"].timeout_seconds == 180
 
 
 def test_project_builder_rejects_unknown_project_workflow() -> None:

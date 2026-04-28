@@ -5,6 +5,7 @@ Uses keyboard shortcuts to expand/collapse output inline.
 from __future__ import annotations
 
 import pydoc
+import re
 import select
 import sys
 import termios
@@ -13,12 +14,36 @@ import tty
 from typing import TextIO
 
 
+def sanitize_terminal_output(text: str) -> str:
+    """Sanitize output to prevent terminal injection attacks.
+    
+    Args:
+        text: The text to sanitize
+        
+    Returns:
+        str: Sanitized text safe for terminal display
+    """
+    if not text:
+        return text
+    
+    # Remove dangerous ANSI escape sequences while preserving basic color codes
+    # Remove cursor movement, screen clearing, and other control sequences
+    dangerous_sequences = re.compile(r'\x1b\[[0-9;]*[HJKfABCDsu]')
+    text = dangerous_sequences.sub('', text)
+    
+    # Remove other control characters except newline, tab, and carriage return
+    control_chars = re.compile(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]')
+    text = control_chars.sub('', text)
+    
+    return text
+
+
 class CollapsibleOutput:
     """Manages collapsible output blocks in the terminal with keyboard shortcuts."""
     
-    def __init__(self, max_preview_lines: int = 100, output_stream: TextIO = sys.stderr):
+    def __init__(self, max_preview_lines: int = 100, output_stream: TextIO | None = None):
         self.max_preview_lines = max_preview_lines
-        self.output_stream = output_stream
+        self.output_stream = output_stream or sys.stderr
         self._buffer: list[str] = []
         self._lock = threading.Lock()
         self._total_lines = 0
@@ -26,14 +51,20 @@ class CollapsibleOutput:
         self._is_truncated = False
         
     def add_line(self, line: str) -> None:
-        """Add a line to the buffer."""
+        """Add a line to the buffer.
+        
+        Args:
+            line: The line to add (will be sanitized before display)
+        """
         with self._lock:
             self._buffer.append(line)
             self._total_lines += 1
             
             # Show lines as they come in, up to the limit
             if self._shown_lines < self.max_preview_lines:
-                print(line, file=self.output_stream, flush=True)
+                # Sanitize output before displaying
+                sanitized_line = sanitize_terminal_output(line)
+                print(sanitized_line, file=self.output_stream, flush=True)
                 self._shown_lines += 1
     
     def finalize(self) -> None:
@@ -63,6 +94,17 @@ class CollapsibleOutput:
         """Check if output was truncated."""
         with self._lock:
             return self._is_truncated
+    
+    def get_hidden_line_count(self) -> int:
+        """Get the number of lines hidden by truncation.
+        
+        Returns:
+            int: Number of hidden lines (0 if not truncated)
+        """
+        with self._lock:
+            if self._is_truncated:
+                return max(0, self._total_lines - self.max_preview_lines)
+            return 0
     
     def reset(self) -> None:
         """Reset the buffer for a new output block."""
