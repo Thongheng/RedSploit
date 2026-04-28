@@ -44,30 +44,37 @@ class ProgressReporter:
         sys.stdout.flush()
         sys.stderr.flush()
 
-        # Suppress stdout/stderr during Live to prevent ANSI leaks from subprocess output
+        # Capture real stdout/stderr BEFORE redirecting so the Live console
+        # keeps a direct reference to the actual terminal fd.  If we redirect
+        # first and then call get_console(), Rich's Console.__init__ grabs the
+        # already-replaced sys.stdout (a StringIO) and all Live output goes
+        # into the buffer instead of the terminal → frozen display.
         self._original_stdout: TextIO = sys.stdout
         self._original_stderr: TextIO = sys.stderr
+
+        # Force terminal mode for Live rendering - required for proper display.
+        # Build the live console now, while sys.stdout still points at the real
+        # terminal so Console picks up the correct file handle.
+        from redsploit.core.rich_output import get_console, reset_console
+        reset_console()
+        live_console = get_console(force_color_override=True)
+        self.formatter.console = live_console
+
+        # Clear any residual ANSI codes from terminal before we start Live.
+        import os
+        if hasattr(os, 'isatty') and os.isatty(self._original_stdout.fileno() if hasattr(self._original_stdout, 'fileno') else 1):
+            self._original_stdout.write('\033[2J\033[H')
+            self._original_stdout.flush()
+
+        # Now redirect stdout/stderr to buffers so subprocess ANSI noise doesn't
+        # bleed into the terminal and corrupt the Live rendering.
         self._stdout_buffer = io.StringIO()
         self._stderr_buffer = io.StringIO()
         sys.stdout = self._stdout_buffer
         sys.stderr = self._stderr_buffer
 
-        # Ensure terminal is ready for Live
+        # Small pause to let the terminal settle before Live starts.
         time.sleep(0.05)
-        # Force terminal mode for Live rendering - required for proper display
-        from redsploit.core.rich_output import get_console, reset_console
-        # Reset console to allow recreation with force_terminal=True
-        reset_console()
-        live_console = get_console(force_color_override=True)
-        # Update formatter's console reference to use the new console
-        self.formatter.console = live_console
-
-        # Clear any residual ANSI codes from terminal after header
-        import os
-        if hasattr(os, 'isatty') and os.isatty(1):
-            # Clear screen and move cursor to top-left
-            sys.stdout.write('\033[2J\033[H')
-            sys.stdout.flush()
 
         self._live_view = LiveStepView(live_console, total_steps=len(run.steps))
         self._live_view.__enter__()
